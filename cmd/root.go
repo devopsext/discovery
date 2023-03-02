@@ -10,16 +10,17 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/vendors"
 	sreCommon "github.com/devopsext/sre/common"
 	sreProvider "github.com/devopsext/sre/provider"
 	"github.com/devopsext/utils"
+	"github.com/go-co-op/gocron"
 	"github.com/spf13/cobra"
 )
 
 var version = "unknown"
 var APPNAME = "DISCOVERY"
-var appName = strings.ToLower(APPNAME)
 
 var logs = sreCommon.NewLogs()
 var metrics = sreCommon.NewMetrics()
@@ -51,10 +52,15 @@ var prometheusOptions = sreProvider.PrometheusOptions{
 }
 
 var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
-	URL:      envGet("PROMETHEUS_DISCOVERY_URL", "").(string),
-	Timeout:  envGet("PROMETHEUS_DISCOVERY_TIMEOUT", 30).(int),
-	Insecure: envGet("PROMETHEUS_DISCOVERY_INSECURE", false).(bool),
-	Query:    envGet("PROMETHEUS_DISCOVERY_QUERY", "").(string),
+	URL:              envGet("PROMETHEUS_DISCOVERY_URL", "").(string),
+	Timeout:          envGet("PROMETHEUS_DISCOVERY_TIMEOUT", 30).(int),
+	Insecure:         envGet("PROMETHEUS_DISCOVERY_INSECURE", false).(bool),
+	Query:            envGet("PROMETHEUS_DISCOVERY_QUERY", "").(string),
+	Metric:           envGet("PROMETHEUS_DISCOVERY_METRIC", "").(string),
+	Service:          envGet("PROMETHEUS_DISCOVERY_SERVICE", "").(string),
+	Schedule:         envGet("PROMETHEUS_DISCOVERY_SCHEDULE", "").(string),
+	BaseTemplate:     envGet("PROMETHEUS_DISCOVERY_BASE_TEMPLATE", "").(string),
+	TelegrafTemplate: envGet("PROMETHEUS_DISCOVERY_TELEGRAF_TEMPLATE", "").(string),
 }
 
 func envGet(s string, d interface{}) interface{} {
@@ -70,6 +76,16 @@ func interceptSyscall() {
 		logs.Info("Exiting...")
 		os.Exit(1)
 	}()
+}
+
+func schedule(s *gocron.Scheduler, schedule string, jobFun interface{}) {
+
+	arr := strings.Split(schedule, " ")
+	if len(arr) == 1 {
+		s.Every(schedule).Do(jobFun)
+	} else {
+		s.Cron(schedule).Do(jobFun)
+	}
 }
 
 func Execute() {
@@ -100,9 +116,17 @@ func Execute() {
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 
-			//observability := common.NewObservability(logs, metrics)
+			observability := common.NewObservability(logs, metrics)
 
-			//inputs.Start(&mainWG, &outputs)
+			s := gocron.NewScheduler(time.UTC)
+			if !utils.IsEmpty(prometheusDiscoveryOptions.Schedule) {
+				prometheus := vendors.NewPrometheusDiscovery(prometheusDiscoveryOptions, observability)
+				schedule(s, prometheusDiscoveryOptions.Schedule, prometheus.Discover)
+				observability.Logs().Debug("Prometheus discovery enabled on schedule: %s", prometheusDiscoveryOptions.Schedule)
+			} else {
+				observability.Logs().Debug("Prometheus discovery disabled")
+			}
+			s.StartAsync()
 			mainWG.Wait()
 		},
 	}
@@ -124,9 +148,14 @@ func Execute() {
 	flags.StringVar(&prometheusOptions.Prefix, "prometheus-prefix", prometheusOptions.Prefix, "Prometheus prefix")
 
 	flags.StringVar(&prometheusDiscoveryOptions.URL, "prometheus-discovery-url", prometheusDiscoveryOptions.URL, "Prometheus discovery URL")
-	flags.IntVar(&prometheusDiscoveryOptions.Timeout, "prometheus-timeout", prometheusDiscoveryOptions.Timeout, "Prometheus discovery timeout in seconds")
-	flags.BoolVar(&prometheusDiscoveryOptions.Insecure, "prometheus-insecure", prometheusDiscoveryOptions.Insecure, "Prometheus discovery insecure")
-	flags.StringVar(&prometheusDiscoveryOptions.Query, "prometheus-query", prometheusDiscoveryOptions.Query, "Prometheus discovery query")
+	flags.IntVar(&prometheusDiscoveryOptions.Timeout, "prometheus-discovery-timeout", prometheusDiscoveryOptions.Timeout, "Prometheus discovery timeout in seconds")
+	flags.BoolVar(&prometheusDiscoveryOptions.Insecure, "prometheus-discovery-insecure", prometheusDiscoveryOptions.Insecure, "Prometheus discovery insecure")
+	flags.StringVar(&prometheusDiscoveryOptions.Query, "prometheus-discovery-query", prometheusDiscoveryOptions.Query, "Prometheus discovery query")
+	flags.StringVar(&prometheusDiscoveryOptions.Service, "prometheus-discovery-service", prometheusDiscoveryOptions.Service, "Prometheus discovery service label")
+	flags.StringVar(&prometheusDiscoveryOptions.Metric, "prometheus-discovery-metric", prometheusDiscoveryOptions.Metric, "Prometheus discovery metric label")
+	flags.StringVar(&prometheusDiscoveryOptions.Schedule, "prometheus-discovery-schedule", prometheusDiscoveryOptions.Schedule, "Prometheus discovery schedule")
+	flags.StringVar(&prometheusDiscoveryOptions.BaseTemplate, "prometheus-discovery-base-template", prometheusDiscoveryOptions.BaseTemplate, "Prometheus discovery base template")
+	flags.StringVar(&prometheusDiscoveryOptions.TelegrafTemplate, "prometheus-discovery-telegraf-template", prometheusDiscoveryOptions.TelegrafTemplate, "Prometheus discovery telegraf template")
 
 	interceptSyscall()
 
