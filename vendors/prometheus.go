@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
@@ -17,17 +16,19 @@ import (
 )
 
 type PrometheusDiscoveryOptions struct {
-	URL              string
-	Timeout          int
-	Insecure         bool
-	Query            string
-	Metric           string
-	Service          string
-	Schedule         string
-	BaseTemplate     string
+	URL          string
+	Timeout      int
+	Insecure     bool
+	Query        string
+	Metric       string
+	Service      string
+	Schedule     string
+	BaseTemplate string
+	Labels       string
+
 	TelegrafTemplate string
 	TelegrafChecksum bool
-	Labels           string
+	TelegrafOptions  common.TelegrafConfigOptions
 }
 
 type PrometheusDiscovery struct {
@@ -57,18 +58,11 @@ type PrometheusDiscoveryResponse struct {
 
 func (pd *PrometheusDiscovery) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
 
-	if tpl == nil {
-		return def
-	}
-
-	b, err := tpl.RenderObject(obj)
+	s, err := common.RenderTemplate(tpl, def, obj)
 	if err != nil {
-		pd.logger.Error(err)
 		return def
 	}
-	r := strings.TrimSpace(string(b))
-	// simplify <no value> => empty string
-	return strings.ReplaceAll(r, "<no value>", "")
+	return s
 }
 
 // ".templates/SRE/service-*.yml"
@@ -117,7 +111,7 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 		pd.logger.Debug("Processing service: %s for path: %s", k, path)
 
 		telegrafConfig := &common.TelegrafConfig{}
-		bytes, err := telegrafConfig.GenerateServiceConfig(s, path)
+		bytes, err := telegrafConfig.GenerateServiceBytes(s, pd.options.TelegrafOptions)
 		if err != nil {
 			pd.logger.Error(err)
 			continue

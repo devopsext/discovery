@@ -5,6 +5,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+
+	toolsRender "github.com/devopsext/tools/render"
 )
 
 func ReadFiles(pattern string) ([]string, error) {
@@ -69,4 +72,28 @@ func IfDef(v, def interface{}) interface{} {
 		}
 	}
 	return v
+}
+
+func StringInArr(a string, arr []string) bool {
+	for _, b := range arr {
+		if b == a {
+			return true
+		}
+	}
+	return false
+}
+
+func RenderTemplate(tpl *toolsRender.TextTemplate, def string, obj interface{}) (string, error) {
+
+	if tpl == nil {
+		return def, nil
+	}
+
+	b, err := tpl.RenderObject(obj)
+	if err != nil {
+		return def, err
+	}
+	r := strings.TrimSpace(string(b))
+	// simplify <no value> => empty string
+	return strings.ReplaceAll(r, "<no value>", ""), nil
 }

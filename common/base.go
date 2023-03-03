@@ -35,7 +35,7 @@ type BaseAvailability struct {
 type BaseConfig struct {
 	Vars         map[string]string `yaml:"vars"`
 	Labels       map[string]string `yaml:"labels"`
-	Quality      []*BaseQuality    `yaml:"quality"`
+	Qualities    []*BaseQuality    `yaml:"quality"`
 	Metrics      []*BaseMetric     `yaml:"metrics"`
 	Availability *BaseAvailability `yaml:"availability"`
 }
@@ -62,13 +62,13 @@ func (bc *BaseConfig) MetricExists(query string) bool {
 		return false
 	}
 
-	for _, q := range bc.Quality {
+	for _, q := range bc.Qualities {
 		if r.MatchString(q.Query) {
 			return true
 		}
 	}
 
-	for _, m := range bc.Quality {
+	for _, m := range bc.Qualities {
 		if r.MatchString(m.Query) {
 			return true
 		}
