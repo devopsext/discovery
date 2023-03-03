@@ -61,6 +61,8 @@ var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 	Schedule:         envGet("PROMETHEUS_DISCOVERY_SCHEDULE", "").(string),
 	BaseTemplate:     envGet("PROMETHEUS_DISCOVERY_BASE_TEMPLATE", "").(string),
 	TelegrafTemplate: envGet("PROMETHEUS_DISCOVERY_TELEGRAF_TEMPLATE", "").(string),
+	TelegrafChecksum: envGet("PROMETHEUS_DISCOVERY_TELEGRAF_CHECKSUM", false).(bool),
+	Labels:           envGet("PROMETHEUS_DISCOVERY_LABELS", "").(string),
 }
 
 func envGet(s string, d interface{}) interface{} {
@@ -117,14 +119,20 @@ func Execute() {
 		Run: func(cmd *cobra.Command, args []string) {
 
 			observability := common.NewObservability(logs, metrics)
+			logger := observability.Logs()
 
 			s := gocron.NewScheduler(time.UTC)
+			var prometheus *vendors.PrometheusDiscovery
 			if !utils.IsEmpty(prometheusDiscoveryOptions.Schedule) {
-				prometheus := vendors.NewPrometheusDiscovery(prometheusDiscoveryOptions, observability)
-				schedule(s, prometheusDiscoveryOptions.Schedule, prometheus.Discover)
-				observability.Logs().Debug("Prometheus discovery enabled on schedule: %s", prometheusDiscoveryOptions.Schedule)
-			} else {
-				observability.Logs().Debug("Prometheus discovery disabled")
+				prometheus = vendors.NewPrometheusDiscovery(prometheusDiscoveryOptions, observability)
+				if prometheus != nil {
+					schedule(s, prometheusDiscoveryOptions.Schedule, prometheus.Discover)
+					logger.Debug("Prometheus discovery enabled on schedule: %s", prometheusDiscoveryOptions.Schedule)
+				}
+			}
+
+			if prometheus == nil {
+				logger.Debug("Prometheus discovery disabled")
 			}
 			s.StartAsync()
 			mainWG.Wait()
@@ -156,6 +164,8 @@ func Execute() {
 	flags.StringVar(&prometheusDiscoveryOptions.Schedule, "prometheus-discovery-schedule", prometheusDiscoveryOptions.Schedule, "Prometheus discovery schedule")
 	flags.StringVar(&prometheusDiscoveryOptions.BaseTemplate, "prometheus-discovery-base-template", prometheusDiscoveryOptions.BaseTemplate, "Prometheus discovery base template")
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafTemplate, "prometheus-discovery-telegraf-template", prometheusDiscoveryOptions.TelegrafTemplate, "Prometheus discovery telegraf template")
+	flags.BoolVar(&prometheusDiscoveryOptions.TelegrafChecksum, "prometheus-discovery-telegraf-checksum", prometheusDiscoveryOptions.TelegrafChecksum, "Prometheus discovery telegraf checksum")
+	flags.StringVar(&prometheusDiscoveryOptions.Labels, "prometheus-discovery-labels", prometheusDiscoveryOptions.Labels, "Prometheus discovery labels")
 
 	interceptSyscall()
 

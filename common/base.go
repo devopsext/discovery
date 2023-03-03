@@ -40,6 +40,11 @@ type BaseConfig struct {
 	Availability *BaseAvailability `yaml:"availability"`
 }
 
+type Service struct {
+	Configs []*BaseConfig
+	Labels  map[string]string
+}
+
 func (ba *BaseAvailability) matchQuery(r *regexp.Regexp) bool {
 
 	for _, v := range ba.Queries {
