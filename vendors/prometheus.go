@@ -24,8 +24,9 @@ type PrometheusDiscoveryOptions struct {
 	Service      string
 	Schedule     string
 	BaseTemplate string
-	Labels       string
+	Vars         string
 
+	TelegrafLabels   string
 	TelegrafTemplate string
 	TelegrafChecksum bool
 	TelegrafOptions  common.TelegrafConfigOptions
@@ -39,6 +40,7 @@ type PrometheusDiscovery struct {
 	metricTemplate   *toolsRender.TextTemplate
 	telegrafTemplate *toolsRender.TextTemplate
 	labelsTemplate   *toolsRender.TextTemplate
+	varsTemplate     *toolsRender.TextTemplate
 	// services   sreCommon.Counter
 }
 
@@ -107,7 +109,15 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 
 	for k, s := range services {
 
-		path := pd.render(pd.telegrafTemplate, pd.options.TelegrafTemplate, s.Labels)
+		labels := pd.render(pd.labelsTemplate, pd.options.TelegrafLabels, s.Vars)
+		s.Labels = utils.MapGetKeyValues(labels)
+		for i, v := range s.Labels {
+			if utils.IsEmpty(v) {
+				s.Labels[i] = s.Vars[i]
+			}
+		}
+
+		path := pd.render(pd.telegrafTemplate, pd.options.TelegrafTemplate, s.Vars)
 		pd.logger.Debug("Processing service: %s for path: %s", k, path)
 
 		telegrafConfig := &common.TelegrafConfig{}
@@ -143,6 +153,15 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 			}
 		}
 
+		dir := filepath.Dir(path)
+		if _, err = os.Stat(dir); os.IsNotExist(err) {
+			err := os.MkdirAll(dir, os.ModePerm)
+			if err != nil {
+				pd.logger.Error(err)
+				continue
+			}
+		}
+
 		f, err := os.Create(path)
 		if err != nil {
 			pd.logger.Error(err)
@@ -173,8 +192,9 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			continue
 		}
 
-		tmp := pd.render(pd.labelsTemplate, pd.options.Labels, v.Labels)
-		merged := common.MergeMaps(v.Labels, utils.MapGetKeyValues(tmp))
+		vars := pd.render(pd.varsTemplate, pd.options.Vars, v.Labels)
+		serviceVars := utils.MapGetKeyValues(vars)
+		mergedVars := common.MergeMaps(v.Labels, serviceVars)
 
 		if utils.IsEmpty(pd.options.Metric) && (len(v.Labels) > 0) {
 			for _, m := range v.Labels {
@@ -182,9 +202,9 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 				break
 			}
 		} else {
-			ident := pd.render(pd.metricTemplate, pd.options.Metric, merged)
+			ident := pd.render(pd.metricTemplate, pd.options.Metric, mergedVars)
 			if ident == pd.options.Metric {
-				metric = merged[ident]
+				metric = mergedVars[ident]
 			} else {
 				metric = ident
 			}
@@ -200,16 +220,16 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 				flag = true
 			}
 		} else {
-			ident := pd.render(pd.serviceTemplate, pd.options.Service, merged)
+			ident := pd.render(pd.serviceTemplate, pd.options.Service, mergedVars)
 			if ident == pd.options.Service {
-				service = merged[ident]
+				service = mergedVars[ident]
 			} else {
 				service = ident
 			}
 		}
 
 		if utils.IsEmpty(service) || utils.IsEmpty(metric) {
-			pd.logger.Debug("No service or metric found in labels, but: %v", v.Labels)
+			pd.logger.Debug("No service or metric found in labels, but: %v", mergedVars)
 			continue
 		}
 
@@ -218,7 +238,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			ds := matched[service]
 			if ds == nil {
 				ds = &common.Service{
-					Labels: make(map[string]string),
+					Vars: make(map[string]string),
 				}
 			}
 			exists := config.MetricExists(metric)
@@ -235,9 +255,9 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			if !found {
 				ds.Configs = append(ds.Configs, config)
 			}
-			for k, l := range merged {
-				if (ds.Labels[k] == "") && (l != metric) {
-					ds.Labels[k] = l
+			for k, l := range serviceVars {
+				if (ds.Vars[k] == "") && (l != metric) {
+					ds.Vars[k] = l
 				}
 			}
 			matched[service] = ds
@@ -278,7 +298,6 @@ func (pd *PrometheusDiscovery) Discover() {
 	}
 
 	services := pd.findServices(res.Data.Result)
-
 	if len(services) == 0 {
 		pd.logger.Debug("Not found any bases according query")
 		return
@@ -290,8 +309,15 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 
 	logger := observability.Logs()
 
+	varsOpts := toolsRender.TemplateOptions{
+		Content: options.Vars,
+	}
+	varsTemplate, err := toolsRender.NewTextTemplate(varsOpts, observability)
+	if err != nil {
+		logger.Error(err)
+	}
+
 	metricOpts := toolsRender.TemplateOptions{
-		Name:    "prometheus-discovery-metric",
 		Content: options.Metric,
 	}
 	metricTemplate, err := toolsRender.NewTextTemplate(metricOpts, observability)
@@ -300,7 +326,6 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 	}
 
 	serviceOpts := toolsRender.TemplateOptions{
-		Name:    "prometheus-discovery-service",
 		Content: options.Service,
 	}
 	serviceTemplate, err := toolsRender.NewTextTemplate(serviceOpts, observability)
@@ -308,23 +333,21 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 		logger.Error(err)
 	}
 
+	labelsOpts := toolsRender.TemplateOptions{
+		Content: options.TelegrafLabels,
+	}
+	labelsTemplate, err := toolsRender.NewTextTemplate(labelsOpts, observability)
+	if err != nil {
+		logger.Error(err)
+	}
+
 	telegrafOpts := toolsRender.TemplateOptions{
-		Name:    "prometheus-discovery-telegraf",
 		Content: options.TelegrafTemplate,
 	}
 	telegrafTemplate, err := toolsRender.NewTextTemplate(telegrafOpts, observability)
 	if err != nil {
 		logger.Error(err)
 		return nil
-	}
-
-	labelsOpts := toolsRender.TemplateOptions{
-		Name:    "prometheus-discovery-labels",
-		Content: options.Labels,
-	}
-	labelsTemplate, err := toolsRender.NewTextTemplate(labelsOpts, observability)
-	if err != nil {
-		logger.Error(err)
 	}
 
 	return &PrometheusDiscovery{
@@ -340,6 +363,7 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 		metricTemplate:   metricTemplate,
 		telegrafTemplate: telegrafTemplate,
 		labelsTemplate:   labelsTemplate,
+		varsTemplate:     varsTemplate,
 		//services: observability.Metrics().Counter("services", "Count of all found services", []string{}, "prometheus"),
 	}
 }

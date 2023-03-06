@@ -97,3 +97,12 @@ func RenderTemplate(tpl *toolsRender.TextTemplate, def string, obj interface{}) 
 	// simplify <no value> => empty string
 	return strings.ReplaceAll(r, "<no value>", ""), nil
 }
+
+// GetKeys returns the keys of a map as a slice
+func GetKeys(arr map[string]string) []string {
+	var keys []string
+	for k := range arr {
+		keys = append(keys, k)
+	}
+	return keys
+}

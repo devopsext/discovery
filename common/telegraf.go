@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -107,7 +109,43 @@ func (ti *TelegrafInputPrometheusHttp) render(def string, obj interface{}) strin
 	return s
 }
 
-func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, opts TelegrafConfigOptions, vars map[string]string) {
+func (ti *TelegrafInputPrometheusHttp) enableLabel(name, l string) string {
+
+	if l == "" {
+		return l
+	}
+
+	arr := strings.Split(l, "=")
+	if len(arr) == 0 {
+		return l
+	}
+
+	if len(arr) == 1 {
+		return arr[0]
+	}
+
+	match, _ := regexp.MatchString(arr[1], name)
+	if match {
+		return arr[0]
+	}
+	return ""
+}
+
+func (ti *TelegrafInputPrometheusHttp) buildTags(name string, labels map[string]string, vars map[string]string) map[string]string {
+
+	r := make(map[string]string)
+
+	for k, l := range labels {
+		lnew := ti.enableLabel(name, l)
+		if utils.IsEmpty(lnew) {
+			continue
+		}
+		r[k] = ti.setVars(lnew, vars)
+	}
+	return r
+}
+
+func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
 
 	metric := &TelegrafInputPrometheusHttpMetric{}
 	metric.Name = opts.QualityName
@@ -132,16 +170,8 @@ func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, 
 	}
 
 	metric.Query = fmt.Sprintf("(%s)/%d", strings.Join(queries, " + "), len(queries))
-	metric.Tags = make(map[string]string)
-
-	/*for k, l := range config.Labels {
-		lnew := decideLabel(metric.Name, l)
-		if lnew == "" {
-			continue
-		}
-		metric.Tags[k] = setVars(lnew, config.Vars)
-	}*/
-
+	metric.Tags = ti.buildTags(metric.Name, labels, vars)
+	ti.updateIncludeTags(GetKeys(metric.Tags))
 	ti.Metric = append(ti.Metric, metric)
 }
 
@@ -149,8 +179,22 @@ func (ti *TelegrafInputPrometheusHttp) buildAvailability(availbility *BaseAvaila
 
 }
 
-func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, opts TelegrafConfigOptions) {
+func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
 
+	for _, m := range metrics {
+
+		metric := &TelegrafInputPrometheusHttpMetric{}
+		metric.Name = IfDef(m.Name, opts.MetricName).(string)
+
+		qe := ti.setVars(m.Query, vars)
+		metric.Query = ti.sanitizeQuery(qe)
+		metric.UniqueBy = m.UniqueBy
+		tags1 := ti.buildTags(metric.Name, labels, vars)
+		tags2 := ti.buildTags(metric.Name, m.Labels, vars)
+		metric.Tags = MergeMaps(tags1, tags2)
+		ti.updateIncludeTags(GetKeys(metric.Tags))
+		ti.Metric = append(ti.Metric, metric)
+	}
 }
 
 func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, opts TelegrafConfigOptions) ([]byte, error) {
@@ -168,22 +212,16 @@ func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, opts TelegrafConfigOp
 
 	for _, c := range s.Configs {
 
-		input.buildQualities(c.Qualities, opts, c.Vars)
-		input.buildAvailability(c.Availability, opts)
-		input.buildMetrics(c.Metrics, opts)
-	}
+		labels := MergeMaps(c.Labels, s.Labels)
+		vars := MergeMaps(c.Vars, s.Vars)
 
-	/*
-		// adding metric
-		for _, v := range serviceConfig.Metrics {
-			m, err := getMetricInput(serviceConfig, v)
-			if err == nil {
-				input.updateIncludeTags(getKeys(m.Tags))
-				input.Metric = append(input.Metric, m)
-			}
-		}
-	*/
+		input.buildQualities(c.Qualities, opts, labels, vars)
+		input.buildAvailability(c.Availability, opts)
+		input.buildMetrics(c.Metrics, opts, labels, vars)
+	}
 	input.updateIncludeTags(opts.DefaultTags)
+	sort.Strings(input.Include)
+
 	tc.Inputs.PrometheusHttp = append(tc.Inputs.PrometheusHttp, input)
 
 	var b bytes.Buffer

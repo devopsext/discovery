@@ -43,6 +43,7 @@ type BaseConfig struct {
 type Service struct {
 	Configs []*BaseConfig
 	Labels  map[string]string
+	Vars    map[string]string
 }
 
 func (ba *BaseAvailability) matchQuery(r *regexp.Regexp) bool {

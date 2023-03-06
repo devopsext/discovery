@@ -59,9 +59,10 @@ var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 	Metric:       envGet("PROMETHEUS_DISCOVERY_METRIC", "").(string),
 	Service:      envGet("PROMETHEUS_DISCOVERY_SERVICE", "").(string),
 	Schedule:     envGet("PROMETHEUS_DISCOVERY_SCHEDULE", "").(string),
-	Labels:       envGet("PROMETHEUS_DISCOVERY_LABELS", "").(string),
+	Vars:         envGet("PROMETHEUS_DISCOVERY_VARS", "").(string),
 	BaseTemplate: envGet("PROMETHEUS_DISCOVERY_BASE_TEMPLATE", "").(string),
 
+	TelegrafLabels:   envGet("PROMETHEUS_DISCOVERY_TELEGRAF_LABELS", "").(string),
 	TelegrafTemplate: envGet("PROMETHEUS_DISCOVERY_TELEGRAF_TEMPLATE", "").(string),
 	TelegrafChecksum: envGet("PROMETHEUS_DISCOVERY_TELEGRAF_CHECKSUM", false).(bool),
 	TelegrafOptions: common.TelegrafConfigOptions{
@@ -181,8 +182,9 @@ func Execute() {
 	flags.StringVar(&prometheusDiscoveryOptions.Metric, "prometheus-discovery-metric", prometheusDiscoveryOptions.Metric, "Prometheus discovery metric label")
 	flags.StringVar(&prometheusDiscoveryOptions.Schedule, "prometheus-discovery-schedule", prometheusDiscoveryOptions.Schedule, "Prometheus discovery schedule")
 	flags.StringVar(&prometheusDiscoveryOptions.BaseTemplate, "prometheus-discovery-base-template", prometheusDiscoveryOptions.BaseTemplate, "Prometheus discovery base template")
-	flags.StringVar(&prometheusDiscoveryOptions.Labels, "prometheus-discovery-labels", prometheusDiscoveryOptions.Labels, "Prometheus discovery labels")
+	flags.StringVar(&prometheusDiscoveryOptions.Vars, "prometheus-discovery-vars", prometheusDiscoveryOptions.Vars, "Prometheus discovery vars")
 
+	flags.StringVar(&prometheusDiscoveryOptions.TelegrafLabels, "prometheus-discovery-telegraf-labels", prometheusDiscoveryOptions.TelegrafLabels, "Prometheus discovery telegraf labels")
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafTemplate, "prometheus-discovery-telegraf-template", prometheusDiscoveryOptions.TelegrafTemplate, "Prometheus discovery telegraf template")
 	flags.BoolVar(&prometheusDiscoveryOptions.TelegrafChecksum, "prometheus-discovery-telegraf-checksum", prometheusDiscoveryOptions.TelegrafChecksum, "Prometheus discovery telegraf checksum")
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.URL, "prometheus-discovery-telegraf-url", prometheusDiscoveryOptions.TelegrafOptions.URL, "Prometheus discovery telegraf URL")
