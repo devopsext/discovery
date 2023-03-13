@@ -45,42 +45,42 @@ var stdoutOptions = sreProvider.StdoutOptions{
 	TextColors:      envGet("STDOUT_TEXT_COLORS", true).(bool),
 }
 
-var prometheusOptions = sreProvider.PrometheusOptions{
-	URL:    envGet("PROMETHEUS_URL", "/metrics").(string),
-	Listen: envGet("PROMETHEUS_LISTEN", "127.0.0.1:8080").(string),
-	Prefix: envGet("PROMETHEUS_PREFIX", "events").(string),
+var prometheusMetricsOptions = sreProvider.PrometheusOptions{
+	URL:    envGet("PROMETHEUS_METRICS_URL", "/metrics").(string),
+	Listen: envGet("PROMETHEUS_METRICS_LISTEN", "127.0.0.1:8080").(string),
+	Prefix: envGet("PROMETHEUS_METRICS_PREFIX", "events").(string),
 }
 
 var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
-	URL:          envGet("PROMETHEUS_DISCOVERY_URL", "").(string),
-	Timeout:      envGet("PROMETHEUS_DISCOVERY_TIMEOUT", 30).(int),
-	Insecure:     envGet("PROMETHEUS_DISCOVERY_INSECURE", false).(bool),
-	Query:        envGet("PROMETHEUS_DISCOVERY_QUERY", "").(string),
-	Metric:       envGet("PROMETHEUS_DISCOVERY_METRIC", "").(string),
-	Service:      envGet("PROMETHEUS_DISCOVERY_SERVICE", "").(string),
-	Schedule:     envGet("PROMETHEUS_DISCOVERY_SCHEDULE", "").(string),
-	Vars:         envGet("PROMETHEUS_DISCOVERY_VARS", "").(string),
-	BaseTemplate: envGet("PROMETHEUS_DISCOVERY_BASE_TEMPLATE", "").(string),
+	URL:          envGet("PROMETHEUS_URL", "").(string),
+	Timeout:      envGet("PROMETHEUS_TIMEOUT", 30).(int),
+	Insecure:     envGet("PROMETHEUS_INSECURE", false).(bool),
+	Query:        envGet("PROMETHEUS_QUERY", "").(string),
+	Metric:       envGet("PROMETHEUS_METRIC", "").(string),
+	Service:      envGet("PROMETHEUS_SERVICE", "").(string),
+	Schedule:     envGet("PROMETHEUS_SCHEDULE", "").(string),
+	Vars:         envGet("PROMETHEUS_VARS", "").(string),
+	BaseTemplate: envGet("PROMETHEUS_BASE_TEMPLATE", "").(string),
 
-	TelegrafLabels:   envGet("PROMETHEUS_DISCOVERY_TELEGRAF_LABELS", "").(string),
-	TelegrafTemplate: envGet("PROMETHEUS_DISCOVERY_TELEGRAF_TEMPLATE", "").(string),
-	TelegrafChecksum: envGet("PROMETHEUS_DISCOVERY_TELEGRAF_CHECKSUM", false).(bool),
+	TelegrafLabels:   envGet("PROMETHEUS_TELEGRAF_LABELS", "").(string),
+	TelegrafTemplate: envGet("PROMETHEUS_TELEGRAF_TEMPLATE", "").(string),
+	TelegrafChecksum: envGet("PROMETHEUS_TELEGRAF_CHECKSUM", false).(bool),
 	TelegrafOptions: common.TelegrafConfigOptions{
-		URL:              envGet("PROMETHEUS_DISCOVERY_TELEGRAF_URL", "").(string),
-		Version:          envGet("PROMETHEUS_DISCOVERY_TELEGRAF_VERSION", "v1").(string),
-		Params:           envGet("PROMETHEUS_DISCOVERY_TELEGRAF_PARAMS", "").(string),
-		Interval:         envGet("PROMETHEUS_DISCOVERY_TELEGRAF_INTERVAL", "10s").(string),
-		Duration:         envGet("PROMETHEUS_DISCOVERY_TELEGRAF_DURATION", "").(string),
-		Timeout:          envGet("PROMETHEUS_DISCOVERY_TELEGRAF_TIMEOUT", "5s").(string),
-		Prefix:           envGet("PROMETHEUS_DISCOVERY_TELEGRAF_PREFIX", "").(string),
-		QualityName:      envGet("PROMETHEUS_DISCOVERY_TELEGRAF_QUALITY_NAME", "quality").(string),
-		QualityRange:     envGet("PROMETHEUS_DISCOVERY_TELEGRAF_QUALITY_RANGE", "5m").(string),
-		QualityEvery:     envGet("PROMETHEUS_DISCOVERY_TELEGRAF_QUALITY_EVERY", "15s").(string),
-		QualityPoints:    envGet("PROMETHEUS_DISCOVERY_TELEGRAF_QUALITY_POINTS", 20).(int),
-		QualityQuery:     envGet("PROMETHEUS_DISCOVERY_TELEGRAF_QUALITY_QUERY", "").(string),
-		AvailbailityName: envGet("PROMETHEUS_DISCOVERY_TELEGRAF_AVAILABILITY_NAME", "availability").(string),
-		MetricName:       envGet("PROMETHEUS_DISCOVERY_TELEGRAF_METRIC_NAME", "metric").(string),
-		DefaultTags:      strings.Split(envGet("PROMETHEUS_DISCOVERY_TELEGRAF_DEFAULT_TAGS", "").(string), ","),
+		URL:              envGet("PROMETHEUS_TELEGRAF_URL", "").(string),
+		Version:          envGet("PROMETHEUS_TELEGRAF_VERSION", "v1").(string),
+		Params:           envGet("PROMETHEUS_TELEGRAF_PARAMS", "").(string),
+		Interval:         envGet("PROMETHEUS_TELEGRAF_INTERVAL", "10s").(string),
+		Duration:         envGet("PROMETHEUS_TELEGRAF_DURATION", "").(string),
+		Timeout:          envGet("PROMETHEUS_TELEGRAF_TIMEOUT", "5s").(string),
+		Prefix:           envGet("PROMETHEUS_TELEGRAF_PREFIX", "").(string),
+		QualityName:      envGet("PROMETHEUS_TELEGRAF_QUALITY_NAME", "quality").(string),
+		QualityRange:     envGet("PROMETHEUS_TELEGRAF_QUALITY_RANGE", "5m").(string),
+		QualityEvery:     envGet("PROMETHEUS_TELEGRAF_QUALITY_EVERY", "15s").(string),
+		QualityPoints:    envGet("PROMETHEUS_TELEGRAF_QUALITY_POINTS", 20).(int),
+		QualityQuery:     envGet("PROMETHEUS_TELEGRAF_QUALITY_QUERY", "").(string),
+		AvailbailityName: envGet("PROMETHEUS_TELEGRAF_AVAILABILITY_NAME", "availability").(string),
+		MetricName:       envGet("PROMETHEUS_TELEGRAF_METRIC_NAME", "metric").(string),
+		DefaultTags:      strings.Split(envGet("PROMETHEUS_TELEGRAF_DEFAULT_TAGS", "").(string), ","),
 	},
 }
 
@@ -127,8 +127,8 @@ func Execute() {
 
 			// Metrics
 
-			prometheusOptions.Version = version
-			prometheus := sreProvider.NewPrometheusMeter(prometheusOptions, logs, stdout)
+			prometheusMetricsOptions.Version = version
+			prometheus := sreProvider.NewPrometheusMeter(prometheusMetricsOptions, logs, stdout)
 			if utils.Contains(rootOptions.Metrics, "prometheus") && prometheus != nil {
 				prometheus.StartInWaitGroup(&mainWG)
 				metrics.Register(prometheus)
@@ -170,9 +170,9 @@ func Execute() {
 	flags.BoolVar(&stdoutOptions.TextColors, "stdout-text-colors", stdoutOptions.TextColors, "Stdout text colors")
 	flags.BoolVar(&stdoutOptions.Debug, "stdout-debug", stdoutOptions.Debug, "Stdout debug")
 
-	flags.StringVar(&prometheusOptions.URL, "prometheus-url", prometheusOptions.URL, "Prometheus endpoint url")
-	flags.StringVar(&prometheusOptions.Listen, "prometheus-listen", prometheusOptions.Listen, "Prometheus listen")
-	flags.StringVar(&prometheusOptions.Prefix, "prometheus-prefix", prometheusOptions.Prefix, "Prometheus prefix")
+	flags.StringVar(&prometheusMetricsOptions.URL, "prometheus-url", prometheusMetricsOptions.URL, "Prometheus endpoint url")
+	flags.StringVar(&prometheusMetricsOptions.Listen, "prometheus-listen", prometheusMetricsOptions.Listen, "Prometheus listen")
+	flags.StringVar(&prometheusMetricsOptions.Prefix, "prometheus-prefix", prometheusMetricsOptions.Prefix, "Prometheus prefix")
 
 	flags.StringVar(&prometheusDiscoveryOptions.URL, "prometheus-discovery-url", prometheusDiscoveryOptions.URL, "Prometheus discovery URL")
 	flags.IntVar(&prometheusDiscoveryOptions.Timeout, "prometheus-discovery-timeout", prometheusDiscoveryOptions.Timeout, "Prometheus discovery timeout in seconds")
