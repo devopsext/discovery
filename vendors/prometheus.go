@@ -189,7 +189,6 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 		metric := ""
 		service := ""
 		if len(v.Labels) < 2 {
-			pd.logger.Debug("No labels")
 			continue
 		}
 
