@@ -170,13 +170,16 @@ func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, 
 	}
 
 	metric.Query = fmt.Sprintf("(%s)/%d", strings.Join(queries, " + "), len(queries))
-	metric.Tags = ti.buildTags(metric.Name, labels, vars)
-	ti.updateIncludeTags(GetKeys(metric.Tags))
+	tags := ti.buildTags(metric.Name, labels, vars)
+	keys := GetStringKeys(tags)
+	sort.Strings(keys)
+	ti.updateIncludeTags(keys)
+	metric.Tags = tags
 	ti.Metric = append(ti.Metric, metric)
 }
 
 func (ti *TelegrafInputPrometheusHttp) buildAvailability(availbility *BaseAvailability, opts TelegrafConfigOptions) {
-
+	// to be
 }
 
 func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
@@ -191,8 +194,11 @@ func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, opts 
 		metric.UniqueBy = m.UniqueBy
 		tags1 := ti.buildTags(metric.Name, labels, vars)
 		tags2 := ti.buildTags(metric.Name, m.Labels, vars)
-		metric.Tags = MergeMaps(tags1, tags2)
-		ti.updateIncludeTags(GetKeys(metric.Tags))
+		tags := MergeMaps(tags1, tags2)
+		keys := GetStringKeys(tags)
+		sort.Strings(keys)
+		ti.updateIncludeTags(keys)
+		metric.Tags = tags
 		ti.Metric = append(ti.Metric, metric)
 	}
 }
@@ -210,11 +216,17 @@ func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, opts TelegrafConfigOp
 	input.Tags = make(map[string]string)
 	input.SkipEmptyTags = true
 
-	for _, c := range s.Configs {
+	keys := GetBaseConfigKeys(s.Configs)
+	sort.Strings(keys)
 
+	//fmt.Printf("%v\n", keys)
+	for _, k := range keys {
+
+		c := s.Configs[k]
 		labels := MergeMaps(c.Labels, s.Labels)
 		vars := MergeMaps(c.Vars, s.Vars)
 
+		//fmt.Printf("%s => %v\n", k, c)
 		input.buildQualities(c.Qualities, opts, labels, vars)
 		input.buildAvailability(c.Availability, opts)
 		input.buildMetrics(c.Metrics, opts, labels, vars)

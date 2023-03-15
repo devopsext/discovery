@@ -41,7 +41,7 @@ type BaseConfig struct {
 }
 
 type Service struct {
-	Configs []*BaseConfig
+	Configs map[string]*BaseConfig
 	Labels  map[string]string
 	Vars    map[string]string
 }

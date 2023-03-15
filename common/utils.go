@@ -98,8 +98,24 @@ func RenderTemplate(tpl *toolsRender.TextTemplate, def string, obj interface{}) 
 	return strings.ReplaceAll(r, "<no value>", ""), nil
 }
 
-// GetKeys returns the keys of a map as a slice
-func GetKeys(arr map[string]string) []string {
+func GetStringKeys(arr map[string]string) []string {
+	var keys []string
+	for k := range arr {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func SortStringMapByKeys(m map[string]string, keys []string) map[string]string {
+
+	r := make(map[string]string)
+	for _, k := range keys {
+		r[k] = m[k]
+	}
+	return r
+}
+
+func GetBaseConfigKeys(arr map[string]*BaseConfig) []string {
 	var keys []string
 	for k := range arr {
 		keys = append(keys, k)

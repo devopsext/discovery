@@ -138,18 +138,19 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 			bytesHashString = fmt.Sprintf("%x", bytesHash)
 		}
 
-		_, err = os.Stat(path)
-		if !os.IsNotExist(err) && pd.options.TelegrafChecksum {
+		if pd.options.TelegrafChecksum {
 
-			fileHashString := ""
-			fileHash := common.FileMD5(path)
-			if fileHash != nil {
-				fileHashString = fmt.Sprintf("%x", fileHash)
-			}
+			if _, err := os.Stat(path); err == nil {
+				fileHashString := ""
+				fileHash := common.FileMD5(path)
+				if fileHash != nil {
+					fileHashString = fmt.Sprintf("%x", fileHash)
+				}
 
-			if fileHashString == bytesHashString {
-				pd.logger.Debug("File %s has the same md5 hash: %s, skipped", path, fileHashString)
-				continue
+				if fileHashString == bytesHashString {
+					pd.logger.Debug("File %s has the same md5 hash: %s, skipped", path, fileHashString)
+					continue
+				}
 			}
 		}
 
@@ -233,12 +234,13 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			continue
 		}
 
-		for _, config := range configs {
+		for path, config := range configs {
 
 			ds := matched[service]
 			if ds == nil {
 				ds = &common.Service{
-					Vars: make(map[string]string),
+					Configs: make(map[string]*common.BaseConfig),
+					Vars:    make(map[string]string),
 				}
 			}
 			exists := config.MetricExists(metric)
@@ -246,14 +248,8 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 				continue
 			}
 
-			found := false
-			for _, c := range ds.Configs {
-				if c == config {
-					found = true
-				}
-			}
-			if !found {
-				ds.Configs = append(ds.Configs, config)
+			if ds.Configs[path] == nil {
+				ds.Configs[path] = config
 			}
 			for k, l := range serviceVars {
 				if (ds.Vars[k] == "") && (l != metric) {
