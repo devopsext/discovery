@@ -61,6 +61,7 @@ type TelegrafConfigOptions struct {
 	AvailbailityName string
 	MetricName       string
 	DefaultTags      []string
+	VarFormat        string
 }
 
 type TelegrafConfig struct {
@@ -88,9 +89,9 @@ func (ti *TelegrafInputPrometheusHttp) sanitizeQuery(query string) string {
 	return res
 }
 
-func (ti *TelegrafInputPrometheusHttp) setVars(q string, vars map[string]string) string {
+func (ti *TelegrafInputPrometheusHttp) setVars(q, f string, vars map[string]string) string {
 	for k, v := range vars {
-		q = strings.ReplaceAll(q, fmt.Sprintf("$%s", k), v)
+		q = strings.ReplaceAll(q, fmt.Sprintf(f, k), v)
 	}
 	return q
 }
@@ -131,7 +132,7 @@ func (ti *TelegrafInputPrometheusHttp) enableLabel(name, l string) string {
 	return ""
 }
 
-func (ti *TelegrafInputPrometheusHttp) buildTags(name string, labels map[string]string, vars map[string]string) map[string]string {
+func (ti *TelegrafInputPrometheusHttp) buildTags(name string, labels map[string]string, f string, vars map[string]string) map[string]string {
 
 	r := make(map[string]string)
 
@@ -140,7 +141,7 @@ func (ti *TelegrafInputPrometheusHttp) buildTags(name string, labels map[string]
 		if utils.IsEmpty(lnew) {
 			continue
 		}
-		r[k] = ti.setVars(lnew, vars)
+		r[k] = ti.setVars(lnew, f, vars)
 	}
 	return r
 }
@@ -161,7 +162,7 @@ func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, 
 			Range:  IfDef(v.Range, opts.QualityRange).(string),
 			Every:  IfDef(v.Every, opts.QualityEvery).(string),
 			Points: IfDef(v.Points, opts.QualityPoints).(int),
-			Query:  ti.setVars(v.Query, vars),
+			Query:  ti.setVars(v.Query, opts.VarFormat, vars),
 		}
 
 		qe := ti.render(opts.QualityQuery, bq)
@@ -170,7 +171,7 @@ func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, 
 	}
 
 	metric.Query = fmt.Sprintf("(%s)/%d", strings.Join(queries, " + "), len(queries))
-	tags := ti.buildTags(metric.Name, labels, vars)
+	tags := ti.buildTags(metric.Name, labels, opts.VarFormat, vars)
 	keys := GetStringKeys(tags)
 	sort.Strings(keys)
 	ti.updateIncludeTags(keys)
@@ -189,11 +190,11 @@ func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, opts 
 		metric := &TelegrafInputPrometheusHttpMetric{}
 		metric.Name = IfDef(m.Name, opts.MetricName).(string)
 
-		qe := ti.setVars(m.Query, vars)
+		qe := ti.setVars(m.Query, opts.VarFormat, vars)
 		metric.Query = ti.sanitizeQuery(qe)
 		metric.UniqueBy = m.UniqueBy
-		tags1 := ti.buildTags(metric.Name, labels, vars)
-		tags2 := ti.buildTags(metric.Name, m.Labels, vars)
+		tags1 := ti.buildTags(metric.Name, labels, opts.VarFormat, vars)
+		tags2 := ti.buildTags(metric.Name, m.Labels, opts.VarFormat, vars)
 		tags := MergeMaps(tags1, tags2)
 		keys := GetStringKeys(tags)
 		sort.Strings(keys)

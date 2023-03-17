@@ -47,7 +47,7 @@ var stdoutOptions = sreProvider.StdoutOptions{
 
 var prometheusMetricsOptions = sreProvider.PrometheusOptions{
 	URL:    envGet("PROMETHEUS_METRICS_URL", "/metrics").(string),
-	Listen: envGet("PROMETHEUS_METRICS_LISTEN", "127.0.0.1:8080").(string),
+	Listen: envGet("PROMETHEUS_METRICS_LISTEN", ":8080").(string),
 	Prefix: envGet("PROMETHEUS_METRICS_PREFIX", "events").(string),
 }
 
@@ -81,6 +81,7 @@ var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 		AvailbailityName: envGet("PROMETHEUS_TELEGRAF_AVAILABILITY_NAME", "availability").(string),
 		MetricName:       envGet("PROMETHEUS_TELEGRAF_METRIC_NAME", "metric").(string),
 		DefaultTags:      strings.Split(envStringExpand("PROMETHEUS_TELEGRAF_DEFAULT_TAGS", ""), ","),
+		VarFormat:        envGet("PROMETHEUS_TELEGRAF_VAR_FORMAT", "$%s").(string),
 	},
 }
 
@@ -218,6 +219,7 @@ func Execute() {
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.AvailbailityName, "prometheus-telegraf-availability-name", prometheusDiscoveryOptions.TelegrafOptions.AvailbailityName, "Prometheus discovery telegraf availability name")
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.MetricName, "prometheus-telegraf-metric-name", prometheusDiscoveryOptions.TelegrafOptions.MetricName, "Prometheus discovery telegraf metric name")
 	flags.StringSliceVar(&prometheusDiscoveryOptions.TelegrafOptions.DefaultTags, "prometheus-telegraf-default-tags", prometheusDiscoveryOptions.TelegrafOptions.DefaultTags, "Prometheus discovery telegraf default tags")
+	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.VarFormat, "prometheus-telegraf-var-format", prometheusDiscoveryOptions.TelegrafOptions.VarFormat, "Prometheus discovery telegraf var format")
 
 	interceptSyscall()
 
