@@ -121,7 +121,7 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 		pd.logger.Debug("Processing service: %s for path: %s", k, path)
 
 		telegrafConfig := &common.TelegrafConfig{}
-		bytes, err := telegrafConfig.GenerateServiceBytes(s, pd.options.TelegrafOptions)
+		bytes, err := telegrafConfig.GenerateServiceBytes(s, pd.options.TelegrafOptions, path)
 		if err != nil {
 			pd.logger.Error(err)
 			continue

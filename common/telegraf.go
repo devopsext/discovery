@@ -28,6 +28,7 @@ type TelegrafInputPrometheusHttpAvailability struct {
 }
 
 type TelegrafInputPrometheusHttp struct {
+	Name          string                               `toml:"name"`
 	URL           string                               `toml:"url"`
 	Version       string                               `toml:"version"`
 	Params        string                               `toml:"params"`
@@ -204,9 +205,10 @@ func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, opts 
 	}
 }
 
-func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, opts TelegrafConfigOptions) ([]byte, error) {
+func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, opts TelegrafConfigOptions, name string) ([]byte, error) {
 
 	input := &TelegrafInputPrometheusHttp{}
+	input.Name = name
 	input.URL = opts.URL
 	input.Version = opts.Version
 	input.Params = opts.Params
@@ -220,14 +222,12 @@ func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, opts TelegrafConfigOp
 	keys := GetBaseConfigKeys(s.Configs)
 	sort.Strings(keys)
 
-	//fmt.Printf("%v\n", keys)
 	for _, k := range keys {
 
 		c := s.Configs[k]
 		labels := MergeMaps(c.Labels, s.Labels)
 		vars := MergeMaps(c.Vars, s.Vars)
 
-		//fmt.Printf("%s => %v\n", k, c)
 		input.buildQualities(c.Qualities, opts, labels, vars)
 		input.buildAvailability(c.Availability, opts)
 		input.buildMetrics(c.Metrics, opts, labels, vars)
