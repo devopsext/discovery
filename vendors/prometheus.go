@@ -345,6 +345,11 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 		return nil
 	}
 
+	if utils.IsEmpty(options.URL) {
+		logger.Debug("No prometheus URL. Skipped")
+		return nil
+	}
+
 	return &PrometheusDiscovery{
 		prometheus: vendors.NewPrometheus(vendors.PrometheusOptions{
 			URL:      options.URL,

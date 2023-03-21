@@ -156,20 +156,23 @@ func Execute() {
 			logger := observability.Logs()
 
 			s := gocron.NewScheduler(time.UTC)
-			var prometheus *vendors.PrometheusDiscovery
-			if !utils.IsEmpty(prometheusDiscoveryOptions.Schedule) {
-				prometheus = vendors.NewPrometheusDiscovery(prometheusDiscoveryOptions, observability)
-				if prometheus != nil {
+			prometheus := vendors.NewPrometheusDiscovery(prometheusDiscoveryOptions, observability)
+			if prometheus != nil {
+				if !utils.IsEmpty(prometheusDiscoveryOptions.Schedule) {
 					schedule(s, prometheusDiscoveryOptions.Schedule, prometheus.Discover)
 					logger.Debug("Prometheus discovery enabled on schedule: %s", prometheusDiscoveryOptions.Schedule)
+				} else {
+					prometheus.Discover()
 				}
-			}
-
-			if prometheus == nil {
+			} else {
 				logger.Debug("Prometheus discovery disabled")
 			}
 			s.StartAsync()
-			mainWG.Wait()
+
+			// start wait if there are some jobs
+			if s.Len() > 0 {
+				mainWG.Wait()
+			}
 		},
 	}
 
