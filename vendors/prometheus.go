@@ -306,38 +306,47 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 
 	varsOpts := toolsRender.TemplateOptions{
 		Content: options.Vars,
+		Name:    "prometheus-vars",
 	}
 	varsTemplate, err := toolsRender.NewTextTemplate(varsOpts, observability)
 	if err != nil {
 		logger.Error(err)
+		return nil
 	}
 
 	metricOpts := toolsRender.TemplateOptions{
 		Content: options.Metric,
+		Name:    "prometheus-metrics",
 	}
 	metricTemplate, err := toolsRender.NewTextTemplate(metricOpts, observability)
 	if err != nil {
 		logger.Error(err)
+		return nil
 	}
 
 	serviceOpts := toolsRender.TemplateOptions{
 		Content: options.Service,
+		Name:    "prometheus-services",
 	}
 	serviceTemplate, err := toolsRender.NewTextTemplate(serviceOpts, observability)
 	if err != nil {
 		logger.Error(err)
+		return nil
 	}
 
 	labelsOpts := toolsRender.TemplateOptions{
 		Content: options.TelegrafLabels,
+		Name:    "prometheus-labels",
 	}
 	labelsTemplate, err := toolsRender.NewTextTemplate(labelsOpts, observability)
 	if err != nil {
 		logger.Error(err)
+		return nil
 	}
 
 	telegrafOpts := toolsRender.TemplateOptions{
 		Content: options.TelegrafTemplate,
+		Name:    "prometheus-telegraf",
 	}
 	telegrafTemplate, err := toolsRender.NewTextTemplate(telegrafOpts, observability)
 	if err != nil {

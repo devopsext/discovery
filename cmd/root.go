@@ -59,7 +59,7 @@ var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 	Metric:       envGet("PROMETHEUS_METRIC", "").(string),
 	Service:      envGet("PROMETHEUS_SERVICE", "").(string),
 	Schedule:     envGet("PROMETHEUS_SCHEDULE", "").(string),
-	Vars:         envStringExpand("PROMETHEUS_VARS", ""),
+	Vars:         envFileContentExpand("PROMETHEUS_VARS", ""),
 	BaseTemplate: envStringExpand("PROMETHEUS_BASE_TEMPLATE", ""),
 
 	TelegrafLabels:   envStringExpand("PROMETHEUS_TELEGRAF_LABELS", ""),
@@ -85,13 +85,21 @@ var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 	},
 }
 
+func getOnlyEnv(key string) string {
+	value, ok := os.LookupEnv(key)
+	if ok {
+		return value
+	}
+	return fmt.Sprintf("$%s", key)
+}
+
 func envGet(s string, def interface{}) interface{} {
 	return utils.EnvGet(fmt.Sprintf("%s_%s", APPNAME, s), def)
 }
 
 func envStringExpand(s string, def string) string {
 	snew := envGet(s, def).(string)
-	return os.ExpandEnv(snew)
+	return os.Expand(snew, getOnlyEnv)
 }
 
 func envFileContentExpand(s string, def string) string {
@@ -100,7 +108,7 @@ func envFileContentExpand(s string, def string) string {
 	if err != nil {
 		return def
 	}
-	return os.ExpandEnv(string(bytes))
+	return os.Expand(string(bytes), getOnlyEnv)
 }
 
 func interceptSyscall() {
