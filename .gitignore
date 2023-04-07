@@ -11,4 +11,5 @@ __debug_bin
 
 info.txt
 prometheus.telegraf.quality.query
+prometheus.telegraf.labels
 prometheus.vars

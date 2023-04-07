@@ -62,7 +62,7 @@ var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 	Vars:         envFileContentExpand("PROMETHEUS_VARS", ""),
 	BaseTemplate: envStringExpand("PROMETHEUS_BASE_TEMPLATE", ""),
 
-	TelegrafLabels:   envStringExpand("PROMETHEUS_TELEGRAF_LABELS", ""),
+	TelegrafLabels:   envFileContentExpand("PROMETHEUS_TELEGRAF_LABELS", ""),
 	TelegrafTemplate: envStringExpand("PROMETHEUS_TELEGRAF_TEMPLATE", ""),
 	TelegrafChecksum: envGet("PROMETHEUS_TELEGRAF_CHECKSUM", false).(bool),
 	TelegrafOptions: common.TelegrafConfigOptions{
