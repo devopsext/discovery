@@ -28,18 +28,19 @@ type TelegrafInputPrometheusHttpAvailability struct {
 }
 
 type TelegrafInputPrometheusHttp struct {
-	Name          string                               `toml:"name"`
-	URL           string                               `toml:"url"`
-	Version       string                               `toml:"version"`
-	Params        string                               `toml:"params"`
-	Interval      string                               `toml:"interval"`
-	Timeout       string                               `toml:"timeout"`
-	Duration      string                               `toml:"duration"`
-	Prefix        string                               `toml:"prefix"`
-	Metric        []*TelegrafInputPrometheusHttpMetric `toml:"metric"`
-	Tags          map[string]string                    `toml:"tags,omitempty"`
-	Include       []string                             `toml:"taginclude,omitempty"`
-	SkipEmptyTags bool                                 `toml:"skip_empty_tags"`
+	Name          string                                     `toml:"name"`
+	URL           string                                     `toml:"url"`
+	Version       string                                     `toml:"version"`
+	Params        string                                     `toml:"params"`
+	Interval      string                                     `toml:"interval"`
+	Timeout       string                                     `toml:"timeout"`
+	Duration      string                                     `toml:"duration"`
+	Prefix        string                                     `toml:"prefix"`
+	Metric        []*TelegrafInputPrometheusHttpMetric       `toml:"metric"`
+	Availability  []*TelegrafInputPrometheusHttpAvailability `toml:"metric"`
+	Tags          map[string]string                          `toml:"tags,omitempty"`
+	Include       []string                                   `toml:"taginclude,omitempty"`
+	SkipEmptyTags bool                                       `toml:"skip_empty_tags"`
 }
 
 type TelegrafInputs struct {
@@ -59,7 +60,7 @@ type TelegrafConfigOptions struct {
 	QualityEvery     string
 	QualityPoints    int
 	QualityQuery     string
-	AvailbailityName string
+	AvailabilityName string
 	MetricName       string
 	DefaultTags      []string
 	VarFormat        string
@@ -180,8 +181,31 @@ func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, 
 	ti.Metric = append(ti.Metric, metric)
 }
 
-func (ti *TelegrafInputPrometheusHttp) buildAvailability(availbility *BaseAvailability, opts TelegrafConfigOptions) {
-	// to be
+func (ti *TelegrafInputPrometheusHttp) buildAvailability(availbility []*BaseAvailability, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
+
+	for _, a := range availbility {
+
+		availability := &TelegrafInputPrometheusHttpAvailability{}
+
+		if a.Suffix == "" {
+			scope := labels["scope"]
+			availability.Name = fmt.Sprintf("%s:%s", opts.AvailabilityName, scope)
+
+		} else {
+			availability.Name = fmt.Sprintf("%s:%s", opts.AvailabilityName, a.Suffix)
+		}
+
+		qe := ti.setVars(a.Query, opts.VarFormat, vars)
+		availability.Query = ti.sanitizeQuery(qe)
+		tags1 := ti.buildTags(availability.Name, labels, opts.VarFormat, vars)
+		tags2 := ti.buildTags(availability.Name, a.Labels, opts.VarFormat, vars)
+		tags := MergeMaps(tags1, tags2)
+		keys := GetStringKeys(tags)
+		sort.Strings(keys)
+		ti.updateIncludeTags(keys)
+		availability.Tags = tags
+		ti.Availability = append(ti.Availability, availability)
+	}
 }
 
 func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
@@ -229,7 +253,7 @@ func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, opts TelegrafConfigOp
 		vars := MergeMaps(c.Vars, s.Vars)
 
 		input.buildQualities(c.Qualities, opts, labels, vars)
-		input.buildAvailability(c.Availability, opts)
+		input.buildAvailability(c.Availability, opts, labels, vars)
 		input.buildMetrics(c.Metrics, opts, labels, vars)
 	}
 	input.updateIncludeTags(opts.DefaultTags)
