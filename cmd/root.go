@@ -78,7 +78,7 @@ var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 		QualityEvery:     envGet("PROMETHEUS_TELEGRAF_QUALITY_EVERY", "15s").(string),
 		QualityPoints:    envGet("PROMETHEUS_TELEGRAF_QUALITY_POINTS", 20).(int),
 		QualityQuery:     envFileContentExpand("PROMETHEUS_TELEGRAF_QUALITY_QUERY", ""),
-		AvailbailityName: envGet("PROMETHEUS_TELEGRAF_AVAILABILITY_NAME", "availability").(string),
+		AvailabilityName: envGet("PROMETHEUS_TELEGRAF_AVAILABILITY_NAME", "availability").(string),
 		MetricName:       envGet("PROMETHEUS_TELEGRAF_METRIC_NAME", "metric").(string),
 		DefaultTags:      strings.Split(envStringExpand("PROMETHEUS_TELEGRAF_DEFAULT_TAGS", ""), ","),
 		VarFormat:        envGet("PROMETHEUS_TELEGRAF_VAR_FORMAT", "$%s").(string),
@@ -227,7 +227,7 @@ func Execute() {
 	flags.IntVar(&prometheusDiscoveryOptions.TelegrafOptions.QualityPoints, "prometheus-telegraf-quality-points", prometheusDiscoveryOptions.TelegrafOptions.QualityPoints, "Prometheus discovery telegraf quality points")
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.QualityQuery, "prometheus-telegraf-quality-query", prometheusDiscoveryOptions.TelegrafOptions.QualityQuery, "Prometheus discovery telegraf quality query")
 
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.AvailbailityName, "prometheus-telegraf-availability-name", prometheusDiscoveryOptions.TelegrafOptions.AvailbailityName, "Prometheus discovery telegraf availability name")
+	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.AvailabilityName, "prometheus-telegraf-availability-name", prometheusDiscoveryOptions.TelegrafOptions.AvailabilityName, "Prometheus discovery telegraf availability name")
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.MetricName, "prometheus-telegraf-metric-name", prometheusDiscoveryOptions.TelegrafOptions.MetricName, "Prometheus discovery telegraf metric name")
 	flags.StringSliceVar(&prometheusDiscoveryOptions.TelegrafOptions.DefaultTags, "prometheus-telegraf-default-tags", prometheusDiscoveryOptions.TelegrafOptions.DefaultTags, "Prometheus discovery telegraf default tags")
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.VarFormat, "prometheus-telegraf-var-format", prometheusDiscoveryOptions.TelegrafOptions.VarFormat, "Prometheus discovery telegraf var format")
