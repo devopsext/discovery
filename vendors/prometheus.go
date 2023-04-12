@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
@@ -20,6 +22,7 @@ type PrometheusDiscoveryOptions struct {
 	Timeout      int
 	Insecure     bool
 	Query        string
+	Period       string
 	Metric       string
 	Service      string
 	Schedule     string
@@ -33,14 +36,15 @@ type PrometheusDiscoveryOptions struct {
 }
 
 type PrometheusDiscovery struct {
-	prometheus       *toolsVendors.Prometheus
-	options          PrometheusDiscoveryOptions
-	logger           sreCommon.Logger
-	serviceTemplate  *toolsRender.TextTemplate
-	metricTemplate   *toolsRender.TextTemplate
-	telegrafTemplate *toolsRender.TextTemplate
-	labelsTemplate   *toolsRender.TextTemplate
-	varsTemplate     *toolsRender.TextTemplate
+	prometheus        *toolsVendors.Prometheus
+	prometheusOptions vendors.PrometheusOptions
+	options           PrometheusDiscoveryOptions
+	logger            sreCommon.Logger
+	serviceTemplate   *toolsRender.TextTemplate
+	metricTemplate    *toolsRender.TextTemplate
+	telegrafTemplate  *toolsRender.TextTemplate
+	labelsTemplate    *toolsRender.TextTemplate
+	varsTemplate      *toolsRender.TextTemplate
 	// services   sreCommon.Counter
 }
 
@@ -261,11 +265,39 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 	return matched
 }
 
+func (pd *PrometheusDiscovery) parsePeriodFromNow() string {
+
+	durStr := pd.options.Period
+	if utils.IsEmpty(durStr) {
+		return ""
+	}
+
+	if durStr == "" {
+		durStr = "0s"
+	}
+
+	if durStr == "0d" {
+		durStr = "0h"
+	}
+
+	dur, err := time.ParseDuration(durStr)
+	if err != nil {
+		return ""
+	}
+
+	from := time.Now().UTC().Add(time.Duration(dur))
+	return strconv.Itoa(int(from.Unix()))
+}
+
 func (pd *PrometheusDiscovery) Discover() {
 
 	pd.logger.Debug("Prometheus discovery by query: %s", pd.options.Query)
 
-	data, err := pd.prometheus.Get()
+	pd.prometheusOptions.From = pd.parsePeriodFromNow()
+	pd.prometheusOptions.To = strconv.Itoa(int(time.Now().Unix()))
+	pd.prometheusOptions.Step = "3" // ?
+
+	data, err := pd.prometheus.CustomGet(pd.prometheusOptions)
 	if err != nil {
 		pd.logger.Error(err)
 		return
@@ -359,20 +391,23 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 		return nil
 	}
 
+	prometheusOpts := vendors.PrometheusOptions{
+		URL:      options.URL,
+		Timeout:  options.Timeout,
+		Insecure: options.Insecure,
+		Query:    options.Query,
+	}
+
 	return &PrometheusDiscovery{
-		prometheus: vendors.NewPrometheus(vendors.PrometheusOptions{
-			URL:      options.URL,
-			Timeout:  options.Timeout,
-			Insecure: options.Insecure,
-			Query:    options.Query,
-		}),
-		options:          options,
-		logger:           logger,
-		serviceTemplate:  serviceTemplate,
-		metricTemplate:   metricTemplate,
-		telegrafTemplate: telegrafTemplate,
-		labelsTemplate:   labelsTemplate,
-		varsTemplate:     varsTemplate,
+		prometheus:        vendors.NewPrometheus(prometheusOpts),
+		prometheusOptions: prometheusOpts,
+		options:           options,
+		logger:            logger,
+		serviceTemplate:   serviceTemplate,
+		metricTemplate:    metricTemplate,
+		telegrafTemplate:  telegrafTemplate,
+		labelsTemplate:    labelsTemplate,
+		varsTemplate:      varsTemplate,
 		//services: observability.Metrics().Counter("services", "Count of all found services", []string{}, "prometheus"),
 	}
 }
