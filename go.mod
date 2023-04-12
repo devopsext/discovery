@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/devopsext/sre v0.1.6
-	github.com/devopsext/tools v0.8.9
+	github.com/devopsext/tools v0.9.0
 	github.com/devopsext/utils v0.2.0
 	github.com/go-co-op/gocron v1.18.0
 	github.com/spf13/cobra v1.6.1
