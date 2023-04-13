@@ -22,7 +22,8 @@ type PrometheusDiscoveryOptions struct {
 	Timeout      int
 	Insecure     bool
 	Query        string
-	Period       string
+	QueryPeriod  string
+	QueryStep    string
 	Metric       string
 	Service      string
 	Schedule     string
@@ -265,9 +266,9 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 	return matched
 }
 
-func (pd *PrometheusDiscovery) parsePeriodFromNow() string {
+func (pd *PrometheusDiscovery) parsePeriodFromNow(t time.Time) string {
 
-	durStr := pd.options.Period
+	durStr := pd.options.QueryPeriod
 	if utils.IsEmpty(durStr) {
 		return ""
 	}
@@ -285,7 +286,7 @@ func (pd *PrometheusDiscovery) parsePeriodFromNow() string {
 		return ""
 	}
 
-	from := time.Now().UTC().Add(time.Duration(dur))
+	from := t.Add(time.Duration(dur))
 	return strconv.Itoa(int(from.Unix()))
 }
 
@@ -293,9 +294,16 @@ func (pd *PrometheusDiscovery) Discover() {
 
 	pd.logger.Debug("Prometheus discovery by query: %s", pd.options.Query)
 
-	pd.prometheusOptions.From = pd.parsePeriodFromNow()
-	pd.prometheusOptions.To = strconv.Itoa(int(time.Now().Unix()))
-	pd.prometheusOptions.Step = "3" // ?
+	if !utils.IsEmpty(pd.options.QueryPeriod) {
+		// https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries
+		t := time.Now().UTC()
+		pd.prometheusOptions.From = pd.parsePeriodFromNow(t)
+		pd.prometheusOptions.To = strconv.Itoa(int(t.Unix()))
+		pd.prometheusOptions.Step = pd.options.QueryStep
+		if utils.IsEmpty(pd.prometheusOptions.Step) {
+			pd.prometheusOptions.Step = "15s"
+		}
+	}
 
 	data, err := pd.prometheus.CustomGet(pd.prometheusOptions)
 	if err != nil {
@@ -319,8 +327,8 @@ func (pd *PrometheusDiscovery) Discover() {
 		return
 	}
 
-	if res.Data.ResultType != "vector" {
-		pd.logger.Error("Only vectors are allowed")
+	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
+		pd.logger.Error("Only vector and matrix are allowed")
 		return
 	}
 

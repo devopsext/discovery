@@ -56,7 +56,8 @@ var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 	Timeout:      envGet("PROMETHEUS_TIMEOUT", 30).(int),
 	Insecure:     envGet("PROMETHEUS_INSECURE", false).(bool),
 	Query:        envFileContentExpand("PROMETHEUS_QUERY", ""),
-	Period:       envGet("PROMETHEUS_PERIOD", "").(string),
+	QueryPeriod:  envGet("PROMETHEUS_QUERY_PERIOD", "").(string),
+	QueryStep:    envGet("PROMETHEUS_QUERY_STEP", "").(string),
 	Metric:       envGet("PROMETHEUS_METRIC", "").(string),
 	Service:      envGet("PROMETHEUS_SERVICE", "").(string),
 	Schedule:     envGet("PROMETHEUS_SCHEDULE", "").(string),
@@ -205,7 +206,8 @@ func Execute() {
 	flags.IntVar(&prometheusDiscoveryOptions.Timeout, "prometheus-timeout", prometheusDiscoveryOptions.Timeout, "Prometheus discovery timeout in seconds")
 	flags.BoolVar(&prometheusDiscoveryOptions.Insecure, "prometheus-insecure", prometheusDiscoveryOptions.Insecure, "Prometheus discovery insecure")
 	flags.StringVar(&prometheusDiscoveryOptions.Query, "prometheus-query", prometheusDiscoveryOptions.Query, "Prometheus discovery query")
-	flags.StringVar(&prometheusDiscoveryOptions.Period, "prometheus-period", prometheusDiscoveryOptions.Period, "Prometheus discovery period")
+	flags.StringVar(&prometheusDiscoveryOptions.QueryPeriod, "prometheus-query-period", prometheusDiscoveryOptions.QueryPeriod, "Prometheus discovery query period")
+	flags.StringVar(&prometheusDiscoveryOptions.QueryStep, "prometheus-query-step", prometheusDiscoveryOptions.QueryStep, "Prometheus discovery query step")
 	flags.StringVar(&prometheusDiscoveryOptions.Service, "prometheus-service", prometheusDiscoveryOptions.Service, "Prometheus discovery service label")
 	flags.StringVar(&prometheusDiscoveryOptions.Metric, "prometheus-metric", prometheusDiscoveryOptions.Metric, "Prometheus discovery metric label")
 	flags.StringVar(&prometheusDiscoveryOptions.Schedule, "prometheus-schedule", prometheusDiscoveryOptions.Schedule, "Prometheus discovery schedule")
