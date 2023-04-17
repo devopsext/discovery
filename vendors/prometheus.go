@@ -67,6 +67,7 @@ func (pd *PrometheusDiscovery) render(tpl *toolsRender.TextTemplate, def string,
 
 	s, err := common.RenderTemplate(tpl, def, obj)
 	if err != nil {
+		pd.logger.Error(err)
 		return def
 	}
 	return s
