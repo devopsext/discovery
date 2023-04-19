@@ -202,33 +202,34 @@ func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, 
 	ti.Metric = append(ti.Metric, metric)
 }
 
-func (ti *TelegrafInputPrometheusHttp) buildAvailability(availbility []*BaseAvailability, tpl string, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
+func (ti *TelegrafInputPrometheusHttp) buildAvailability(baseAvailability *BaseAvailability, tpl string, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
 
-	for _, a := range availbility {
+	if baseAvailability != nil {
 
-		availability := &TelegrafInputPrometheusHttpAvailability{}
+		for _, a := range baseAvailability.Queries {
 
-		if a.Suffix == "" {
-			scope := labels["scope"]
-			availability.Name = fmt.Sprintf("%s:%s", opts.AvailabilityName, scope)
+			availability := &TelegrafInputPrometheusHttpAvailability{}
 
-		} else {
-			availability.Name = fmt.Sprintf("%s:%s", opts.AvailabilityName, a.Suffix)
+			if a.Suffix != "" {
+				availability.Name = fmt.Sprintf("%s:%s", opts.AvailabilityName, a.Suffix)
+			} else {
+				availability.Name = opts.AvailabilityName
+			}
+
+			qe := ti.setVars(a.Query, opts.VarFormat, vars)
+			availability.Query = ti.sanitizeQuery(qe)
+			tags1 := ti.buildTags(availability.Name, labels, opts.VarFormat, vars)
+			tags2 := ti.buildTags(availability.Name, a.Labels, opts.VarFormat, vars)
+			tags := MergeMaps(tags1, tags2)
+			tags = ti.renderLabels(tpl, tags, vars)
+			keys := GetStringKeys(tags)
+			sort.Strings(keys)
+			ti.updateIncludeTags(keys)
+			availability.Tags = tags
+			ti.Availability = append(ti.Availability, availability)
 		}
-
-		qe := ti.setVars(a.Query, opts.VarFormat, vars)
-		availability.Query = ti.sanitizeQuery(qe)
-		tags1 := ti.buildTags(availability.Name, labels, opts.VarFormat, vars)
-		tags2 := ti.buildTags(availability.Name, a.Labels, opts.VarFormat, vars)
-		tags := MergeMaps(tags1, tags2)
-		tags = ti.renderLabels(tpl, tags, vars)
-
-		keys := GetStringKeys(tags)
-		sort.Strings(keys)
-		ti.updateIncludeTags(keys)
-		availability.Tags = tags
-		ti.Availability = append(ti.Availability, availability)
 	}
+
 }
 
 func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, tpl string, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
