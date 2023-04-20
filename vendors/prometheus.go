@@ -31,6 +31,7 @@ type PrometheusDiscoveryOptions struct {
 	Vars         string
 
 	TelegrafLabels   string
+	TelegrafFiles    string
 	TelegrafTemplate string
 	TelegrafChecksum bool
 	TelegrafOptions  common.TelegrafConfigOptions
@@ -44,7 +45,6 @@ type PrometheusDiscovery struct {
 	serviceTemplate   *toolsRender.TextTemplate
 	metricTemplate    *toolsRender.TextTemplate
 	telegrafTemplate  *toolsRender.TextTemplate
-	labelsTemplate    *toolsRender.TextTemplate
 	varsTemplate      *toolsRender.TextTemplate
 	// services   sreCommon.Counter
 }
@@ -115,19 +115,11 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 
 	for k, s := range services {
 
-		labels := pd.render(pd.labelsTemplate, pd.options.TelegrafLabels, s.Vars)
-		s.Labels = utils.MapGetKeyValues(labels)
-		for i, v := range s.Labels {
-			if utils.IsEmpty(v) {
-				s.Labels[i] = s.Vars[i]
-			}
-		}
-
 		path := pd.render(pd.telegrafTemplate, pd.options.TelegrafTemplate, s.Vars)
 		pd.logger.Debug("Processing service: %s for path: %s", k, path)
 
 		telegrafConfig := &common.TelegrafConfig{}
-		bytes, err := telegrafConfig.GenerateServiceBytes(s, pd.options.TelegrafOptions, path)
+		bytes, err := telegrafConfig.GenerateServiceBytes(s, pd.options.TelegrafLabels, pd.options.TelegrafFiles, pd.options.TelegrafOptions, path)
 		if err != nil {
 			pd.logger.Error(err)
 			continue
@@ -375,16 +367,6 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 		return nil
 	}
 
-	labelsOpts := toolsRender.TemplateOptions{
-		Content: options.TelegrafLabels,
-		Name:    "prometheus-labels",
-	}
-	labelsTemplate, err := toolsRender.NewTextTemplate(labelsOpts, observability)
-	if err != nil {
-		logger.Error(err)
-		return nil
-	}
-
 	telegrafOpts := toolsRender.TemplateOptions{
 		Content: options.TelegrafTemplate,
 		Name:    "prometheus-telegraf",
@@ -415,7 +397,6 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 		serviceTemplate:   serviceTemplate,
 		metricTemplate:    metricTemplate,
 		telegrafTemplate:  telegrafTemplate,
-		labelsTemplate:    labelsTemplate,
 		varsTemplate:      varsTemplate,
 		//services: observability.Metrics().Counter("services", "Count of all found services", []string{}, "prometheus"),
 	}

@@ -13,6 +13,12 @@ import (
 	"github.com/devopsext/utils"
 )
 
+type TelegrafInputPrometheusHttpFile struct {
+	Name string `toml:"name"`
+	Path string `toml:"path"`
+	Type string `toml:"type,omitempty"`
+}
+
 type TelegrafInputPrometheusHttpMetric struct {
 	Name     string            `toml:"name"`
 	Query    string            `toml:"query"`
@@ -36,6 +42,7 @@ type TelegrafInputPrometheusHttp struct {
 	Timeout       string                                     `toml:"timeout"`
 	Duration      string                                     `toml:"duration"`
 	Prefix        string                                     `toml:"prefix"`
+	File          []*TelegrafInputPrometheusHttpFile         `toml:"file"`
 	Metric        []*TelegrafInputPrometheusHttpMetric       `toml:"metric"`
 	Availability  []*TelegrafInputPrometheusHttpAvailability `toml:"metric"`
 	Tags          map[string]string                          `toml:"tags,omitempty"`
@@ -72,6 +79,7 @@ type TelegrafConfig struct {
 
 //[[inputs.prometheus_http]]
 //  [inputs.prometheus_http.tags]
+//  [[inputs.prometheus_http.file]]
 //  [[inputs.prometheus_http.metric]]
 //    [inputs.prometheus_http.metric.tags]
 
@@ -112,6 +120,17 @@ func (ti *TelegrafInputPrometheusHttp) render(def string, obj interface{}) strin
 	return s
 }
 
+func (ti *TelegrafInputPrometheusHttp) renderLabels(tpl string, tags map[string]string, vars map[string]string) map[string]string {
+
+	m := make(map[string]interface{})
+	m["tags"] = tags
+	m["vars"] = vars
+	s := ti.render(tpl, m)
+	kv := utils.MapGetKeyValues(s)
+
+	return MergeMaps(tags, kv)
+}
+
 func (ti *TelegrafInputPrometheusHttp) enableLabel(name, l string) string {
 
 	if l == "" {
@@ -148,7 +167,7 @@ func (ti *TelegrafInputPrometheusHttp) buildTags(name string, labels map[string]
 	return r
 }
 
-func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
+func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, tpl string, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
 
 	metric := &TelegrafInputPrometheusHttpMetric{}
 	metric.Name = opts.QualityName
@@ -174,6 +193,8 @@ func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, 
 
 	metric.Query = fmt.Sprintf("(%s)/%d", strings.Join(queries, " + "), len(queries))
 	tags := ti.buildTags(metric.Name, labels, opts.VarFormat, vars)
+	tags = ti.renderLabels(tpl, tags, vars)
+
 	keys := GetStringKeys(tags)
 	sort.Strings(keys)
 	ti.updateIncludeTags(keys)
@@ -181,7 +202,7 @@ func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, 
 	ti.Metric = append(ti.Metric, metric)
 }
 
-func (ti *TelegrafInputPrometheusHttp) buildAvailability(availbility []*BaseAvailability, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
+func (ti *TelegrafInputPrometheusHttp) buildAvailability(availbility []*BaseAvailability, tpl string, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
 
 	for _, a := range availbility {
 
@@ -200,6 +221,8 @@ func (ti *TelegrafInputPrometheusHttp) buildAvailability(availbility []*BaseAvai
 		tags1 := ti.buildTags(availability.Name, labels, opts.VarFormat, vars)
 		tags2 := ti.buildTags(availability.Name, a.Labels, opts.VarFormat, vars)
 		tags := MergeMaps(tags1, tags2)
+		tags = ti.renderLabels(tpl, tags, vars)
+
 		keys := GetStringKeys(tags)
 		sort.Strings(keys)
 		ti.updateIncludeTags(keys)
@@ -208,7 +231,7 @@ func (ti *TelegrafInputPrometheusHttp) buildAvailability(availbility []*BaseAvai
 	}
 }
 
-func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
+func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, tpl string, opts TelegrafConfigOptions, labels map[string]string, vars map[string]string) {
 
 	for _, m := range metrics {
 
@@ -221,6 +244,8 @@ func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, opts 
 		tags1 := ti.buildTags(metric.Name, labels, opts.VarFormat, vars)
 		tags2 := ti.buildTags(metric.Name, m.Labels, opts.VarFormat, vars)
 		tags := MergeMaps(tags1, tags2)
+		tags = ti.renderLabels(tpl, tags, vars)
+
 		keys := GetStringKeys(tags)
 		sort.Strings(keys)
 		ti.updateIncludeTags(keys)
@@ -229,7 +254,7 @@ func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, opts 
 	}
 }
 
-func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, opts TelegrafConfigOptions, name string) ([]byte, error) {
+func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, labelsTpl, filesTpl string, opts TelegrafConfigOptions, name string) ([]byte, error) {
 
 	input := &TelegrafInputPrometheusHttp{}
 	input.Name = name
@@ -252,12 +277,23 @@ func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, opts TelegrafConfigOp
 		labels := MergeMaps(c.Labels, s.Labels)
 		vars := MergeMaps(c.Vars, s.Vars)
 
-		input.buildQualities(c.Qualities, opts, labels, vars)
-		input.buildAvailability(c.Availability, opts, labels, vars)
-		input.buildMetrics(c.Metrics, opts, labels, vars)
+		input.buildQualities(c.Qualities, labelsTpl, opts, labels, vars)
+		input.buildAvailability(c.Availability, labelsTpl, opts, labels, vars)
+		input.buildMetrics(c.Metrics, labelsTpl, opts, labels, vars)
 	}
 	input.updateIncludeTags(opts.DefaultTags)
 	sort.Strings(input.Include)
+
+	fs := input.render(filesTpl, s.Vars)
+	kv := utils.MapGetKeyValues(fs)
+	for k, v := range kv {
+		if !utils.IsEmpty(v) {
+			input.File = append(input.File, &TelegrafInputPrometheusHttpFile{
+				Name: k,
+				Path: v,
+			})
+		}
+	}
 
 	tc.Inputs.PrometheusHttp = append(tc.Inputs.PrometheusHttp, input)
 

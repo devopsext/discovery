@@ -65,6 +65,7 @@ var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 	BaseTemplate: envStringExpand("PROMETHEUS_BASE_TEMPLATE", ""),
 
 	TelegrafLabels:   envFileContentExpand("PROMETHEUS_TELEGRAF_LABELS", ""),
+	TelegrafFiles:    envFileContentExpand("PROMETHEUS_TELEGRAF_FILES", ""),
 	TelegrafTemplate: envStringExpand("PROMETHEUS_TELEGRAF_TEMPLATE", ""),
 	TelegrafChecksum: envGet("PROMETHEUS_TELEGRAF_CHECKSUM", false).(bool),
 	TelegrafOptions: common.TelegrafConfigOptions{
@@ -215,6 +216,7 @@ func Execute() {
 	flags.StringVar(&prometheusDiscoveryOptions.Vars, "prometheus-vars", prometheusDiscoveryOptions.Vars, "Prometheus discovery vars")
 
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafLabels, "prometheus-telegraf-labels", prometheusDiscoveryOptions.TelegrafLabels, "Prometheus discovery telegraf labels")
+	flags.StringVar(&prometheusDiscoveryOptions.TelegrafFiles, "prometheus-telegraf-files", prometheusDiscoveryOptions.TelegrafFiles, "Prometheus discovery telegraf files")
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafTemplate, "prometheus-telegraf-template", prometheusDiscoveryOptions.TelegrafTemplate, "Prometheus discovery telegraf template")
 	flags.BoolVar(&prometheusDiscoveryOptions.TelegrafChecksum, "prometheus-telegraf-checksum", prometheusDiscoveryOptions.TelegrafChecksum, "Prometheus discovery telegraf checksum")
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.URL, "prometheus-telegraf-url", prometheusDiscoveryOptions.TelegrafOptions.URL, "Prometheus discovery telegraf URL")
