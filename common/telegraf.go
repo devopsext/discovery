@@ -189,12 +189,10 @@ func (ti *TelegrafInputPrometheusHttp) buildAvailability(baseAvailability *BaseA
 
 			availability := &TelegrafInputPrometheusHttpAvailability{}
 
-			if a.Suffix == "" {
-				scope := labels["scope"]
-				availability.Name = fmt.Sprintf("%s:%s", opts.AvailabilityName, scope)
-
-			} else {
+			if a.Suffix != "" {
 				availability.Name = fmt.Sprintf("%s:%s", opts.AvailabilityName, a.Suffix)
+			} else {
+				availability.Name = opts.AvailabilityName
 			}
 
 			qe := ti.setVars(a.Query, opts.VarFormat, vars)
