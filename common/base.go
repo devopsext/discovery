@@ -17,18 +17,28 @@ type BaseMetric struct {
 }
 
 type BaseAvailability struct {
-	Query    string            `yaml:"query"`
-	UniqueBy []string          `yaml:"unique_by"`
-	Suffix   string            `yaml:"suffix"`
-	Labels   map[string]string `yaml:"labels"`
+	Queries []*BaseAvailabilityQuery `yaml:"queries"`
+	GroupBy []string                 `yaml:"group_by"`
+	Labels  map[string]string        `yaml:"labels"`
+}
+
+type BaseAvailabilityQuery struct {
+	Query     string            `yaml:"query"`
+	Suffix    string            `yaml:"suffix"`
+	Weight    interface{}       `yaml:"weight"`
+	Labels    map[string]string `yaml:"labels"`
+	UseCRD    string            `yaml:"crd"`
+	Composite string            `yaml:"composite"`
+	Source    string            `yaml:"source"`
+	Timeout   string            `yaml:"timeout"`
 }
 
 type BaseConfig struct {
-	Vars         map[string]string   `yaml:"vars"`
-	Labels       map[string]string   `yaml:"labels"`
-	Qualities    []*BaseQuality      `yaml:"quality"`
-	Metrics      []*BaseMetric       `yaml:"metrics"`
-	Availability []*BaseAvailability `yaml:"availability"`
+	Vars         map[string]string `yaml:"vars"`
+	Labels       map[string]string `yaml:"labels"`
+	Qualities    []*BaseQuality    `yaml:"quality"`
+	Metrics      []*BaseMetric     `yaml:"metrics"`
+	Availability *BaseAvailability `yaml:"availability"`
 }
 
 type Service struct {
@@ -39,8 +49,10 @@ type Service struct {
 
 func (ba *BaseAvailability) matchQuery(r *regexp.Regexp) bool {
 
-	if r.MatchString(ba.Query) {
-		return true
+	for _, v := range ba.Queries {
+		if r.MatchString(v.Query) {
+			return true
+		}
 	}
 	return false
 }
@@ -64,11 +76,8 @@ func (bc *BaseConfig) MetricExists(query string) bool {
 		}
 	}
 
-	for _, m := range bc.Availability {
-		if m != nil {
-			return m.matchQuery(r)
-		}
-
+	if bc.Availability != nil {
+		return bc.Availability.matchQuery(r)
 	}
 
 	return false
