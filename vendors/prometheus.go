@@ -42,6 +42,7 @@ type PrometheusDiscovery struct {
 	prometheusOptions vendors.PrometheusOptions
 	options           PrometheusDiscoveryOptions
 	logger            sreCommon.Logger
+	observability     *common.Observability
 	serviceTemplate   *toolsRender.TextTemplate
 	metricTemplate    *toolsRender.TextTemplate
 	telegrafTemplate  *toolsRender.TextTemplate
@@ -118,7 +119,9 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 		path := pd.render(pd.telegrafTemplate, pd.options.TelegrafTemplate, s.Vars)
 		pd.logger.Debug("Processing service: %s for path: %s", k, path)
 
-		telegrafConfig := &common.TelegrafConfig{}
+		telegrafConfig := &common.TelegrafConfig{
+			Observability: pd.observability,
+		}
 		bytes, err := telegrafConfig.GenerateServiceBytes(s, pd.options.TelegrafLabels, pd.options.TelegrafFiles, pd.options.TelegrafOptions, path)
 		if err != nil {
 			pd.logger.Error(err)
@@ -394,6 +397,7 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 		prometheusOptions: prometheusOpts,
 		options:           options,
 		logger:            logger,
+		observability:     observability,
 		serviceTemplate:   serviceTemplate,
 		metricTemplate:    metricTemplate,
 		telegrafTemplate:  telegrafTemplate,

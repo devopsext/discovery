@@ -13,3 +13,10 @@ info.txt
 prometheus.telegraf.quality.query
 prometheus.telegraf.labels
 prometheus.vars
+cmdb.json
+_cmdb.json
+haproxy.json
+ha-api-metrics.json
+ha-aws.json
+ha*.json
+discovery.json
