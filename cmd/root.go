@@ -60,12 +60,13 @@ var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 	QueryStep:    envGet("PROMETHEUS_QUERY_STEP", "").(string),
 	Metric:       envGet("PROMETHEUS_METRIC", "").(string),
 	Service:      envGet("PROMETHEUS_SERVICE", "").(string),
+	Files:        envFileContentExpand("PROMETHEUS_FILES", ""),
+	Disabled:     strings.Split(envStringExpand("PROMETHEUS_DISABLED", ""), ","),
 	Schedule:     envGet("PROMETHEUS_SCHEDULE", "").(string),
 	Vars:         envFileContentExpand("PROMETHEUS_VARS", ""),
 	BaseTemplate: envStringExpand("PROMETHEUS_BASE_TEMPLATE", ""),
 
 	TelegrafLabels:   envFileContentExpand("PROMETHEUS_TELEGRAF_LABELS", ""),
-	TelegrafFiles:    envFileContentExpand("PROMETHEUS_TELEGRAF_FILES", ""),
 	TelegrafTemplate: envStringExpand("PROMETHEUS_TELEGRAF_TEMPLATE", ""),
 	TelegrafChecksum: envGet("PROMETHEUS_TELEGRAF_CHECKSUM", false).(bool),
 	TelegrafOptions: common.TelegrafConfigOptions{
@@ -211,12 +212,13 @@ func Execute() {
 	flags.StringVar(&prometheusDiscoveryOptions.QueryStep, "prometheus-query-step", prometheusDiscoveryOptions.QueryStep, "Prometheus discovery query step")
 	flags.StringVar(&prometheusDiscoveryOptions.Service, "prometheus-service", prometheusDiscoveryOptions.Service, "Prometheus discovery service label")
 	flags.StringVar(&prometheusDiscoveryOptions.Metric, "prometheus-metric", prometheusDiscoveryOptions.Metric, "Prometheus discovery metric label")
+	flags.StringVar(&prometheusDiscoveryOptions.Files, "prometheus-files", prometheusDiscoveryOptions.Files, "Prometheus discovery files")
+	flags.StringSliceVar(&prometheusDiscoveryOptions.Disabled, "prometheus-disabled", prometheusDiscoveryOptions.Disabled, "Prometheus discovery disabled services")
 	flags.StringVar(&prometheusDiscoveryOptions.Schedule, "prometheus-schedule", prometheusDiscoveryOptions.Schedule, "Prometheus discovery schedule")
 	flags.StringVar(&prometheusDiscoveryOptions.BaseTemplate, "prometheus-base-template", prometheusDiscoveryOptions.BaseTemplate, "Prometheus discovery base template")
 	flags.StringVar(&prometheusDiscoveryOptions.Vars, "prometheus-vars", prometheusDiscoveryOptions.Vars, "Prometheus discovery vars")
 
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafLabels, "prometheus-telegraf-labels", prometheusDiscoveryOptions.TelegrafLabels, "Prometheus discovery telegraf labels")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafFiles, "prometheus-telegraf-files", prometheusDiscoveryOptions.TelegrafFiles, "Prometheus discovery telegraf files")
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafTemplate, "prometheus-telegraf-template", prometheusDiscoveryOptions.TelegrafTemplate, "Prometheus discovery telegraf template")
 	flags.BoolVar(&prometheusDiscoveryOptions.TelegrafChecksum, "prometheus-telegraf-checksum", prometheusDiscoveryOptions.TelegrafChecksum, "Prometheus discovery telegraf checksum")
 	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.URL, "prometheus-telegraf-url", prometheusDiscoveryOptions.TelegrafOptions.URL, "Prometheus discovery telegraf URL")

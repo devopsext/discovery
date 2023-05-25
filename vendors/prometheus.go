@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
-	"github.com/devopsext/tools/vendors"
 	toolsVendors "github.com/devopsext/tools/vendors"
 	"github.com/devopsext/utils"
 	"gopkg.in/yaml.v2"
@@ -26,12 +27,13 @@ type PrometheusDiscoveryOptions struct {
 	QueryStep    string
 	Metric       string
 	Service      string
+	Disabled     []string
 	Schedule     string
 	BaseTemplate string
 	Vars         string
+	Files        string
 
 	TelegrafLabels   string
-	TelegrafFiles    string
 	TelegrafTemplate string
 	TelegrafChecksum bool
 	TelegrafOptions  common.TelegrafConfigOptions
@@ -39,7 +41,7 @@ type PrometheusDiscoveryOptions struct {
 
 type PrometheusDiscovery struct {
 	prometheus        *toolsVendors.Prometheus
-	prometheusOptions vendors.PrometheusOptions
+	prometheusOptions toolsVendors.PrometheusOptions
 	options           PrometheusDiscoveryOptions
 	logger            sreCommon.Logger
 	observability     *common.Observability
@@ -122,7 +124,7 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 		telegrafConfig := &common.TelegrafConfig{
 			Observability: pd.observability,
 		}
-		bytes, err := telegrafConfig.GenerateServiceBytes(s, pd.options.TelegrafLabels, pd.options.TelegrafFiles, pd.options.TelegrafOptions, path)
+		bytes, err := telegrafConfig.GenerateServiceBytes(s, pd.options.TelegrafLabels, pd.options.TelegrafOptions, path)
 		if err != nil {
 			pd.logger.Error(err)
 			continue
@@ -180,6 +182,145 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 	}
 }
 
+func (pd *PrometheusDiscovery) readJson(bytes []byte) (interface{}, error) {
+
+	var v interface{}
+	err := json.Unmarshal(bytes, &v)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func (pd *PrometheusDiscovery) readToml(bytes []byte) (interface{}, error) {
+
+	return nil, fmt.Errorf("toml is not implemented")
+}
+
+func (pd *PrometheusDiscovery) readYaml(bytes []byte) (interface{}, error) {
+
+	return nil, fmt.Errorf("yaml is not implemented")
+}
+
+func (pd *PrometheusDiscovery) readFile(path, typ string) interface{} {
+
+	if _, err := os.Stat(path); err != nil {
+		pd.logger.Error(err)
+		return nil
+	}
+
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		pd.logger.Error(err)
+		return nil
+	}
+
+	tp := strings.Replace(filepath.Ext(path), ".", "", 1)
+	if typ != "" {
+		tp = typ
+	}
+
+	var obj interface{}
+	switch {
+	case tp == "json":
+		obj, err = pd.readJson(bytes)
+	case tp == "toml":
+		obj, err = pd.readToml(bytes)
+	case tp == "yaml":
+		obj, err = pd.readYaml(bytes)
+	default:
+		obj, err = pd.readJson(bytes)
+	}
+	if err != nil {
+		pd.logger.Error(err)
+		return nil
+	}
+	return obj
+}
+
+func (pd *PrometheusDiscovery) getFiles(vars map[string]string) map[string]*common.File {
+
+	files := make(map[string]*common.File)
+
+	tpl, err := toolsRender.NewTextTemplate(toolsRender.TemplateOptions{Content: pd.options.Files}, pd.observability)
+	if err != nil {
+		pd.logger.Error(err)
+		return files
+	}
+
+	fs := pd.render(tpl, pd.options.Files, vars)
+	kv := utils.MapGetKeyValues(fs)
+	for k, v := range kv {
+		if utils.FileExists(v) {
+			typ := strings.Replace(filepath.Ext(v), ".", "", 1)
+			obj := pd.readFile(v, typ)
+			if obj != nil {
+				files[k] = &common.File{
+					Path: v,
+					Type: typ,
+					Obj:  obj,
+				}
+			}
+		}
+	}
+	return files
+}
+
+func (pd *PrometheusDiscovery) expandDisabled(files map[string]*common.File, service string) []string {
+
+	r := []string{}
+	m := make(map[string]interface{})
+	m1 := make(map[string]interface{})
+	for k, v := range files {
+		m1[k] = v.Obj
+	}
+	m["files"] = m1
+	m["service"] = service
+
+	for _, v := range pd.options.Disabled {
+
+		if utils.FileExists(v) {
+			bytes, err := utils.Content(v)
+			if err != nil {
+				pd.logger.Error(err)
+				continue
+			}
+			tpl, err := toolsRender.NewTextTemplate(toolsRender.TemplateOptions{Content: string(bytes)}, pd.observability)
+			if err != nil {
+				pd.logger.Error(err)
+				continue
+			}
+			arr := []string{}
+			sarr := pd.render(tpl, v, m)
+			if !utils.IsEmpty(sarr) {
+				arr = strings.Split(sarr, ",")
+			}
+			for _, a := range arr {
+				if !utils.Contains(r, a) {
+					r = append(r, a)
+				}
+			}
+		} else {
+			if !utils.Contains(r, v) {
+				r = append(r, v)
+			}
+		}
+	}
+	return r
+}
+
+func (pd *PrometheusDiscovery) checkDisabled(disabled []string, service string) (bool, string) {
+
+	for _, v := range disabled {
+
+		match, _ := regexp.MatchString(v, service)
+		if match {
+			return true, v
+		}
+	}
+	return false, ""
+}
+
 func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryResponseDataVector) map[string]*common.Service {
 
 	configs := pd.readBaseConfigs()
@@ -234,6 +375,16 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			continue
 		}
 
+		// find service in cmdb
+		// if it's disabled, skip it with warning
+		fls := pd.getFiles(mergedVars)
+		disabled := pd.expandDisabled(fls, service)
+		dis, pattern := pd.checkDisabled(disabled, service)
+		if dis {
+			pd.logger.Debug("Service %s disabled by pattern: %s", service, pattern)
+			continue
+		}
+
 		for path, config := range configs {
 
 			ds := matched[service]
@@ -256,6 +407,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 					ds.Vars[k] = l
 				}
 			}
+			ds.Files = fls
 			matched[service] = ds
 		}
 	}
@@ -385,7 +537,7 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 		return nil
 	}
 
-	prometheusOpts := vendors.PrometheusOptions{
+	prometheusOpts := toolsVendors.PrometheusOptions{
 		URL:      options.URL,
 		Timeout:  options.Timeout,
 		Insecure: options.Insecure,
@@ -393,7 +545,7 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 	}
 
 	return &PrometheusDiscovery{
-		prometheus:        vendors.NewPrometheus(prometheusOpts),
+		prometheus:        toolsVendors.NewPrometheus(prometheusOpts),
 		prometheusOptions: prometheusOpts,
 		options:           options,
 		logger:            logger,

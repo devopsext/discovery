@@ -3,11 +3,7 @@ package common
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -116,11 +112,13 @@ func (ti *TelegrafInputPrometheusHttp) render(def string, obj interface{}) strin
 
 	tpl, err := toolsRender.NewTextTemplate(toolsRender.TemplateOptions{Content: def}, ti.observability)
 	if err != nil {
+		ti.observability.Logs().Error(err)
 		return def
 	}
 
 	s, err := RenderTemplate(tpl, def, obj)
 	if err != nil {
+		ti.observability.Logs().Error(err)
 		return def
 	}
 	return s
@@ -266,66 +264,7 @@ func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, tpl s
 	}
 }
 
-func (tc *TelegrafConfig) readJson(bytes []byte) (interface{}, error) {
-
-	var v interface{}
-	err := json.Unmarshal(bytes, &v)
-	if err != nil {
-		return nil, err
-	}
-	return v, nil
-}
-
-func (tc *TelegrafConfig) readToml(bytes []byte) (interface{}, error) {
-
-	return nil, fmt.Errorf("toml is not implemented")
-}
-
-func (tc *TelegrafConfig) readYaml(bytes []byte) (interface{}, error) {
-
-	return nil, fmt.Errorf("yaml is not implemented")
-}
-
-func (tc *TelegrafConfig) readFile(f *TelegrafInputPrometheusHttpFile) interface{} {
-
-	logger := tc.Observability.Logs()
-	if _, err := os.Stat(f.Path); err != nil {
-		logger.Error(err)
-		return nil
-	}
-
-	logger.Debug("read file: %s", f.Path)
-
-	bytes, err := ioutil.ReadFile(f.Path)
-	if err != nil {
-		logger.Error(err)
-		return nil
-	}
-
-	tp := strings.Replace(filepath.Ext(f.Path), ".", "", 1)
-	if f.Type != "" {
-		tp = f.Type
-	}
-
-	var obj interface{}
-	switch {
-	case tp == "json":
-		obj, err = tc.readJson(bytes)
-	case tp == "toml":
-		obj, err = tc.readToml(bytes)
-	case tp == "yaml":
-		obj, err = tc.readYaml(bytes)
-	default:
-		obj, err = tc.readJson(bytes)
-	}
-	if err != nil {
-		logger.Error(err)
-		return nil
-	}
-	return obj
-}
-
-func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, labelsTpl, filesTpl string, opts TelegrafConfigOptions, name string) ([]byte, error) {
+func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, labelsTpl string, opts TelegrafConfigOptions, name string) ([]byte, error) {
 
 	input := &TelegrafInputPrometheusHttp{
 		observability: tc.Observability,
@@ -341,22 +280,15 @@ func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, labelsTpl, filesTpl s
 	input.Tags = make(map[string]string)
 	input.SkipEmptyTags = true
 
-	files := make(map[string]interface{})
-	fs := input.render(filesTpl, s.Vars)
-	kv := utils.MapGetKeyValues(fs)
-	for k, v := range kv {
-		if !utils.IsEmpty(v) {
-			f := &TelegrafInputPrometheusHttpFile{
-				Name: strings.ReplaceAll(k, "-", "_"),
-				Path: v,
-				Type: strings.Replace(filepath.Ext(v), ".", "", 1),
-			}
-			obj := tc.readFile(f)
-			if obj != nil {
-				input.File = append(input.File, f)
-				files[f.Name] = obj
-			}
+	fl := make(map[string]interface{})
+	for k, v := range s.Files {
+		f := &TelegrafInputPrometheusHttpFile{
+			Name: k,
+			Path: v.Path,
+			Type: v.Type,
 		}
+		input.File = append(input.File, f)
+		fl[k] = v.Obj
 	}
 
 	keys := GetBaseConfigKeys(s.Configs)
@@ -368,9 +300,9 @@ func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, labelsTpl, filesTpl s
 		labels := MergeMaps(c.Labels, s.Labels)
 		vars := MergeMaps(c.Vars, s.Vars)
 
-		input.buildQualities(c.Qualities, labelsTpl, opts, labels, vars, files)
-		input.buildAvailability(c.Availability, labelsTpl, opts, labels, vars, files)
-		input.buildMetrics(c.Metrics, labelsTpl, opts, labels, vars, files)
+		input.buildQualities(c.Qualities, labelsTpl, opts, labels, vars, fl)
+		input.buildAvailability(c.Availability, labelsTpl, opts, labels, vars, fl)
+		input.buildMetrics(c.Metrics, labelsTpl, opts, labels, vars, fl)
 	}
 	input.updateIncludeTags(opts.DefaultTags)
 	sort.Strings(input.Include)

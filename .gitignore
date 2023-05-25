@@ -13,6 +13,7 @@ info.txt
 prometheus.telegraf.quality.query
 prometheus.telegraf.labels
 prometheus.vars
+prometheus.disabled
 cmdb.json
 _cmdb.json
 haproxy.json

@@ -41,10 +41,17 @@ type BaseConfig struct {
 	Availability *BaseAvailability `yaml:"availability"`
 }
 
+type File struct {
+	Path string
+	Type string
+	Obj  interface{}
+}
+
 type Service struct {
 	Configs map[string]*BaseConfig
 	Labels  map[string]string
 	Vars    map[string]string
+	Files   map[string]*File
 }
 
 func (ba *BaseAvailability) matchQuery(r *regexp.Regexp) bool {
