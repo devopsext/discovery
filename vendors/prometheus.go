@@ -296,12 +296,12 @@ func (pd *PrometheusDiscovery) expandDisabled(files map[string]*common.File, ser
 				arr = strings.Split(sarr, ",")
 			}
 			for _, a := range arr {
-				if !utils.Contains(r, a) {
+				if !utils.IsEmpty(a) && !utils.Contains(r, a) {
 					r = append(r, a)
 				}
 			}
 		} else {
-			if !utils.Contains(r, v) {
+			if !utils.IsEmpty(v) && !utils.Contains(r, v) {
 				r = append(r, v)
 			}
 		}
