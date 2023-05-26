@@ -266,16 +266,17 @@ func (pd *PrometheusDiscovery) getFiles(vars map[string]string) map[string]*comm
 	return files
 }
 
-func (pd *PrometheusDiscovery) expandDisabled(files map[string]*common.File, service string) []string {
+func (pd *PrometheusDiscovery) expandDisabled(files map[string]*common.File, vars map[string]string) []string {
 
 	r := []string{}
 	m := make(map[string]interface{})
-	m1 := make(map[string]interface{})
+
+	fls := make(map[string]interface{})
 	for k, v := range files {
-		m1[k] = v.Obj
+		fls[k] = v.Obj
 	}
-	m["files"] = m1
-	m["service"] = service
+	m["files"] = fls
+	m["vars"] = vars
 
 	for _, v := range pd.options.Disabled {
 
@@ -291,7 +292,7 @@ func (pd *PrometheusDiscovery) expandDisabled(files map[string]*common.File, ser
 				continue
 			}
 			arr := []string{}
-			sarr := pd.render(tpl, v, m)
+			sarr := pd.render(tpl, string(bytes), m)
 			if !utils.IsEmpty(sarr) {
 				arr = strings.Split(sarr, ",")
 			}
@@ -378,7 +379,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 		// find service in cmdb
 		// if it's disabled, skip it with warning
 		fls := pd.getFiles(mergedVars)
-		disabled := pd.expandDisabled(fls, service)
+		disabled := pd.expandDisabled(fls, mergedVars)
 		dis, pattern := pd.checkDisabled(disabled, service)
 		if dis {
 			pd.logger.Debug("Service %s disabled by pattern: %s", service, pattern)
@@ -410,6 +411,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			ds.Files = fls
 			matched[service] = ds
 		}
+
 	}
 	return matched
 }
