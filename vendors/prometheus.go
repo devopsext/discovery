@@ -451,6 +451,7 @@ func (pd *PrometheusDiscovery) Discover() {
 		if utils.IsEmpty(pd.prometheusOptions.Step) {
 			pd.prometheusOptions.Step = "15s"
 		}
+		pd.logger.Debug("Prometheus discovery range: %s <-> %s", pd.prometheusOptions.From, pd.prometheusOptions.To)
 	}
 
 	data, err := pd.prometheus.CustomGet(pd.prometheusOptions)
