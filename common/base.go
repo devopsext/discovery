@@ -1,6 +1,11 @@
 package common
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+
+	"github.com/devopsext/utils"
+)
 
 type BaseQuality struct {
 	Range  string `yaml:"range"`
@@ -33,9 +38,15 @@ type BaseAvailabilityQuery struct {
 	Timeout   string            `yaml:"timeout"`
 }
 
+type BaseCondition struct {
+	Metric string            `yaml:"metric"`
+	Labels map[string]string `yaml:"labels"`
+}
+
 type BaseConfig struct {
 	Vars         map[string]string `yaml:"vars"`
 	Labels       map[string]string `yaml:"labels"`
+	Conditions   []*BaseCondition  `yaml:"if"`
 	Qualities    []*BaseQuality    `yaml:"quality"`
 	Metrics      []*BaseMetric     `yaml:"metrics"`
 	Availability *BaseAvailability `yaml:"availability"`
@@ -54,37 +65,63 @@ type Service struct {
 	Files   map[string]*File
 }
 
-func (ba *BaseAvailability) matchQuery(r *regexp.Regexp) bool {
+func (bc *BaseConfig) LabelsExist(c *BaseCondition, labels map[string]string) bool {
 
-	for _, v := range ba.Queries {
-		if r.MatchString(v.Query) {
-			return true
+	if labels == nil {
+		return true
+	}
+
+	keys := GetStringKeys(labels)
+	for k, v := range c.Labels {
+		if !utils.Contains(keys, k) {
+			return false
+		}
+		r, err := regexp.Compile(v)
+		if err != nil {
+			continue
+		}
+		if !(r.MatchString(labels[k]) || labels[k] == v) {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
-func (bc *BaseConfig) MetricExists(query string) bool {
+func (bc *BaseConfig) MetricExists(query string, labels map[string]string) bool {
 
-	r, err := regexp.Compile(query)
-	if err != nil {
+	if len(bc.Conditions) > 0 {
+
+		for _, v := range bc.Conditions {
+
+			r, err := regexp.Compile(v.Metric)
+			if err != nil {
+				continue
+			}
+			if r.MatchString(query) && bc.LabelsExist(v, labels) {
+				return true
+			}
+		}
 		return false
 	}
 
 	for _, q := range bc.Qualities {
-		if r.MatchString(q.Query) {
+		if strings.Contains(q.Query, query) {
 			return true
 		}
 	}
 
 	for _, m := range bc.Qualities {
-		if r.MatchString(m.Query) {
+		if strings.Contains(m.Query, query) {
 			return true
 		}
 	}
 
 	if bc.Availability != nil {
-		return bc.Availability.matchQuery(r)
+		for _, a := range bc.Availability.Queries {
+			if strings.Contains(a.Query, query) {
+				return true
+			}
+		}
 	}
 
 	return false

@@ -395,7 +395,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 					Vars:    make(map[string]string),
 				}
 			}
-			exists := config.MetricExists(metric)
+			exists := config.MetricExists(metric, mergedVars)
 			if !exists {
 				continue
 			}
