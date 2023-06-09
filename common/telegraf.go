@@ -134,7 +134,7 @@ func (ti *TelegrafInputPrometheusHttp) renderLabels(tpl string, tags map[string]
 	s := ti.render(tpl, m)
 	kv := utils.MapGetKeyValues(s)
 
-	return MergeMaps(tags, kv)
+	return MergeStringMaps(tags, kv)
 }
 
 func (ti *TelegrafInputPrometheusHttp) enableLabel(name, l string) string {
@@ -228,7 +228,7 @@ func (ti *TelegrafInputPrometheusHttp) buildAvailability(baseAvailability *BaseA
 			availability.Query = ti.sanitizeQuery(qe)
 			tags1 := ti.buildTags(availability.Name, labels, opts.VarFormat, vars)
 			tags2 := ti.buildTags(availability.Name, a.Labels, opts.VarFormat, vars)
-			tags := MergeMaps(tags1, tags2)
+			tags := MergeStringMaps(tags1, tags2)
 			tags = ti.renderLabels(tpl, tags, vars, files)
 			keys := GetStringKeys(tags)
 			sort.Strings(keys)
@@ -253,7 +253,7 @@ func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, tpl s
 		metric.UniqueBy = m.UniqueBy
 		tags1 := ti.buildTags(metric.Name, labels, opts.VarFormat, vars)
 		tags2 := ti.buildTags(metric.Name, m.Labels, opts.VarFormat, vars)
-		tags := MergeMaps(tags1, tags2)
+		tags := MergeStringMaps(tags1, tags2)
 		tags = ti.renderLabels(tpl, tags, vars, files)
 
 		keys := GetStringKeys(tags)
@@ -297,8 +297,8 @@ func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, labelsTpl string, opt
 	for _, k := range keys {
 
 		c := s.Configs[k]
-		labels := MergeMaps(c.Labels, s.Labels)
-		vars := MergeMaps(c.Vars, s.Vars)
+		labels := MergeStringMaps(c.Labels, s.Labels)
+		vars := MergeStringMaps(c.Vars, s.Vars)
 
 		input.buildQualities(c.Qualities, labelsTpl, opts, labels, vars, fl)
 		input.buildAvailability(c.Availability, labelsTpl, opts, labels, vars, fl)

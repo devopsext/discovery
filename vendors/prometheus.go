@@ -335,9 +335,20 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			continue
 		}
 
-		vars := pd.render(pd.varsTemplate, pd.options.Vars, v.Labels)
+		fls := pd.getFiles(v.Labels)
+		m := make(map[string]interface{})
+		for k, v := range v.Labels {
+			m[k] = v
+		}
+		files := make(map[string]interface{})
+		for k, v := range fls {
+			files[k] = v.Obj
+		}
+		m["files"] = files
+
+		vars := pd.render(pd.varsTemplate, pd.options.Vars, m)
 		serviceVars := utils.MapGetKeyValues(vars)
-		mergedVars := common.MergeMaps(v.Labels, serviceVars)
+		mergedVars := common.MergeStringMaps(v.Labels, serviceVars)
 
 		if utils.IsEmpty(pd.options.Metric) && (len(v.Labels) > 0) {
 			for _, m := range v.Labels {
@@ -378,7 +389,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 
 		// find service in cmdb
 		// if it's disabled, skip it with warning
-		fls := pd.getFiles(mergedVars)
+
 		disabled := pd.expandDisabled(fls, mergedVars)
 		dis, pattern := pd.checkDisabled(disabled, service)
 		if dis {

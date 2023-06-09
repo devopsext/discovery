@@ -25,9 +25,20 @@ func ReadFiles(pattern string) ([]string, error) {
 	return ret, err
 }
 
-func MergeMaps(maps ...map[string]string) map[string]string {
+func MergeStringMaps(maps ...map[string]string) map[string]string {
 
 	r := make(map[string]string)
+	for _, m := range maps {
+		for k, v := range m {
+			r[k] = v
+		}
+	}
+	return r
+}
+
+func MergeInterfacegMaps(maps ...map[string]interface{}) map[string]interface{} {
+
+	r := make(map[string]interface{})
 	for _, m := range maps {
 		for k, v := range m {
 			r[k] = v
