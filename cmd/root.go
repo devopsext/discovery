@@ -14,8 +14,10 @@ import (
 	"github.com/devopsext/discovery/vendors"
 	sreCommon "github.com/devopsext/sre/common"
 	sreProvider "github.com/devopsext/sre/provider"
+	toolsRender "github.com/devopsext/tools/render"
 	"github.com/devopsext/utils"
 	"github.com/go-co-op/gocron"
+	"github.com/jinzhu/copier"
 	"github.com/spf13/cobra"
 )
 
@@ -52,6 +54,7 @@ var prometheusMetricsOptions = sreProvider.PrometheusOptions{
 }
 
 var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
+	Names:        envStringExpand("PROMETHEUS_NAMES", ""),
 	URL:          envStringExpand("PROMETHEUS_URL", ""),
 	Timeout:      envGet("PROMETHEUS_TIMEOUT", 30).(int),
 	Insecure:     envGet("PROMETHEUS_INSECURE", false).(bool),
@@ -136,6 +139,54 @@ func schedule(s *gocron.Scheduler, schedule string, jobFun interface{}) {
 	}
 }
 
+func render(def string, obj interface{}, observability *common.Observability) string {
+
+	logger := observability.Logs()
+	tpl, err := toolsRender.NewTextTemplate(toolsRender.TemplateOptions{Content: def}, observability)
+	if err != nil {
+		logger.Error(err)
+		return def
+	}
+
+	s, err := common.RenderTemplate(tpl, def, obj)
+	if err != nil {
+		logger.Error(err)
+		return def
+	}
+	return s
+}
+
+func getPrometheusDiscoveriesByInstances(names string) map[string]string {
+
+	m := make(map[string]string)
+	def := "unknown"
+	arr := strings.Split(names, ",")
+	if len(arr) > 0 {
+		index := 0
+		for _, v := range arr {
+
+			n := fmt.Sprintf("%s%d", def, index)
+			kv := strings.Split(v, "=")
+			if len(kv) > 1 {
+				name := strings.TrimSpace(kv[0])
+				if utils.IsEmpty(name) {
+					name = n
+				}
+				url := strings.TrimSpace(kv[1])
+				if !utils.IsEmpty(url) {
+					m[name] = url
+				}
+			} else {
+				m[n] = strings.TrimSpace(kv[0])
+			}
+			index++
+		}
+	} else {
+		m[def] = strings.TrimSpace(names)
+	}
+	return m
+}
+
 func Execute() {
 
 	rootCmd := &cobra.Command{
@@ -168,17 +219,35 @@ func Execute() {
 			logger := observability.Logs()
 
 			s := gocron.NewScheduler(time.UTC)
-			prometheus := vendors.NewPrometheusDiscovery(prometheusDiscoveryOptions, observability)
-			if prometheus != nil {
-				if !utils.IsEmpty(prometheusDiscoveryOptions.Schedule) {
-					schedule(s, prometheusDiscoveryOptions.Schedule, prometheus.Discover)
-					logger.Debug("Prometheus discovery enabled on schedule: %s", prometheusDiscoveryOptions.Schedule)
-				} else {
-					prometheus.Discover()
+
+			proms := getPrometheusDiscoveriesByInstances(prometheusDiscoveryOptions.Names)
+			for k, v := range proms {
+
+				opts := vendors.PrometheusDiscoveryOptions{}
+				copier.CopyWithOption(&opts, &prometheusDiscoveryOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+
+				m := make(map[string]string)
+				m["name"] = k
+				m["url"] = v
+				opts.URL = render(prometheusDiscoveryOptions.URL, m, observability)
+				if utils.IsEmpty(opts.URL) || utils.IsEmpty(k) {
+					logger.Debug("Prometheus discovery is not found")
+					continue
 				}
-			} else {
-				logger.Debug("Prometheus discovery disabled")
+
+				prometheus := vendors.NewPrometheusDiscovery(k, opts, observability)
+				if prometheus != nil {
+					if !utils.IsEmpty(prometheusDiscoveryOptions.Schedule) {
+						schedule(s, prometheusDiscoveryOptions.Schedule, prometheus.Discover)
+						logger.Debug("%s: Prometheus discovery enabled on schedule: %s", v, prometheusDiscoveryOptions.Schedule)
+					} else {
+						prometheus.Discover()
+					}
+				} else {
+					logger.Debug("%s: Prometheus discovery disabled", k)
+				}
 			}
+
 			s.StartAsync()
 
 			// start wait if there are some jobs
@@ -204,6 +273,7 @@ func Execute() {
 	flags.StringVar(&prometheusMetricsOptions.Listen, "prometheus-metrics-listen", prometheusMetricsOptions.Listen, "Prometheus metrics listen")
 	flags.StringVar(&prometheusMetricsOptions.Prefix, "prometheus-metrics-prefix", prometheusMetricsOptions.Prefix, "Prometheus metrics prefix")
 
+	flags.StringVar(&prometheusDiscoveryOptions.Names, "prometheus-names", prometheusDiscoveryOptions.Names, "Prometheus discovery names")
 	flags.StringVar(&prometheusDiscoveryOptions.URL, "prometheus-url", prometheusDiscoveryOptions.URL, "Prometheus discovery URL")
 	flags.IntVar(&prometheusDiscoveryOptions.Timeout, "prometheus-timeout", prometheusDiscoveryOptions.Timeout, "Prometheus discovery timeout in seconds")
 	flags.BoolVar(&prometheusDiscoveryOptions.Insecure, "prometheus-insecure", prometheusDiscoveryOptions.Insecure, "Prometheus discovery insecure")

@@ -8,6 +8,7 @@ require (
 	github.com/devopsext/tools v0.9.5
 	github.com/devopsext/utils v0.2.0
 	github.com/go-co-op/gocron v1.18.0
+	github.com/jinzhu/copier v0.3.5
 	github.com/spf13/cobra v1.6.1
 	gopkg.in/yaml.v2 v2.3.0
 )

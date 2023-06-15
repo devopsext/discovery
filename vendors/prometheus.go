@@ -19,6 +19,7 @@ import (
 )
 
 type PrometheusDiscoveryOptions struct {
+	Names        string
 	URL          string
 	Timeout      int
 	Insecure     bool
@@ -40,6 +41,7 @@ type PrometheusDiscoveryOptions struct {
 }
 
 type PrometheusDiscovery struct {
+	name              string
 	prometheus        *toolsVendors.Prometheus
 	prometheusOptions toolsVendors.PrometheusOptions
 	options           PrometheusDiscoveryOptions
@@ -88,13 +90,13 @@ func (pd *PrometheusDiscovery) readBaseConfigs() map[string]*common.BaseConfig {
 	}
 
 	if len(files) == 0 {
-		pd.logger.Error("No base templates by pattern: %s", pd.options.BaseTemplate)
+		pd.logger.Error("%s: No base templates by pattern: %s", pd.name, pd.options.BaseTemplate)
 		return configs
 	}
 
 	for _, v := range files {
 
-		pd.logger.Debug("Processing base config: %s...", v)
+		pd.logger.Debug("%s: Processing base config: %s...", pd.name, v)
 		content, err := os.ReadFile(v)
 		if err != nil {
 			pd.logger.Error(err)
@@ -108,7 +110,7 @@ func (pd *PrometheusDiscovery) readBaseConfigs() map[string]*common.BaseConfig {
 			continue
 		}
 		configs[v] = config
-		pd.logger.Debug("Base config is loaded: %s", v)
+		pd.logger.Debug("%s: Base config is loaded: %s", pd.name, v)
 	}
 	return configs
 }
@@ -119,7 +121,7 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 	for k, s := range services {
 
 		path := pd.render(pd.telegrafTemplate, pd.options.TelegrafTemplate, s.Vars)
-		pd.logger.Debug("Processing service: %s for path: %s", k, path)
+		pd.logger.Debug("%s: Processing service: %s for path: %s", pd.name, k, path)
 
 		telegrafConfig := &common.TelegrafConfig{
 			Observability: pd.observability,
@@ -131,7 +133,7 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 		}
 
 		if bytes == nil || (len(bytes) == 0) {
-			pd.logger.Debug("No service config for %s", k)
+			pd.logger.Debug("%s: No service config for %s", pd.name, k)
 			continue
 		}
 
@@ -151,7 +153,7 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 				}
 
 				if fileHashString == bytesHashString {
-					pd.logger.Debug("File %s has the same md5 hash: %s, skipped", path, fileHashString)
+					pd.logger.Debug("%s: File %s has the same md5 hash: %s, skipped", pd.name, path, fileHashString)
 					continue
 				}
 			}
@@ -178,7 +180,7 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 			pd.logger.Error(err)
 			continue
 		}
-		pd.logger.Debug("File %s created with md5 hash: %s", path, bytesHashString)
+		pd.logger.Debug("%s: File %s created with md5 hash: %s", pd.name, path, bytesHashString)
 	}
 }
 
@@ -194,12 +196,12 @@ func (pd *PrometheusDiscovery) readJson(bytes []byte) (interface{}, error) {
 
 func (pd *PrometheusDiscovery) readToml(bytes []byte) (interface{}, error) {
 
-	return nil, fmt.Errorf("toml is not implemented")
+	return nil, fmt.Errorf("%s: toml is not implemented", pd.name)
 }
 
 func (pd *PrometheusDiscovery) readYaml(bytes []byte) (interface{}, error) {
 
-	return nil, fmt.Errorf("yaml is not implemented")
+	return nil, fmt.Errorf("%s: yaml is not implemented", pd.name)
 }
 
 func (pd *PrometheusDiscovery) readFile(path, typ string) interface{} {
@@ -345,6 +347,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			files[k] = v.Obj
 		}
 		m["files"] = files
+		m["prometheus"] = pd.name
 
 		vars := pd.render(pd.varsTemplate, pd.options.Vars, m)
 		serviceVars := utils.MapGetKeyValues(vars)
@@ -383,7 +386,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 		}
 
 		if utils.IsEmpty(service) || utils.IsEmpty(metric) {
-			pd.logger.Debug("No service or metric found in labels, but: %v", mergedVars)
+			pd.logger.Debug("%s: No service or metric found in labels, but: %v", pd.name, mergedVars)
 			continue
 		}
 
@@ -393,7 +396,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 		disabled := pd.expandDisabled(fls, mergedVars)
 		dis, pattern := pd.checkDisabled(disabled, service)
 		if dis {
-			pd.logger.Debug("Service %s disabled by pattern: %s", service, pattern)
+			pd.logger.Debug("%s: Service %s disabled by pattern: %s", pd.name, service, pattern)
 			continue
 		}
 
@@ -453,7 +456,7 @@ func (pd *PrometheusDiscovery) parsePeriodFromNow(t time.Time) string {
 
 func (pd *PrometheusDiscovery) Discover() {
 
-	pd.logger.Debug("Prometheus discovery by query: %s", pd.options.Query)
+	pd.logger.Debug("%s: Prometheus discovery by query: %s", pd.name, pd.options.Query)
 
 	if !utils.IsEmpty(pd.options.QueryPeriod) {
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries
@@ -464,7 +467,7 @@ func (pd *PrometheusDiscovery) Discover() {
 		if utils.IsEmpty(pd.prometheusOptions.Step) {
 			pd.prometheusOptions.Step = "15s"
 		}
-		pd.logger.Debug("Prometheus discovery range: %s <-> %s", pd.prometheusOptions.From, pd.prometheusOptions.To)
+		pd.logger.Debug("%s: Prometheus discovery range: %s <-> %s", pd.name, pd.prometheusOptions.From, pd.prometheusOptions.To)
 	}
 
 	data, err := pd.prometheus.CustomGet(pd.prometheusOptions)
@@ -485,24 +488,24 @@ func (pd *PrometheusDiscovery) Discover() {
 	}
 
 	if (res.Data == nil) || (len(res.Data.Result) == 0) {
-		pd.logger.Error("Empty data on response")
+		pd.logger.Error("%s: Empty data on response", pd.name)
 		return
 	}
 
 	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-		pd.logger.Error("Only vector and matrix are allowed")
+		pd.logger.Error("%s: Only vector and matrix are allowed", pd.name)
 		return
 	}
 
 	services := pd.findServices(res.Data.Result)
 	if len(services) == 0 {
-		pd.logger.Debug("Not found any bases according query")
+		pd.logger.Debug("%s: Not found any bases according query", pd.name)
 		return
 	}
 	pd.createTelegrafConfigs(services)
 }
 
-func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *common.Observability) *PrometheusDiscovery {
+func NewPrometheusDiscovery(name string, options PrometheusDiscoveryOptions, observability *common.Observability) *PrometheusDiscovery {
 
 	logger := observability.Logs()
 
@@ -547,7 +550,7 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 	}
 
 	if utils.IsEmpty(options.URL) {
-		logger.Debug("No prometheus URL. Skipped")
+		logger.Debug("%s: No prometheus URL. Skipped", name)
 		return nil
 	}
 
@@ -559,6 +562,7 @@ func NewPrometheusDiscovery(options PrometheusDiscoveryOptions, observability *c
 	}
 
 	return &PrometheusDiscovery{
+		name:              name,
 		prometheus:        toolsVendors.NewPrometheus(prometheusOpts),
 		prometheusOptions: prometheusOpts,
 		options:           options,
