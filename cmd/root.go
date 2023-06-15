@@ -230,6 +230,10 @@ func Execute() {
 				m["name"] = k
 				m["url"] = v
 				opts.URL = render(prometheusDiscoveryOptions.URL, m, observability)
+				if utils.IsEmpty(opts.TelegrafOptions.URL) {
+					opts.TelegrafOptions.URL = opts.URL
+				}
+
 				if utils.IsEmpty(opts.URL) || utils.IsEmpty(k) {
 					logger.Debug("Prometheus discovery is not found")
 					continue
