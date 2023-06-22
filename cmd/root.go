@@ -217,7 +217,7 @@ func Execute() {
 
 			observability := common.NewObservability(logs, metrics)
 			logger := observability.Logs()
-
+			wg := &sync.WaitGroup{}
 			s := gocron.NewScheduler(time.UTC)
 
 			proms := getPrometheusDiscoveriesByInstances(prometheusDiscoveryOptions.Names)
@@ -245,13 +245,17 @@ func Execute() {
 						schedule(s, prometheusDiscoveryOptions.Schedule, prometheus.Discover)
 						logger.Debug("%s: Prometheus discovery enabled on schedule: %s", v, prometheusDiscoveryOptions.Schedule)
 					} else {
-						prometheus.Discover()
+						wg.Add(1)
+						go func(p *vendors.PrometheusDiscovery) {
+							defer wg.Done()
+							p.Discover()
+						}(prometheus)
 					}
 				} else {
 					logger.Debug("%s: Prometheus discovery disabled", k)
 				}
 			}
-
+			wg.Wait()
 			s.StartAsync()
 
 			// start wait if there are some jobs

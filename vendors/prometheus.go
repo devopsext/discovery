@@ -347,7 +347,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			files[k] = v.Obj
 		}
 		m["files"] = files
-		m["prometheus"] = pd.name
+		m["source"] = pd.name
 
 		vars := pd.render(pd.varsTemplate, pd.options.Vars, m)
 		serviceVars := utils.MapGetKeyValues(vars)
