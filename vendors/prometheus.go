@@ -402,6 +402,10 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 
 		for path, config := range configs {
 
+			if config.Disbaled {
+				continue
+			}
+
 			ds := matched[service]
 			if ds == nil {
 				ds = &common.Service{
