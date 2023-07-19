@@ -28,11 +28,13 @@ type PrometheusDiscoveryOptions struct {
 	QueryStep    string
 	Metric       string
 	Service      string
+	Field        string
 	Disabled     []string
 	Schedule     string
 	BaseTemplate string
 	Vars         string
-	Files        string
+
+	Files string
 
 	TelegrafLabels   string
 	TelegrafTemplate string
@@ -48,6 +50,7 @@ type PrometheusDiscovery struct {
 	logger            sreCommon.Logger
 	observability     *common.Observability
 	serviceTemplate   *toolsRender.TextTemplate
+	fieldTemplate     *toolsRender.TextTemplate
 	metricTemplate    *toolsRender.TextTemplate
 	telegrafTemplate  *toolsRender.TextTemplate
 	varsTemplate      *toolsRender.TextTemplate
@@ -122,13 +125,14 @@ func (pd *PrometheusDiscovery) createTelegrafConfigs(services map[string]*common
 
 		path := pd.render(pd.telegrafTemplate, pd.options.TelegrafTemplate, s.Vars)
 		pd.logger.Debug("%s: Processing service: %s for path: %s", pd.name, k, path)
+		pd.logger.Debug("%s: Found metrics: %v", pd.name, s.Metrics)
 
 		telegrafConfig := &common.TelegrafConfig{
 			Observability: pd.observability,
 		}
 		bytes, err := telegrafConfig.GenerateServiceBytes(s, pd.options.TelegrafLabels, pd.options.TelegrafOptions, path)
 		if err != nil {
-			pd.logger.Error(err)
+			pd.logger.Error("%s: Service %s error: %s", pd.name, k, err)
 			continue
 		}
 
@@ -333,6 +337,8 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 
 		metric := ""
 		service := ""
+		field := ""
+
 		if len(v.Labels) < 2 {
 			continue
 		}
@@ -385,37 +391,50 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			}
 		}
 
+		ident := pd.render(pd.fieldTemplate, pd.options.Field, mergedVars)
+		if ident == pd.options.Field {
+			field = mergedVars[ident]
+		} else {
+			field = ident
+		}
+
 		if utils.IsEmpty(service) || utils.IsEmpty(metric) {
-			pd.logger.Debug("%s: No service or metric found in labels, but: %v", pd.name, mergedVars)
+			pd.logger.Debug("%s: No service, field or metric found in labels, but: %v", pd.name, mergedVars)
 			continue
 		}
 
 		// find service in cmdb
 		// if it's disabled, skip it with warning
+		fieldAndService := fmt.Sprintf("%s/%s", field, service)
 
 		disabled := pd.expandDisabled(fls, mergedVars)
 		dis, pattern := pd.checkDisabled(disabled, service)
 		if dis {
-			pd.logger.Debug("%s: Service %s disabled by pattern: %s", pd.name, service, pattern)
+			pd.logger.Debug("%s: %s disabled by pattern: %s", pd.name, fieldAndService, pattern)
 			continue
 		}
 
 		for path, config := range configs {
 
-			if config.Disbaled {
+			if config.Disabled {
 				continue
 			}
 
-			ds := matched[service]
+			exists := config.MetricExists(metric, mergedVars)
+			if !exists {
+				continue
+			}
+
+			ds := matched[fieldAndService]
 			if ds == nil {
 				ds = &common.Service{
 					Configs: make(map[string]*common.BaseConfig),
 					Vars:    make(map[string]string),
 				}
 			}
-			exists := config.MetricExists(metric, mergedVars)
-			if !exists {
-				continue
+
+			if !utils.Contains(ds.Metrics, metric) {
+				ds.Metrics = append(ds.Metrics, metric)
 			}
 
 			if ds.Configs[path] == nil {
@@ -427,7 +446,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 				}
 			}
 			ds.Files = fls
-			matched[service] = ds
+			matched[fieldAndService] = ds
 		}
 
 	}
@@ -525,7 +544,7 @@ func NewPrometheusDiscovery(name string, options PrometheusDiscoveryOptions, obs
 
 	metricOpts := toolsRender.TemplateOptions{
 		Content: options.Metric,
-		Name:    "prometheus-metrics",
+		Name:    "prometheus-metric",
 	}
 	metricTemplate, err := toolsRender.NewTextTemplate(metricOpts, observability)
 	if err != nil {
@@ -535,9 +554,19 @@ func NewPrometheusDiscovery(name string, options PrometheusDiscoveryOptions, obs
 
 	serviceOpts := toolsRender.TemplateOptions{
 		Content: options.Service,
-		Name:    "prometheus-services",
+		Name:    "prometheus-service",
 	}
 	serviceTemplate, err := toolsRender.NewTextTemplate(serviceOpts, observability)
+	if err != nil {
+		logger.Error(err)
+		return nil
+	}
+
+	fieldOpts := toolsRender.TemplateOptions{
+		Content: options.Field,
+		Name:    "prometheus-field",
+	}
+	fieldTemplate, err := toolsRender.NewTextTemplate(fieldOpts, observability)
 	if err != nil {
 		logger.Error(err)
 		return nil
@@ -573,6 +602,7 @@ func NewPrometheusDiscovery(name string, options PrometheusDiscoveryOptions, obs
 		logger:            logger,
 		observability:     observability,
 		serviceTemplate:   serviceTemplate,
+		fieldTemplate:     fieldTemplate,
 		metricTemplate:    metricTemplate,
 		telegrafTemplate:  telegrafTemplate,
 		varsTemplate:      varsTemplate,

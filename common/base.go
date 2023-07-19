@@ -15,6 +15,7 @@ type BaseQuality struct {
 }
 
 type BaseMetric struct {
+	Disabled bool              `yaml:"disabled"`
 	Query    string            `yaml:"query"`
 	Name     string            `yaml:"name"`
 	UniqueBy []string          `yaml:"unique_by"`
@@ -22,9 +23,10 @@ type BaseMetric struct {
 }
 
 type BaseAvailability struct {
-	Queries []*BaseAvailabilityQuery `yaml:"queries"`
-	GroupBy []string                 `yaml:"group_by"`
-	Labels  map[string]string        `yaml:"labels"`
+	Disabled bool                     `yaml:"disabled"`
+	Queries  []*BaseAvailabilityQuery `yaml:"queries"`
+	GroupBy  []string                 `yaml:"group_by"`
+	Labels   map[string]string        `yaml:"labels"`
 }
 
 type BaseAvailabilityQuery struct {
@@ -44,7 +46,7 @@ type BaseCondition struct {
 }
 
 type BaseConfig struct {
-	Disbaled     bool              `yaml:"disabled"`
+	Disabled     bool              `yaml:"disabled"`
 	Vars         map[string]string `yaml:"vars"`
 	Labels       map[string]string `yaml:"labels"`
 	Conditions   []*BaseCondition  `yaml:"if"`
@@ -60,6 +62,7 @@ type File struct {
 }
 
 type Service struct {
+	Metrics []string
 	Configs map[string]*BaseConfig
 	Labels  map[string]string
 	Vars    map[string]string

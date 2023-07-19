@@ -133,3 +133,13 @@ func GetBaseConfigKeys(arr map[string]*BaseConfig) []string {
 	}
 	return keys
 }
+
+func StringContainsAny(s string, arr []string) bool {
+
+	for _, v := range arr {
+		if strings.Contains(s, v) {
+			return true
+		}
+	}
+	return false
+}

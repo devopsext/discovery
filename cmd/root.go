@@ -63,6 +63,7 @@ var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 	QueryStep:    envGet("PROMETHEUS_QUERY_STEP", "").(string),
 	Metric:       envGet("PROMETHEUS_METRIC", "").(string),
 	Service:      envGet("PROMETHEUS_SERVICE", "").(string),
+	Field:        envGet("PROMETHEUS_FIELD", "").(string),
 	Files:        envFileContentExpand("PROMETHEUS_FILES", ""),
 	Disabled:     strings.Split(envStringExpand("PROMETHEUS_DISABLED", ""), ","),
 	Schedule:     envGet("PROMETHEUS_SCHEDULE", "").(string),
@@ -289,6 +290,7 @@ func Execute() {
 	flags.StringVar(&prometheusDiscoveryOptions.QueryPeriod, "prometheus-query-period", prometheusDiscoveryOptions.QueryPeriod, "Prometheus discovery query period")
 	flags.StringVar(&prometheusDiscoveryOptions.QueryStep, "prometheus-query-step", prometheusDiscoveryOptions.QueryStep, "Prometheus discovery query step")
 	flags.StringVar(&prometheusDiscoveryOptions.Service, "prometheus-service", prometheusDiscoveryOptions.Service, "Prometheus discovery service label")
+	flags.StringVar(&prometheusDiscoveryOptions.Field, "prometheus-field", prometheusDiscoveryOptions.Field, "Prometheus discovery field label")
 	flags.StringVar(&prometheusDiscoveryOptions.Metric, "prometheus-metric", prometheusDiscoveryOptions.Metric, "Prometheus discovery metric label")
 	flags.StringVar(&prometheusDiscoveryOptions.Files, "prometheus-files", prometheusDiscoveryOptions.Files, "Prometheus discovery files")
 	flags.StringSliceVar(&prometheusDiscoveryOptions.Disabled, "prometheus-disabled", prometheusDiscoveryOptions.Disabled, "Prometheus discovery disabled services")

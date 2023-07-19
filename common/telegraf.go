@@ -11,6 +11,7 @@ import (
 	"github.com/BurntSushi/toml"
 	toolsRender "github.com/devopsext/tools/render"
 	"github.com/devopsext/utils"
+	"github.com/pkg/errors"
 )
 
 type TelegrafInputPrometheusHttpFile struct {
@@ -173,7 +174,7 @@ func (ti *TelegrafInputPrometheusHttp) buildTags(name string, labels map[string]
 	return r
 }
 
-func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, tpl string, opts TelegrafConfigOptions,
+func (ti *TelegrafInputPrometheusHttp) buildQualities(s *Service, qualities []*BaseQuality, tpl string, opts TelegrafConfigOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
 
 	metric := &TelegrafInputPrometheusHttpMetric{}
@@ -198,7 +199,12 @@ func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, 
 		queries = append(queries, qe)
 	}
 
-	metric.Query = fmt.Sprintf("(%s)/%d", strings.Join(queries, " + "), len(queries))
+	qe := fmt.Sprintf("(%s)/%d", strings.Join(queries, " + "), len(queries))
+	if !StringContainsAny(qe, s.Metrics) {
+		return
+	}
+
+	metric.Query = qe
 	tags := ti.buildTags(metric.Name, labels, opts.VarFormat, vars)
 	tags = ti.renderLabels(tpl, tags, vars, files)
 
@@ -209,46 +215,63 @@ func (ti *TelegrafInputPrometheusHttp) buildQualities(qualities []*BaseQuality, 
 	ti.Metric = append(ti.Metric, metric)
 }
 
-func (ti *TelegrafInputPrometheusHttp) buildAvailability(baseAvailability *BaseAvailability, tpl string, opts TelegrafConfigOptions,
+func (ti *TelegrafInputPrometheusHttp) buildAvailability(s *Service, baseAvailability *BaseAvailability, tpl string, opts TelegrafConfigOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
 
-	if baseAvailability != nil {
+	if baseAvailability == nil {
+		return
+	}
 
-		for _, a := range baseAvailability.Queries {
+	if baseAvailability.Disabled {
+		return
+	}
 
-			availability := &TelegrafInputPrometheusHttpAvailability{}
+	for _, a := range baseAvailability.Queries {
 
-			if a.Suffix != "" {
-				availability.Name = fmt.Sprintf("%s:%s", opts.AvailabilityName, a.Suffix)
-			} else {
-				availability.Name = opts.AvailabilityName
-			}
-
-			qe := ti.setVars(a.Query, opts.VarFormat, vars)
-			availability.Query = ti.sanitizeQuery(qe)
-			tags1 := ti.buildTags(availability.Name, labels, opts.VarFormat, vars)
-			tags2 := ti.buildTags(availability.Name, a.Labels, opts.VarFormat, vars)
-			tags := MergeStringMaps(tags1, tags2)
-			tags = ti.renderLabels(tpl, tags, vars, files)
-			keys := GetStringKeys(tags)
-			sort.Strings(keys)
-			ti.updateIncludeTags(keys)
-			availability.Tags = tags
-			ti.Availability = append(ti.Availability, availability)
+		qe := ti.setVars(a.Query, opts.VarFormat, vars)
+		if !StringContainsAny(qe, s.Metrics) {
+			continue
 		}
+
+		availability := &TelegrafInputPrometheusHttpAvailability{}
+
+		if a.Suffix != "" {
+			availability.Name = fmt.Sprintf("%s:%s", opts.AvailabilityName, a.Suffix)
+		} else {
+			availability.Name = opts.AvailabilityName
+		}
+
+		availability.Query = ti.sanitizeQuery(qe)
+		tags1 := ti.buildTags(availability.Name, labels, opts.VarFormat, vars)
+		tags2 := ti.buildTags(availability.Name, a.Labels, opts.VarFormat, vars)
+		tags := MergeStringMaps(tags1, tags2)
+		tags = ti.renderLabels(tpl, tags, vars, files)
+		keys := GetStringKeys(tags)
+		sort.Strings(keys)
+		ti.updateIncludeTags(keys)
+		availability.Tags = tags
+		ti.Availability = append(ti.Availability, availability)
 	}
 
 }
 
-func (ti *TelegrafInputPrometheusHttp) buildMetrics(metrics []*BaseMetric, tpl string, opts TelegrafConfigOptions,
+func (ti *TelegrafInputPrometheusHttp) buildMetrics(s *Service, metrics []*BaseMetric, tpl string, opts TelegrafConfigOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
 
 	for _, m := range metrics {
 
-		metric := &TelegrafInputPrometheusHttpMetric{}
-		metric.Name = IfDef(m.Name, opts.MetricName).(string)
+		if m.Disabled {
+			continue
+		}
 
 		qe := ti.setVars(m.Query, opts.VarFormat, vars)
+
+		if !StringContainsAny(qe, s.Metrics) {
+			continue
+		}
+
+		metric := &TelegrafInputPrometheusHttpMetric{}
+		metric.Name = IfDef(m.Name, opts.MetricName).(string)
 		metric.Query = ti.sanitizeQuery(qe)
 		metric.UniqueBy = m.UniqueBy
 		tags1 := ti.buildTags(metric.Name, labels, opts.VarFormat, vars)
@@ -300,10 +323,15 @@ func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, labelsTpl string, opt
 		labels := MergeStringMaps(c.Labels, s.Labels)
 		vars := MergeStringMaps(c.Vars, s.Vars)
 
-		input.buildQualities(c.Qualities, labelsTpl, opts, labels, vars, fl)
-		input.buildAvailability(c.Availability, labelsTpl, opts, labels, vars, fl)
-		input.buildMetrics(c.Metrics, labelsTpl, opts, labels, vars, fl)
+		input.buildQualities(s, c.Qualities, labelsTpl, opts, labels, vars, fl)
+		input.buildAvailability(s, c.Availability, labelsTpl, opts, labels, vars, fl)
+		input.buildMetrics(s, c.Metrics, labelsTpl, opts, labels, vars, fl)
 	}
+
+	if len(input.Metric) == 0 {
+		return nil, errors.New("Metrics are not found.")
+	}
+
 	input.updateIncludeTags(opts.DefaultTags)
 	sort.Strings(input.Include)
 
