@@ -134,6 +134,14 @@ func GetBaseConfigKeys(arr map[string]*BaseConfig) []string {
 	return keys
 }
 
+func GetFileKeys(arr map[string]*File) []string {
+	var keys []string
+	for k := range arr {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func StringContainsAny(s string, arr []string) bool {
 
 	for _, v := range arr {

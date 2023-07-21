@@ -304,7 +304,12 @@ func (tc *TelegrafConfig) GenerateServiceBytes(s *Service, labelsTpl string, opt
 	input.SkipEmptyTags = true
 
 	fl := make(map[string]interface{})
-	for k, v := range s.Files {
+
+	fkeys := GetFileKeys(s.Files)
+	sort.Strings(fkeys)
+
+	for _, k := range fkeys {
+		v := s.Files[k]
 		f := &TelegrafInputPrometheusHttpFile{
 			Name: k,
 			Path: v.Path,
