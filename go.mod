@@ -5,10 +5,11 @@ go 1.19
 require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/devopsext/sre v0.1.6
-	github.com/devopsext/tools v0.9.6
+	github.com/devopsext/tools v0.9.8
 	github.com/devopsext/utils v0.2.0
 	github.com/go-co-op/gocron v1.18.0
 	github.com/jinzhu/copier v0.3.5
+	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.6.1
 	gopkg.in/yaml.v2 v2.3.0
 )
@@ -40,7 +41,6 @@ require (
 	github.com/newrelic/newrelic-telemetry-sdk-go v0.8.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.11.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.26.0 // indirect

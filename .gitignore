@@ -21,3 +21,4 @@ ha-api-metrics.json
 ha-aws.json
 ha*.json
 discovery.json
+hosts.json
