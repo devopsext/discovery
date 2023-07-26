@@ -10,12 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	toolsVendors "github.com/devopsext/tools/vendors"
 	"github.com/devopsext/utils"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type PrometheusDiscoveryOptions struct {
@@ -200,12 +201,22 @@ func (pd *PrometheusDiscovery) readJson(bytes []byte) (interface{}, error) {
 
 func (pd *PrometheusDiscovery) readToml(bytes []byte) (interface{}, error) {
 
-	return nil, fmt.Errorf("%s: toml is not implemented", pd.name)
+	var v interface{}
+	err := toml.Unmarshal(bytes, &v)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
 }
 
 func (pd *PrometheusDiscovery) readYaml(bytes []byte) (interface{}, error) {
 
-	return nil, fmt.Errorf("%s: yaml is not implemented", pd.name)
+	var v interface{}
+	err := yaml.Unmarshal(bytes, &v)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
 }
 
 func (pd *PrometheusDiscovery) readFile(path, typ string) interface{} {
@@ -232,7 +243,7 @@ func (pd *PrometheusDiscovery) readFile(path, typ string) interface{} {
 		obj, err = pd.readJson(bytes)
 	case tp == "toml":
 		obj, err = pd.readToml(bytes)
-	case tp == "yaml":
+	case (tp == "yaml") || (tp == "yml"):
 		obj, err = pd.readYaml(bytes)
 	default:
 		obj, err = pd.readJson(bytes)
@@ -340,6 +351,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 		field := ""
 
 		if len(v.Labels) < 2 {
+			pd.logger.Debug("%s: No labels, min requirements (2): %v", pd.name, v.Labels)
 			continue
 		}
 
@@ -408,9 +420,9 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 		fieldAndService := fmt.Sprintf("%s/%s", field, service)
 
 		disabled := pd.expandDisabled(fls, mergedVars)
-		dis, pattern := pd.checkDisabled(disabled, service)
+		dis, _ := pd.checkDisabled(disabled, service)
 		if dis {
-			pd.logger.Debug("%s: %s disabled by pattern: %s", pd.name, fieldAndService, pattern)
+			//pd.logger.Trace("%s: %s disabled by pattern: %s", pd.name, fieldAndService, pattern)
 			continue
 		}
 
@@ -427,6 +439,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 
 			ds := matched[fieldAndService]
 			if ds == nil {
+				pd.logger.Debug("%s: %s found by: %v", pd.name, fieldAndService, mergedVars)
 				ds = &common.Service{
 					Configs: make(map[string]*common.BaseConfig),
 					Vars:    make(map[string]string),

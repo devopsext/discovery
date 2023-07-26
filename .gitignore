@@ -16,6 +16,7 @@ prometheus.vars
 prometheus.disabled
 cmdb.json
 _cmdb.json
+cmdb.yml
 haproxy.json
 ha-api-metrics.json
 ha-aws.json
