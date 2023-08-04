@@ -6,7 +6,7 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/devopsext/sre v0.1.6
 	github.com/devopsext/tools v0.9.8
-	github.com/devopsext/utils v0.2.0
+	github.com/devopsext/utils v0.2.1
 	github.com/go-co-op/gocron v1.18.0
 	github.com/jinzhu/copier v0.3.5
 	github.com/pkg/errors v0.9.1

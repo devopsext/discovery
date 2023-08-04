@@ -343,15 +343,25 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 
 	configs := pd.readBaseConfigs()
 	matched := make(map[string]*common.Service)
+	gid := utils.GetRoutineID()
 
-	for _, v := range vectors {
+	pd.logger.Debug("[%d] %s: found %d series", gid, pd.name, len(vectors))
 
+	when := time.Now()
+
+	max := len(vectors) / 100
+
+	for i, v := range vectors {
+
+		if i%max == 0 && i > 0 {
+			pd.logger.Debug("[%d] %s: %d out of %d [%s]", gid, pd.name, i, len(vectors), time.Since(when))
+		}
 		metric := ""
 		service := ""
 		field := ""
 
 		if len(v.Labels) < 2 {
-			pd.logger.Debug("%s: No labels, min requirements (2): %v", pd.name, v.Labels)
+			pd.logger.Debug("[%d] %s: No labels, min requirements (2): %v", gid, pd.name, v.Labels)
 			continue
 		}
 
@@ -411,7 +421,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 		}
 
 		if utils.IsEmpty(service) || utils.IsEmpty(metric) {
-			pd.logger.Debug("%s: No service, field or metric found in labels, but: %v", pd.name, mergedVars)
+			pd.logger.Debug("[%d] %s: No service, field or metric found in labels, but: %v", gid, pd.name, mergedVars)
 			continue
 		}
 
@@ -439,7 +449,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 
 			ds := matched[fieldAndService]
 			if ds == nil {
-				pd.logger.Debug("%s: %s found by: %v", pd.name, fieldAndService, mergedVars)
+				pd.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, pd.name, fieldAndService, mergedVars, time.Since(when))
 				ds = &common.Service{
 					Configs: make(map[string]*common.BaseConfig),
 					Vars:    make(map[string]string),
@@ -461,7 +471,6 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			ds.Files = fls
 			matched[fieldAndService] = ds
 		}
-
 	}
 	return matched
 }
