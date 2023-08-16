@@ -353,7 +353,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 
 	for i, v := range vectors {
 
-		if i%max == 0 && i > 0 {
+		if max!=0 && i%max == 0 && i > 0 {
 			pd.logger.Debug("[%d] %s: %d out of %d [%s]", gid, pd.name, i, len(vectors), time.Since(when))
 		}
 		metric := ""
