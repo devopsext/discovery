@@ -55,6 +55,8 @@ type PrometheusDiscovery struct {
 	metricTemplate    *toolsRender.TextTemplate
 	telegrafTemplate  *toolsRender.TextTemplate
 	varsTemplate      *toolsRender.TextTemplate
+	files             map[string]interface{}
+	disables          map[string]*toolsRender.TextTemplate
 	// services   sreCommon.Counter
 }
 
@@ -270,13 +272,19 @@ func (pd *PrometheusDiscovery) getFiles(vars map[string]string) map[string]*comm
 	for k, v := range kv {
 		if utils.FileExists(v) {
 			typ := strings.Replace(filepath.Ext(v), ".", "", 1)
-			obj := pd.readFile(v, typ)
+
+			obj := pd.files[v]
+			if obj == nil {
+				obj = pd.readFile(v, typ)
+			}
+
 			if obj != nil {
 				files[k] = &common.File{
 					Path: v,
 					Type: typ,
 					Obj:  obj,
 				}
+				pd.files[v] = obj
 			}
 		}
 	}
@@ -297,30 +305,37 @@ func (pd *PrometheusDiscovery) expandDisabled(files map[string]*common.File, var
 
 	for _, v := range pd.options.Disabled {
 
-		if utils.FileExists(v) {
+		if !utils.FileExists(v) {
+			if !utils.IsEmpty(v) && !utils.Contains(r, v) {
+				r = append(r, v)
+			}
+			continue
+		}
+
+		tpl := pd.disables[v]
+		if tpl == nil {
 			bytes, err := utils.Content(v)
 			if err != nil {
 				pd.logger.Error(err)
 				continue
 			}
-			tpl, err := toolsRender.NewTextTemplate(toolsRender.TemplateOptions{Content: string(bytes)}, pd.observability)
+			t, err := toolsRender.NewTextTemplate(toolsRender.TemplateOptions{Content: string(bytes)}, pd.observability)
 			if err != nil {
 				pd.logger.Error(err)
 				continue
 			}
-			arr := []string{}
-			sarr := pd.render(tpl, string(bytes), m)
-			if !utils.IsEmpty(sarr) {
-				arr = strings.Split(sarr, ",")
-			}
-			for _, a := range arr {
-				if !utils.IsEmpty(a) && !utils.Contains(r, a) {
-					r = append(r, a)
-				}
-			}
-		} else {
-			if !utils.IsEmpty(v) && !utils.Contains(r, v) {
-				r = append(r, v)
+			tpl = t
+			pd.disables[v] = t
+		}
+
+		arr := []string{}
+		sarr := pd.render(tpl, "", m)
+		if !utils.IsEmpty(sarr) {
+			arr = strings.Split(sarr, ",")
+		}
+		for _, a := range arr {
+			if !utils.IsEmpty(a) && !utils.Contains(r, a) {
+				r = append(r, a)
 			}
 		}
 	}
@@ -345,10 +360,13 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 	matched := make(map[string]*common.Service)
 	gid := utils.GetRoutineID()
 
-	pd.logger.Debug("[%d] %s: found %d series", gid, pd.name, len(vectors))
+	l := len(vectors)
+	pd.logger.Debug("[%d] %s: found %d series", gid, pd.name, l)
+	if len(vectors) == 0 {
+		return matched
+	}
 
 	when := time.Now()
-
 	max := len(vectors) / 100
 
 	for i, v := range vectors {
@@ -628,6 +646,8 @@ func NewPrometheusDiscovery(name string, options PrometheusDiscoveryOptions, obs
 		metricTemplate:    metricTemplate,
 		telegrafTemplate:  telegrafTemplate,
 		varsTemplate:      varsTemplate,
+		files:             make(map[string]interface{}),
+		disables:          make(map[string]*toolsRender.TextTemplate),
 		//services: observability.Metrics().Counter("services", "Count of all found services", []string{}, "prometheus"),
 	}
 }
