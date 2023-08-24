@@ -115,6 +115,10 @@ func (pd *PrometheusDiscovery) readBaseConfigs() map[string]*common.BaseConfig {
 			pd.logger.Error(err)
 			continue
 		}
+		if config.Disabled {
+			pd.logger.Debug("%s: Base config is disabled: %s", pd.name, v)
+			continue
+		}
 		configs[v] = config
 		pd.logger.Debug("%s: Base config is loaded: %s", pd.name, v)
 	}
@@ -354,6 +358,34 @@ func (pd *PrometheusDiscovery) checkDisabled(disabled []string, service string) 
 	return false, ""
 }
 
+func (pd *PrometheusDiscovery) filterVectors(configs map[string]*common.BaseConfig, vectors []*PrometheusDiscoveryResponseDataVector) []*PrometheusDiscoveryResponseDataVector {
+
+	var r []*PrometheusDiscoveryResponseDataVector
+	for _, v := range vectors {
+		found := false
+		for _, l := range v.Labels {
+			exists := false
+			for _, c := range configs {
+				if c.Disabled {
+					continue
+				}
+				exists = c.Contains(l)
+				if exists {
+					break
+				}
+			}
+			if exists {
+				found = true
+				break
+			}
+		}
+		if found {
+			r = append(r, v)
+		}
+	}
+	return r
+}
+
 func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryResponseDataVector) map[string]*common.Service {
 
 	configs := pd.readBaseConfigs()
@@ -366,6 +398,9 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 		return matched
 	}
 
+	vectors = pd.filterVectors(configs, vectors)
+	pd.logger.Debug("[%d] %s: %d series filtered to %d", gid, pd.name, l, len(vectors))
+
 	when := time.Now()
 	max := len(vectors) / 100
 
@@ -374,6 +409,7 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 		if max > 0 && i%max == 0 && i > 0 {
 			pd.logger.Debug("[%d] %s: %d out of %d [%s]", gid, pd.name, i, len(vectors), time.Since(when))
 		}
+
 		metric := ""
 		service := ""
 		field := ""

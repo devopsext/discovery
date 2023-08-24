@@ -91,6 +91,30 @@ func (bc *BaseConfig) LabelsExist(c *BaseCondition, labels map[string]string) bo
 	return true
 }
 
+func (bc *BaseConfig) Contains(pattern string) bool {
+
+	for _, q := range bc.Qualities {
+		if strings.Contains(q.Query, pattern) {
+			return true
+		}
+	}
+
+	for _, m := range bc.Qualities {
+		if strings.Contains(m.Query, pattern) {
+			return true
+		}
+	}
+
+	if bc.Availability != nil {
+		for _, a := range bc.Availability.Queries {
+			if strings.Contains(a.Query, pattern) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (bc *BaseConfig) MetricExists(query string, labels map[string]string) bool {
 
 	if len(bc.Conditions) > 0 {
@@ -107,26 +131,5 @@ func (bc *BaseConfig) MetricExists(query string, labels map[string]string) bool 
 		}
 		return false
 	}
-
-	for _, q := range bc.Qualities {
-		if strings.Contains(q.Query, query) {
-			return true
-		}
-	}
-
-	for _, m := range bc.Qualities {
-		if strings.Contains(m.Query, query) {
-			return true
-		}
-	}
-
-	if bc.Availability != nil {
-		for _, a := range bc.Availability.Queries {
-			if strings.Contains(a.Query, query) {
-				return true
-			}
-		}
-	}
-
-	return false
+	return bc.Contains(query)
 }
