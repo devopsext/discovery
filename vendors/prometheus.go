@@ -52,7 +52,6 @@ type PrometheusDiscovery struct {
 	observability     *common.Observability
 	serviceTemplate   *toolsRender.TextTemplate
 	fieldTemplate     *toolsRender.TextTemplate
-	metricTemplate    *toolsRender.TextTemplate
 	telegrafTemplate  *toolsRender.TextTemplate
 	varsTemplate      *toolsRender.TextTemplate
 	files             map[string]interface{}
@@ -358,26 +357,24 @@ func (pd *PrometheusDiscovery) checkDisabled(disabled []string, service string) 
 	return false, ""
 }
 
-func (pd *PrometheusDiscovery) filterVectors(configs map[string]*common.BaseConfig, vectors []*PrometheusDiscoveryResponseDataVector) []*PrometheusDiscoveryResponseDataVector {
+func (pd *PrometheusDiscovery) filterVectors(name string, configs map[string]*common.BaseConfig, vectors []*PrometheusDiscoveryResponseDataVector) []*PrometheusDiscoveryResponseDataVector {
 
 	var r []*PrometheusDiscoveryResponseDataVector
 	for _, v := range vectors {
 		found := false
-		for _, l := range v.Labels {
+		n := v.Labels[name]
+		if !utils.IsEmpty(n) {
 			exists := false
 			for _, c := range configs {
 				if c.Disabled {
 					continue
 				}
-				exists = c.Contains(l)
+				exists = c.Contains(n)
 				if exists {
 					break
 				}
 			}
-			if exists {
-				found = true
-				break
-			}
+			found = exists
 		}
 		if found {
 			r = append(r, v)
@@ -392,13 +389,19 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 	matched := make(map[string]*common.Service)
 	gid := utils.GetRoutineID()
 
+	if utils.IsEmpty(pd.options.Metric) {
+		pd.logger.Debug("[%d] %s: metric name is empty", gid, pd.name)
+		return matched
+	}
+	name := pd.options.Metric
+
 	l := len(vectors)
 	pd.logger.Debug("[%d] %s: found %d series", gid, pd.name, l)
 	if len(vectors) == 0 {
 		return matched
 	}
 
-	vectors = pd.filterVectors(configs, vectors)
+	vectors = pd.filterVectors(name, configs, vectors)
 	pd.logger.Debug("[%d] %s: %d series filtered to %d", gid, pd.name, l, len(vectors))
 
 	when := time.Now()
@@ -410,7 +413,6 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 			pd.logger.Debug("[%d] %s: %d out of %d [%s]", gid, pd.name, i, len(vectors), time.Since(when))
 		}
 
-		metric := ""
 		service := ""
 		field := ""
 
@@ -434,20 +436,6 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 		vars := pd.render(pd.varsTemplate, pd.options.Vars, m)
 		serviceVars := utils.MapGetKeyValues(vars)
 		mergedVars := common.MergeStringMaps(v.Labels, serviceVars)
-
-		if utils.IsEmpty(pd.options.Metric) && (len(v.Labels) > 0) {
-			for _, m := range v.Labels {
-				metric = m
-				break
-			}
-		} else {
-			ident := pd.render(pd.metricTemplate, pd.options.Metric, mergedVars)
-			if ident == pd.options.Metric {
-				metric = mergedVars[ident]
-			} else {
-				metric = ident
-			}
-		}
 
 		if utils.IsEmpty(pd.options.Service) && (len(v.Labels) > 1) {
 			flag := false
@@ -473,6 +461,8 @@ func (pd *PrometheusDiscovery) findServices(vectors []*PrometheusDiscoveryRespon
 		} else {
 			field = ident
 		}
+
+		metric := mergedVars[name]
 
 		if utils.IsEmpty(service) || utils.IsEmpty(metric) {
 			pd.logger.Debug("[%d] %s: No service, field or metric found in labels, but: %v", gid, pd.name, mergedVars)
@@ -618,16 +608,6 @@ func NewPrometheusDiscovery(name string, options PrometheusDiscoveryOptions, obs
 		return nil
 	}
 
-	metricOpts := toolsRender.TemplateOptions{
-		Content: options.Metric,
-		Name:    "prometheus-metric",
-	}
-	metricTemplate, err := toolsRender.NewTextTemplate(metricOpts, observability)
-	if err != nil {
-		logger.Error(err)
-		return nil
-	}
-
 	serviceOpts := toolsRender.TemplateOptions{
 		Content: options.Service,
 		Name:    "prometheus-service",
@@ -679,7 +659,6 @@ func NewPrometheusDiscovery(name string, options PrometheusDiscoveryOptions, obs
 		observability:     observability,
 		serviceTemplate:   serviceTemplate,
 		fieldTemplate:     fieldTemplate,
-		metricTemplate:    metricTemplate,
 		telegrafTemplate:  telegrafTemplate,
 		varsTemplate:      varsTemplate,
 		files:             make(map[string]interface{}),
