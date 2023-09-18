@@ -102,7 +102,7 @@ func (ps *PubSub) updateCmdbFiles(data []byte) error {
 		}
 		ps.logger.Debug("PubSub: file %s created or updated with md5 hash: %s", path, bytesHashString)
 	} else {
-		ps.logger.Debug("PubSub: File %s has the same md5 hash: %s, skipped", path, fileHashString)
+		ps.logger.Debug("PubSub: file %s has the same md5 hash: %s, skipped", path, fileHashString)
 	}
 
 	return nil
