@@ -11,14 +11,19 @@ import (
 	"cloud.google.com/go/pubsub"
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
+	"google.golang.org/api/option"
 )
 
 type PubSubOptions struct {
-	Enabled          bool
-	ProjectID        string
-	TopicID          string
-	SubscriptionName string
-	CMDBDir          string
+	Enabled                 bool
+	Credentials             string
+	ProjectID               string
+	TopicID                 string
+	SubscriptionName        string
+	SubscriptionAckDeadline int
+	SubscriptionRetention   int
+	Schedule                string
+	CMDBDir                 string
 }
 
 type PubSub struct {
@@ -42,8 +47,9 @@ func (ps *PubSub) createSubscription(client *pubsub.Client, ctx context.Context,
 	}
 	if !ok {
 		sub, err := client.CreateSubscription(ctx, subID, pubsub.SubscriptionConfig{
-			Topic:       topic,
-			AckDeadline: 20 * time.Second,
+			Topic:             topic,
+			AckDeadline:       time.Duration(ps.options.SubscriptionAckDeadline) * time.Second,
+			RetentionDuration: time.Duration(ps.options.SubscriptionRetention) * time.Second,
 		})
 		if err != nil {
 			return fmt.Errorf("an error occurred while creating the subscription: %w", err)
@@ -81,21 +87,24 @@ func (ps *PubSub) updateCmdbFiles(data []byte) error {
 		if fileHash != nil {
 			fileHashString = fmt.Sprintf("%x", fileHash)
 		}
-
-		if fileHashString != bytesHashString {
-			f, err := os.Create(path)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-
-			_, err = f.Write(cmdbDataBytes)
-			if err != nil {
-				return err
-			}
-			ps.logger.Debug("PubSub: file %s created or updated with md5 hash: %s", path, bytesHashString)
-		}
 	}
+
+	if fileHashString != bytesHashString {
+		f, err := os.Create(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		_, err = f.Write(cmdbDataBytes)
+		if err != nil {
+			return err
+		}
+		ps.logger.Debug("PubSub: file %s created or updated with md5 hash: %s", path, bytesHashString)
+	} else {
+		ps.logger.Debug("PubSub: File %s has the same md5 hash: %s, skipped", path, fileHashString)
+	}
+
 	return nil
 }
 
@@ -104,8 +113,6 @@ func (ps *PubSub) pullMsgs(client *pubsub.Client, ctx context.Context, subID str
 	var received int32
 
 	sub := client.Subscription(subID)
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
 
 	err := sub.Receive(ctx, func(_ context.Context, msg *pubsub.Message) {
 		err := ps.updateCmdbFiles(msg.Data)
@@ -126,8 +133,20 @@ func (ps *PubSub) pullMsgs(client *pubsub.Client, ctx context.Context, subID str
 
 func (ps *PubSub) PubSubPull() {
 
+	if _, err := os.Stat(ps.options.CMDBDir); err != nil {
+		ps.logger.Error("PubSub: %v", err)
+		return
+	}
+
+	var o option.ClientOption
+	if _, err := os.Stat(ps.options.Credentials); err == nil {
+		o = option.WithCredentialsFile(ps.options.Credentials)
+	} else {
+		o = option.WithCredentialsJSON([]byte(ps.options.Credentials))
+	}
+
 	ctx := context.Background()
-	client, err := pubsub.NewClient(ctx, ps.options.ProjectID)
+	client, err := pubsub.NewClient(ctx, ps.options.ProjectID, o)
 	if err != nil {
 		ps.logger.Error("PubSub: %v", err)
 		return
