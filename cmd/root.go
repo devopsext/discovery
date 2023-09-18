@@ -53,6 +53,18 @@ var prometheusMetricsOptions = sreProvider.PrometheusOptions{
 	Prefix: envGet("PROMETHEUS_METRICS_PREFIX", "events").(string),
 }
 
+var pubSubOptions = vendors.PubSubOptions{
+	Enabled:                 envGet("PUBSUB_ENABLED", false).(bool),
+	Credentials:             envGet("PUBSUB_CREDENTIALS", "").(string),
+	ProjectID:               envGet("PUBSUB_PROJECT_ID", "").(string),
+	TopicID:                 envGet("PUBSUB_TOPIC", "").(string),
+	SubscriptionName:        envGet("PUBSUB_SUBSCRIPTION_NAME", "").(string),
+	SubscriptionAckDeadline: envGet("PUBSUB_SUBSCRIPTION_ACK_DEADLINE", 20).(int),
+	SubscriptionRetention:   envGet("PUBSUB_SUBSCRIPTION_RETENTION", 86400).(int),
+	Schedule:                envGet("PUBSUB_SCHEDULE", "").(string),
+	CMDBDir:                 envGet("PUBSUB_CMDB_DIR", "").(string),
+}
+
 var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
 	Names:        envStringExpand("PROMETHEUS_NAMES", ""),
 	URL:          envStringExpand("PROMETHEUS_URL", ""),
@@ -221,6 +233,22 @@ func Execute() {
 			wg := &sync.WaitGroup{}
 			s := gocron.NewScheduler(time.UTC)
 
+			if pubSubOptions.Enabled {
+				opts := vendors.PubSubOptions{}
+				copier.CopyWithOption(&opts, &pubSubOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+				pubsub := vendors.NewPubSubPull(opts, observability)
+				if !utils.IsEmpty(pubSubOptions.Schedule) {
+					schedule(s, pubSubOptions.Schedule, pubsub.PubSubPull)
+					logger.Debug("Pubsub pulling enabled on schedule: %s", pubSubOptions.Schedule)
+				} else {
+					wg.Add(1)
+					go func(p *vendors.PubSub) {
+						defer wg.Done()
+						p.PubSubPull()
+					}(pubsub)
+				}
+			}
+
 			proms := getPrometheusDiscoveriesByInstances(prometheusDiscoveryOptions.Names)
 			for k, v := range proms {
 
@@ -281,6 +309,16 @@ func Execute() {
 	flags.StringVar(&prometheusMetricsOptions.URL, "prometheus-metrics-url", prometheusMetricsOptions.URL, "Prometheus metrics endpoint url")
 	flags.StringVar(&prometheusMetricsOptions.Listen, "prometheus-metrics-listen", prometheusMetricsOptions.Listen, "Prometheus metrics listen")
 	flags.StringVar(&prometheusMetricsOptions.Prefix, "prometheus-metrics-prefix", prometheusMetricsOptions.Prefix, "Prometheus metrics prefix")
+
+	flags.BoolVar(&pubSubOptions.Enabled, "pubsub-enabled", pubSubOptions.Enabled, "Enable pulling from the PubSub topic")
+	flags.StringVar(&pubSubOptions.Credentials, "pubsub-credentials", pubSubOptions.Credentials, "Credentials for PubSub")
+	flags.StringVar(&pubSubOptions.ProjectID, "pubsub-project-id", pubSubOptions.ProjectID, "PubSub project ID")
+	flags.StringVar(&pubSubOptions.TopicID, "pubsub-topic-id", pubSubOptions.TopicID, "PubSub topic ID")
+	flags.StringVar(&pubSubOptions.SubscriptionName, "pubsub-subscription-name", pubSubOptions.SubscriptionName, "PubSub subscription name")
+	flags.IntVar(&pubSubOptions.SubscriptionAckDeadline, "pubsub-subscription-ack-deadline", pubSubOptions.SubscriptionAckDeadline, "PubSub subscription ack deadline duration seconds")
+	flags.IntVar(&pubSubOptions.SubscriptionRetention, "pubsub-subscription-retention", pubSubOptions.SubscriptionRetention, "PubSub subscription retention duration seconds")
+	flags.StringVar(&pubSubOptions.Schedule, "pubsub-schedule", pubSubOptions.Schedule, "PubSub pull schedule")
+	flags.StringVar(&pubSubOptions.CMDBDir, "pubsub-cmdb-dir", pubSubOptions.CMDBDir, "CMDB directory")
 
 	flags.StringVar(&prometheusDiscoveryOptions.Names, "prometheus-names", prometheusDiscoveryOptions.Names, "Prometheus discovery names")
 	flags.StringVar(&prometheusDiscoveryOptions.URL, "prometheus-url", prometheusDiscoveryOptions.URL, "Prometheus discovery URL")
