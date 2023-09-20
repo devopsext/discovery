@@ -234,13 +234,10 @@ func Execute() {
 			s := gocron.NewScheduler(time.UTC)
 
 			if pubSubOptions.Enabled {
-				opts := vendors.PubSubOptions{}
-				copier.CopyWithOption(&opts, &pubSubOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
-				pubsub := vendors.NewPubSubPull(opts, observability)
-				if !utils.IsEmpty(pubSubOptions.Schedule) {
-					schedule(s, pubSubOptions.Schedule, pubsub.PubSubPull)
-					logger.Debug("Pubsub pulling enabled on schedule: %s", pubSubOptions.Schedule)
-				} else {
+				if !utils.IsEmpty(prometheusDiscoveryOptions.Schedule) {
+					opts := vendors.PubSubOptions{}
+					copier.CopyWithOption(&opts, &pubSubOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+					pubsub := vendors.NewPubSubPull(opts, observability)
 					wg.Add(1)
 					go func(p *vendors.PubSub) {
 						defer wg.Done()
@@ -284,8 +281,8 @@ func Execute() {
 					logger.Debug("%s: Prometheus discovery disabled", k)
 				}
 			}
-			wg.Wait()
 			s.StartAsync()
+			wg.Wait()
 
 			// start wait if there are some jobs
 			if s.Len() > 0 {
