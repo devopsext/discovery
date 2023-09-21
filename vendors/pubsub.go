@@ -22,7 +22,6 @@ type PubSubOptions struct {
 	SubscriptionName        string
 	SubscriptionAckDeadline int
 	SubscriptionRetention   int
-	Schedule                string
 	CMDBDir                 string
 }
 

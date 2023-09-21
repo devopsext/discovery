@@ -61,7 +61,6 @@ var pubSubOptions = vendors.PubSubOptions{
 	SubscriptionName:        envGet("PUBSUB_SUBSCRIPTION_NAME", "").(string),
 	SubscriptionAckDeadline: envGet("PUBSUB_SUBSCRIPTION_ACK_DEADLINE", 20).(int),
 	SubscriptionRetention:   envGet("PUBSUB_SUBSCRIPTION_RETENTION", 86400).(int),
-	Schedule:                envGet("PUBSUB_SCHEDULE", "").(string),
 	CMDBDir:                 envGet("PUBSUB_CMDB_DIR", "").(string),
 }
 
@@ -314,7 +313,6 @@ func Execute() {
 	flags.StringVar(&pubSubOptions.SubscriptionName, "pubsub-subscription-name", pubSubOptions.SubscriptionName, "PubSub subscription name")
 	flags.IntVar(&pubSubOptions.SubscriptionAckDeadline, "pubsub-subscription-ack-deadline", pubSubOptions.SubscriptionAckDeadline, "PubSub subscription ack deadline duration seconds")
 	flags.IntVar(&pubSubOptions.SubscriptionRetention, "pubsub-subscription-retention", pubSubOptions.SubscriptionRetention, "PubSub subscription retention duration seconds")
-	flags.StringVar(&pubSubOptions.Schedule, "pubsub-schedule", pubSubOptions.Schedule, "PubSub pull schedule")
 	flags.StringVar(&pubSubOptions.CMDBDir, "pubsub-cmdb-dir", pubSubOptions.CMDBDir, "CMDB directory")
 
 	flags.StringVar(&prometheusDiscoveryOptions.Names, "prometheus-names", prometheusDiscoveryOptions.Names, "Prometheus discovery names")
