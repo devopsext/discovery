@@ -108,7 +108,7 @@ var discoveryDNSOptions = discovery.DNSOptions{
 	DomainPattern: envGet("DNS_DOMAIN_PATTERN", "").(string),
 	DomainNames:   envFileContentExpand("DNS_DOMAIN_NAMES", ""),
 
-	TelegrafConf:     envGet("DNS_TELEGRAF_CONF", "").(string),
+	TelegrafConf:     envStringExpand("DNS_TELEGRAF_CONF", ""),
 	TelegrafTemplate: envFileContentExpand("DNS_TELEGRAF_TEMPLATE", ""),
 	TelegrafChecksum: envGet("DNS_TELEGRAF_CHECKSUM", false).(bool),
 
