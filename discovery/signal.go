@@ -561,6 +561,10 @@ func NewSignal(name string, prometheusOptions common.PrometheusOptions, options 
 		return nil
 	}
 
+	if utils.IsEmpty(options.TelegrafOptions.URL) {
+		options.TelegrafOptions.URL = prometheusOptions.URL
+	}
+
 	if utils.IsEmpty(options.Query) {
 		logger.Debug("%s: No signal query. Skipped", name)
 		return nil
