@@ -16,7 +16,6 @@ import (
 	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
 	sreProvider "github.com/devopsext/sre/provider"
-	toolsRender "github.com/devopsext/tools/render"
 	"github.com/devopsext/utils"
 	"github.com/go-co-op/gocron"
 	"github.com/jinzhu/copier"
@@ -34,11 +33,13 @@ var mainWG sync.WaitGroup
 type RootOptions struct {
 	Logs    []string
 	Metrics []string
+	RunOnce bool
 }
 
 var rootOptions = RootOptions{
 	Logs:    strings.Split(envGet("LOGS", "stdout").(string), ","),
 	Metrics: strings.Split(envGet("METRICS", "prometheus").(string), ","),
+	RunOnce: envGet("RUN_ONCE", false).(bool),
 }
 
 var stdoutOptions = sreProvider.StdoutOptions{
@@ -121,6 +122,17 @@ var discoveryDNSOptions = discovery.DNSOptions{
 	},
 }
 
+var discoveryPubSubOptions = discovery.PubSubOptions{
+	Enabled:                 envGet("PUBSUB_ENABLED", false).(bool),
+	Credentials:             envGet("PUBSUB_CREDENTIALS", "").(string),
+	ProjectID:               envGet("PUBSUB_PROJECT_ID", "").(string),
+	TopicID:                 envGet("PUBSUB_TOPIC", "").(string),
+	SubscriptionName:        envGet("PUBSUB_SUBSCRIPTION_NAME", "").(string),
+	SubscriptionAckDeadline: envGet("PUBSUB_SUBSCRIPTION_ACK_DEADLINE", 20).(int),
+	SubscriptionRetention:   envGet("PUBSUB_SUBSCRIPTION_RETENTION", 86400).(int),
+	Dir:                     envGet("PUBSUB_DIR", "").(string),
+}
+
 func getOnlyEnv(key string) string {
 	value, ok := os.LookupEnv(key)
 	if ok {
@@ -168,69 +180,41 @@ func runSchedule(s *gocron.Scheduler, schedule string, jobFun interface{}) {
 	}
 }
 
-func render(def string, obj interface{}, observability *common.Observability) string {
-
-	logger := observability.Logs()
-	tpl, err := toolsRender.NewTextTemplate(toolsRender.TemplateOptions{Content: def}, observability)
-	if err != nil {
-		logger.Error(err)
-		return def
-	}
-
-	s, err := common.RenderTemplate(tpl, def, obj)
-	if err != nil {
-		logger.Error(err)
-		return def
-	}
-	return s
-}
-
-func getPrometheusDiscoveriesByInstances(names string) map[string]string {
-
-	m := make(map[string]string)
-	def := "unknown"
-	arr := strings.Split(names, ",")
-	if len(arr) > 0 {
-		index := 0
-		for _, v := range arr {
-
-			n := fmt.Sprintf("%s%d", def, index)
-			kv := strings.Split(v, "=")
-			if len(kv) > 1 {
-				name := strings.TrimSpace(kv[0])
-				if utils.IsEmpty(name) {
-					name = n
-				}
-				url := strings.TrimSpace(kv[1])
-				if !utils.IsEmpty(url) {
-					m[name] = url
-				}
-			} else {
-				m[n] = strings.TrimSpace(kv[0])
-			}
-			index++
-		}
-	} else {
-		m[def] = strings.TrimSpace(names)
-	}
-	return m
-}
-
-func runDiscovery(wg *sync.WaitGroup, scheduler *gocron.Scheduler, schedule string, typ, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
+func runStandAloneDiscovery(wg *sync.WaitGroup, runOnce bool, typ string, discovery common.Discovery, logger *sreCommon.Logs) {
 
 	if reflect.ValueOf(discovery).IsNil() {
-		logger.Debug("%s: %s discovery disabled", typ, name)
+		logger.Debug("%s: discovery disabled", typ)
 		return
 	}
-	if !utils.IsEmpty(schedule) {
-		runSchedule(scheduler, schedule, discovery.Discover)
-		logger.Debug("%s: %s discovery enabled on schedule: %s", typ, value, schedule)
-	} else {
+	// run once and return if there is flag
+	if runOnce {
 		wg.Add(1)
 		go func(d common.Discovery) {
 			defer wg.Done()
 			d.Discover()
 		}(discovery)
+	}
+}
+
+func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.Scheduler, schedule string, typ, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
+
+	if reflect.ValueOf(discovery).IsNil() {
+		logger.Debug("%s: discovery disabled for %s", typ, name)
+		return
+	}
+	// run once and return if there is flag
+	if runOnce {
+		wg.Add(1)
+		go func(d common.Discovery) {
+			defer wg.Done()
+			d.Discover()
+		}(discovery)
+		return
+	}
+	// run on schedule if there is one defined
+	if !utils.IsEmpty(schedule) {
+		runSchedule(scheduler, schedule, discovery.Discover)
+		logger.Debug("%s: %s discovery enabled on schedule: %s", typ, value, schedule)
 	}
 }
 
@@ -251,14 +235,12 @@ func Execute() {
 			logs.Info("Booting...")
 
 			// Metrics
-
 			prometheusMetricsOptions.Version = version
 			prometheus := sreProvider.NewPrometheusMeter(prometheusMetricsOptions, logs, stdout)
 			if utils.Contains(rootOptions.Metrics, "prometheus") && prometheus != nil {
 				prometheus.StartInWaitGroup(&mainWG)
 				metrics.Register(prometheus)
 			}
-
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 
@@ -267,8 +249,8 @@ func Execute() {
 			wg := &sync.WaitGroup{}
 			scheduler := gocron.NewScheduler(time.UTC)
 
-			// use each prometheus name for URLs
-			proms := getPrometheusDiscoveriesByInstances(discoveryPrometheusOptions.Names)
+			// use each prometheus name for URLs and run related discoveries
+			proms := common.GetPrometheusDiscoveriesByInstances(discoveryPrometheusOptions.Names)
 			for k, v := range proms {
 
 				opts := common.PrometheusOptions{}
@@ -277,14 +259,19 @@ func Execute() {
 				m := make(map[string]string)
 				m["name"] = k
 				m["url"] = v
-				opts.URL = render(discoveryPrometheusOptions.URL, m, observability)
+				opts.URL = common.Render(discoveryPrometheusOptions.URL, m, observability)
 
 				if utils.IsEmpty(opts.URL) || utils.IsEmpty(k) {
 					logger.Debug("Prometheus discovery is not found")
 					continue
 				}
-				runDiscovery(wg, scheduler, discoverySignalOptions.Schedule, "Signal", k, v, discovery.NewSignal(k, opts, discoverySignalOptions, observability), logger)
-				runDiscovery(wg, scheduler, discoveryDNSOptions.Schedule, "DNS", k, v, discovery.NewDNS(k, opts, discoveryDNSOptions, observability), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoverySignalOptions.Schedule, "Signal", k, v, discovery.NewSignal(k, opts, discoverySignalOptions, observability), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryDNSOptions.Schedule, "DNS", k, v, discovery.NewDNS(k, opts, discoveryDNSOptions, observability), logger)
+			}
+
+			// run supportive discoveries without scheduler
+			if !rootOptions.RunOnce {
+				runStandAloneDiscovery(wg, true, "PubSub", discovery.NewPubSub(discoveryPubSubOptions, observability), logger)
 			}
 
 			wg.Wait()
@@ -301,6 +288,7 @@ func Execute() {
 
 	flags.StringSliceVar(&rootOptions.Logs, "logs", rootOptions.Logs, "Log providers: stdout")
 	flags.StringSliceVar(&rootOptions.Metrics, "metrics", rootOptions.Metrics, "Metric providers: prometheus")
+	flags.BoolVar(&rootOptions.RunOnce, "run-once", rootOptions.RunOnce, "Run once")
 
 	flags.StringVar(&stdoutOptions.Format, "stdout-format", stdoutOptions.Format, "Stdout format: json, text, template")
 	flags.StringVar(&stdoutOptions.Level, "stdout-level", stdoutOptions.Level, "Stdout level: info, warn, error, debug, panic")
@@ -370,6 +358,16 @@ func Execute() {
 	flags.IntVar(&discoveryDNSOptions.TelegrafOptions.Port, "dns-telegraf-port", discoveryDNSOptions.TelegrafOptions.Port, "DNS discovery telegraf port")
 	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Timeout, "dns-telegraf-timeout", discoveryDNSOptions.TelegrafOptions.Timeout, "DNS discovery telegraf timeout")
 	flags.StringSliceVar(&discoveryDNSOptions.TelegrafOptions.Tags, "dns-telegraf-tags", discoveryDNSOptions.TelegrafOptions.Tags, "DNS discovery telegraf tags")
+
+	// PubSub
+	flags.BoolVar(&discoveryPubSubOptions.Enabled, "pubsub-enabled", discoveryPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")
+	flags.StringVar(&discoveryPubSubOptions.Credentials, "pubsub-credentials", discoveryPubSubOptions.Credentials, "Credentials for PubSub")
+	flags.StringVar(&discoveryPubSubOptions.ProjectID, "pubsub-project-id", discoveryPubSubOptions.ProjectID, "PubSub project ID")
+	flags.StringVar(&discoveryPubSubOptions.TopicID, "pubsub-topic-id", discoveryPubSubOptions.TopicID, "PubSub topic ID")
+	flags.StringVar(&discoveryPubSubOptions.SubscriptionName, "pubsub-subscription-name", discoveryPubSubOptions.SubscriptionName, "PubSub subscription name")
+	flags.IntVar(&discoveryPubSubOptions.SubscriptionAckDeadline, "pubsub-subscription-ack-deadline", discoveryPubSubOptions.SubscriptionAckDeadline, "PubSub subscription ack deadline duration seconds")
+	flags.IntVar(&discoveryPubSubOptions.SubscriptionRetention, "pubsub-subscription-retention", discoveryPubSubOptions.SubscriptionRetention, "PubSub subscription retention duration seconds")
+	flags.StringVar(&discoveryPubSubOptions.Dir, "pubsub-dir", discoveryPubSubOptions.Dir, "Pubsub directory")
 
 	interceptSyscall()
 

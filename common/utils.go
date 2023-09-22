@@ -2,6 +2,7 @@ package common
 
 import (
 	"crypto/md5"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -112,6 +113,23 @@ func RenderTemplate(tpl *toolsRender.TextTemplate, def string, obj interface{}) 
 	return strings.ReplaceAll(r, "<no value>", ""), nil
 }
 
+func Render(def string, obj interface{}, observability *Observability) string {
+
+	logger := observability.Logs()
+	tpl, err := toolsRender.NewTextTemplate(toolsRender.TemplateOptions{Content: def}, observability)
+	if err != nil {
+		logger.Error(err)
+		return def
+	}
+
+	s, err := RenderTemplate(tpl, def, obj)
+	if err != nil {
+		logger.Error(err)
+		return def
+	}
+	return s
+}
+
 func GetStringKeys(arr map[string]string) []string {
 	var keys []string
 	for k := range arr {
@@ -185,4 +203,35 @@ func ParsePeriodFromNow(period string, t time.Time) string {
 
 	from := t.Add(time.Duration(dur))
 	return strconv.Itoa(int(from.Unix()))
+}
+
+func GetPrometheusDiscoveriesByInstances(names string) map[string]string {
+
+	m := make(map[string]string)
+	def := "unknown"
+	arr := strings.Split(names, ",")
+	if len(arr) > 0 {
+		index := 0
+		for _, v := range arr {
+
+			n := fmt.Sprintf("%s%d", def, index)
+			kv := strings.Split(v, "=")
+			if len(kv) > 1 {
+				name := strings.TrimSpace(kv[0])
+				if utils.IsEmpty(name) {
+					name = n
+				}
+				url := strings.TrimSpace(kv[1])
+				if !utils.IsEmpty(url) {
+					m[name] = url
+				}
+			} else {
+				m[n] = strings.TrimSpace(kv[0])
+			}
+			index++
+		}
+	} else {
+		m[def] = strings.TrimSpace(names)
+	}
+	return m
 }
