@@ -172,6 +172,11 @@ func NewPubSub(options PubSubOptions, observability *common.Observability) *PubS
 
 	logger := observability.Logs()
 
+	if !options.Enabled {
+		logger.Debug("PubSub is disabled. Skipped")
+		return nil
+	}
+
 	return &PubSub{
 		options:       options,
 		logger:        logger,
