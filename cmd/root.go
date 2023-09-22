@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"reflect"
 	"strings"
 	"time"
 
@@ -11,7 +12,8 @@ import (
 	"syscall"
 
 	"github.com/devopsext/discovery/common"
-	"github.com/devopsext/discovery/vendors"
+	"github.com/devopsext/discovery/discovery"
+	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
 	sreProvider "github.com/devopsext/sre/provider"
 	toolsRender "github.com/devopsext/tools/render"
@@ -53,43 +55,69 @@ var prometheusMetricsOptions = sreProvider.PrometheusOptions{
 	Prefix: envGet("PROMETHEUS_METRICS_PREFIX", "events").(string),
 }
 
-var prometheusDiscoveryOptions = vendors.PrometheusDiscoveryOptions{
-	Names:        envStringExpand("PROMETHEUS_NAMES", ""),
-	URL:          envStringExpand("PROMETHEUS_URL", ""),
-	Timeout:      envGet("PROMETHEUS_TIMEOUT", 30).(int),
-	Insecure:     envGet("PROMETHEUS_INSECURE", false).(bool),
-	Query:        envFileContentExpand("PROMETHEUS_QUERY", ""),
-	QueryPeriod:  envGet("PROMETHEUS_QUERY_PERIOD", "").(string),
-	QueryStep:    envGet("PROMETHEUS_QUERY_STEP", "").(string),
-	Metric:       envGet("PROMETHEUS_METRIC", "").(string),
-	Service:      envGet("PROMETHEUS_SERVICE", "").(string),
-	Field:        envGet("PROMETHEUS_FIELD", "").(string),
-	Files:        envFileContentExpand("PROMETHEUS_FILES", ""),
-	Disabled:     strings.Split(envStringExpand("PROMETHEUS_DISABLED", ""), ","),
-	Schedule:     envGet("PROMETHEUS_SCHEDULE", "").(string),
-	Vars:         envFileContentExpand("PROMETHEUS_VARS", ""),
-	BaseTemplate: envStringExpand("PROMETHEUS_BASE_TEMPLATE", ""),
+var discoveryPrometheusOptions = common.PrometheusOptions{
+	Names:    envStringExpand("PROMETHEUS_NAMES", ""),
+	URL:      envStringExpand("PROMETHEUS_URL", ""),
+	Timeout:  envGet("PROMETHEUS_TIMEOUT", 30).(int),
+	Insecure: envGet("PROMETHEUS_INSECURE", false).(bool),
+}
 
-	TelegrafLabels:   envFileContentExpand("PROMETHEUS_TELEGRAF_LABELS", ""),
-	TelegrafTemplate: envStringExpand("PROMETHEUS_TELEGRAF_TEMPLATE", ""),
-	TelegrafChecksum: envGet("PROMETHEUS_TELEGRAF_CHECKSUM", false).(bool),
-	TelegrafOptions: common.TelegrafConfigOptions{
-		URL:              envStringExpand("PROMETHEUS_TELEGRAF_URL", ""),
-		Version:          envGet("PROMETHEUS_TELEGRAF_VERSION", "v1").(string),
-		Params:           envGet("PROMETHEUS_TELEGRAF_PARAMS", "").(string),
-		Interval:         envGet("PROMETHEUS_TELEGRAF_INTERVAL", "10s").(string),
-		Duration:         envGet("PROMETHEUS_TELEGRAF_DURATION", "").(string),
-		Timeout:          envGet("PROMETHEUS_TELEGRAF_TIMEOUT", "5s").(string),
-		Prefix:           envGet("PROMETHEUS_TELEGRAF_PREFIX", "").(string),
-		QualityName:      envGet("PROMETHEUS_TELEGRAF_QUALITY_NAME", "quality").(string),
-		QualityRange:     envGet("PROMETHEUS_TELEGRAF_QUALITY_RANGE", "5m").(string),
-		QualityEvery:     envGet("PROMETHEUS_TELEGRAF_QUALITY_EVERY", "15s").(string),
-		QualityPoints:    envGet("PROMETHEUS_TELEGRAF_QUALITY_POINTS", 20).(int),
-		QualityQuery:     envFileContentExpand("PROMETHEUS_TELEGRAF_QUALITY_QUERY", ""),
-		AvailabilityName: envGet("PROMETHEUS_TELEGRAF_AVAILABILITY_NAME", "availability").(string),
-		MetricName:       envGet("PROMETHEUS_TELEGRAF_METRIC_NAME", "metric").(string),
-		DefaultTags:      strings.Split(envStringExpand("PROMETHEUS_TELEGRAF_DEFAULT_TAGS", ""), ","),
-		VarFormat:        envGet("PROMETHEUS_TELEGRAF_VAR_FORMAT", "$%s").(string),
+var discoverySignalOptions = discovery.SignalOptions{
+	Disabled:     strings.Split(envStringExpand("SIGNAL_DISABLED", ""), ","),
+	Schedule:     envGet("SIGNAL_SCHEDULE", "").(string),
+	Query:        envFileContentExpand("SIGNAL_QUERY", ""),
+	QueryPeriod:  envGet("SIGNAL_QUERY_PERIOD", "").(string),
+	QueryStep:    envGet("SIGNAL_QUERY_STEP", "").(string),
+	Metric:       envGet("SIGNAL_METRIC", "").(string),
+	Service:      envGet("SIGNAL_SERVICE", "").(string),
+	Field:        envGet("SIGNAL_FIELD", "").(string),
+	Files:        envFileContentExpand("SIGNAL_FILES", ""),
+	Vars:         envFileContentExpand("SIGNAL_VARS", ""),
+	BaseTemplate: envStringExpand("SIGNAL_BASE_TEMPLATE", ""),
+
+	TelegrafTags:     envFileContentExpand("SIGNAL_TELEGRAF_TAGS", ""),
+	TelegrafTemplate: envStringExpand("SIGNAL_TELEGRAF_TEMPLATE", ""),
+	TelegrafChecksum: envGet("SIGNAL_TELEGRAF_CHECKSUM", false).(bool),
+
+	TelegrafOptions: telegraf.InputPrometheusHttpConfigOptions{
+		Interval:         envGet("SIGNAL_TELEGRAF_INTERVAL", "10s").(string),
+		URL:              envStringExpand("SIGNAL_TELEGRAF_URL", ""),
+		Version:          envGet("SIGNAL_TELEGRAF_VERSION", "v1").(string),
+		Params:           envGet("SIGNAL_TELEGRAF_PARAMS", "").(string),
+		Duration:         envGet("SIGNAL_TELEGRAF_DURATION", "").(string),
+		Timeout:          envGet("SIGNAL_TELEGRAF_TIMEOUT", "5s").(string),
+		Prefix:           envGet("SIGNAL_TELEGRAF_PREFIX", "").(string),
+		QualityName:      envGet("SIGNAL_TELEGRAF_QUALITY_NAME", "quality").(string),
+		QualityRange:     envGet("SIGNAL_TELEGRAF_QUALITY_RANGE", "5m").(string),
+		QualityEvery:     envGet("SIGNAL_TELEGRAF_QUALITY_EVERY", "15s").(string),
+		QualityPoints:    envGet("SIGNAL_TELEGRAF_QUALITY_POINTS", 20).(int),
+		QualityQuery:     envFileContentExpand("SIGNAL_TELEGRAF_QUALITY_QUERY", ""),
+		AvailabilityName: envGet("SIGNAL_TELEGRAF_AVAILABILITY_NAME", "availability").(string),
+		MetricName:       envGet("SIGNAL_TELEGRAF_METRIC_NAME", "metric").(string),
+		DefaultTags:      strings.Split(envStringExpand("SIGNAL_TELEGRAF_DEFAULT_TAGS", ""), ","),
+		VarFormat:        envGet("SIGNAL_TELEGRAF_VAR_FORMAT", "$%s").(string),
+	},
+}
+
+var discoveryDNSOptions = discovery.DNSOptions{
+	Schedule:      envGet("DNS_SCHEDULE", "").(string),
+	Query:         envFileContentExpand("DNS_QUERY", ""),
+	QueryPeriod:   envGet("DNS_QUERY_PERIOD", "").(string),
+	QueryStep:     envGet("DNS_QUERY_STEP", "").(string),
+	DomainPattern: envGet("DNS_DOMAIN_PATTERN", "").(string),
+	DomainNames:   envFileContentExpand("DNS_DOMAIN_NAMES", ""),
+
+	TelegrafConf:     envGet("DNS_TELEGRAF_CONF", "").(string),
+	TelegrafTemplate: envFileContentExpand("DNS_TELEGRAF_TEMPLATE", ""),
+	TelegrafChecksum: envGet("DNS_TELEGRAF_CHECKSUM", false).(bool),
+
+	TelegrafOptions: telegraf.InputDNSQueryConfigOptions{
+		Interval:   envGet("DNS_TELEGRAF_INTERVAL", "10s").(string),
+		Servers:    envGet("DNS_TELEGRAF_SERVERS", "").(string),
+		Network:    envGet("DNS_TELEGRAF_NETWORK", "upd").(string),
+		RecordType: envGet("DNS_TELEGRAF_RECORD_TYPE", "A").(string),
+		Port:       envGet("DNS_TELEGRAF_PORT", 53).(int),
+		Tags:       strings.Split(envStringExpand("DNS_TELEGRAF_TAGS", ""), ","),
 	},
 }
 
@@ -130,7 +158,7 @@ func interceptSyscall() {
 	}()
 }
 
-func schedule(s *gocron.Scheduler, schedule string, jobFun interface{}) {
+func runSchedule(s *gocron.Scheduler, schedule string, jobFun interface{}) {
 
 	arr := strings.Split(schedule, " ")
 	if len(arr) == 1 {
@@ -188,6 +216,24 @@ func getPrometheusDiscoveriesByInstances(names string) map[string]string {
 	return m
 }
 
+func runDiscovery(wg *sync.WaitGroup, scheduler *gocron.Scheduler, schedule string, typ, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
+
+	if reflect.ValueOf(discovery).IsNil() {
+		logger.Debug("%s: %s discovery disabled", typ, name)
+		return
+	}
+	if !utils.IsEmpty(schedule) {
+		runSchedule(scheduler, schedule, discovery.Discover)
+		logger.Debug("%s: %s discovery enabled on schedule: %s", typ, value, schedule)
+	} else {
+		wg.Add(1)
+		go func(d common.Discovery) {
+			defer wg.Done()
+			d.Discover()
+		}(discovery)
+	}
+}
+
 func Execute() {
 
 	rootCmd := &cobra.Command{
@@ -219,48 +265,33 @@ func Execute() {
 			observability := common.NewObservability(logs, metrics)
 			logger := observability.Logs()
 			wg := &sync.WaitGroup{}
-			s := gocron.NewScheduler(time.UTC)
+			scheduler := gocron.NewScheduler(time.UTC)
 
-			proms := getPrometheusDiscoveriesByInstances(prometheusDiscoveryOptions.Names)
+			// use each prometheus name for URLs
+			proms := getPrometheusDiscoveriesByInstances(discoveryPrometheusOptions.Names)
 			for k, v := range proms {
 
-				opts := vendors.PrometheusDiscoveryOptions{}
-				copier.CopyWithOption(&opts, &prometheusDiscoveryOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+				opts := common.PrometheusOptions{}
+				copier.CopyWithOption(&opts, &discoveryPrometheusOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 
 				m := make(map[string]string)
 				m["name"] = k
 				m["url"] = v
-				opts.URL = render(prometheusDiscoveryOptions.URL, m, observability)
-				if utils.IsEmpty(opts.TelegrafOptions.URL) {
-					opts.TelegrafOptions.URL = opts.URL
-				}
+				opts.URL = render(discoveryPrometheusOptions.URL, m, observability)
 
 				if utils.IsEmpty(opts.URL) || utils.IsEmpty(k) {
 					logger.Debug("Prometheus discovery is not found")
 					continue
 				}
-
-				prometheus := vendors.NewPrometheusDiscovery(k, opts, observability)
-				if prometheus != nil {
-					if !utils.IsEmpty(prometheusDiscoveryOptions.Schedule) {
-						schedule(s, prometheusDiscoveryOptions.Schedule, prometheus.Discover)
-						logger.Debug("%s: Prometheus discovery enabled on schedule: %s", v, prometheusDiscoveryOptions.Schedule)
-					} else {
-						wg.Add(1)
-						go func(p *vendors.PrometheusDiscovery) {
-							defer wg.Done()
-							p.Discover()
-						}(prometheus)
-					}
-				} else {
-					logger.Debug("%s: Prometheus discovery disabled", k)
-				}
+				runDiscovery(wg, scheduler, discoverySignalOptions.Schedule, "Signal", k, v, discovery.NewSignal(k, opts, discoverySignalOptions, observability), logger)
+				runDiscovery(wg, scheduler, discoveryDNSOptions.Schedule, "DNS", k, v, discovery.NewDNS(k, opts, discoveryDNSOptions, observability), logger)
 			}
+
 			wg.Wait()
-			s.StartAsync()
+			scheduler.StartAsync()
 
 			// start wait if there are some jobs
-			if s.Len() > 0 {
+			if scheduler.Len() > 0 {
 				mainWG.Wait()
 			}
 		},
@@ -282,43 +313,63 @@ func Execute() {
 	flags.StringVar(&prometheusMetricsOptions.Listen, "prometheus-metrics-listen", prometheusMetricsOptions.Listen, "Prometheus metrics listen")
 	flags.StringVar(&prometheusMetricsOptions.Prefix, "prometheus-metrics-prefix", prometheusMetricsOptions.Prefix, "Prometheus metrics prefix")
 
-	flags.StringVar(&prometheusDiscoveryOptions.Names, "prometheus-names", prometheusDiscoveryOptions.Names, "Prometheus discovery names")
-	flags.StringVar(&prometheusDiscoveryOptions.URL, "prometheus-url", prometheusDiscoveryOptions.URL, "Prometheus discovery URL")
-	flags.IntVar(&prometheusDiscoveryOptions.Timeout, "prometheus-timeout", prometheusDiscoveryOptions.Timeout, "Prometheus discovery timeout in seconds")
-	flags.BoolVar(&prometheusDiscoveryOptions.Insecure, "prometheus-insecure", prometheusDiscoveryOptions.Insecure, "Prometheus discovery insecure")
-	flags.StringVar(&prometheusDiscoveryOptions.Query, "prometheus-query", prometheusDiscoveryOptions.Query, "Prometheus discovery query")
-	flags.StringVar(&prometheusDiscoveryOptions.QueryPeriod, "prometheus-query-period", prometheusDiscoveryOptions.QueryPeriod, "Prometheus discovery query period")
-	flags.StringVar(&prometheusDiscoveryOptions.QueryStep, "prometheus-query-step", prometheusDiscoveryOptions.QueryStep, "Prometheus discovery query step")
-	flags.StringVar(&prometheusDiscoveryOptions.Service, "prometheus-service", prometheusDiscoveryOptions.Service, "Prometheus discovery service label")
-	flags.StringVar(&prometheusDiscoveryOptions.Field, "prometheus-field", prometheusDiscoveryOptions.Field, "Prometheus discovery field label")
-	flags.StringVar(&prometheusDiscoveryOptions.Metric, "prometheus-metric", prometheusDiscoveryOptions.Metric, "Prometheus discovery metric label")
-	flags.StringVar(&prometheusDiscoveryOptions.Files, "prometheus-files", prometheusDiscoveryOptions.Files, "Prometheus discovery files")
-	flags.StringSliceVar(&prometheusDiscoveryOptions.Disabled, "prometheus-disabled", prometheusDiscoveryOptions.Disabled, "Prometheus discovery disabled services")
-	flags.StringVar(&prometheusDiscoveryOptions.Schedule, "prometheus-schedule", prometheusDiscoveryOptions.Schedule, "Prometheus discovery schedule")
-	flags.StringVar(&prometheusDiscoveryOptions.BaseTemplate, "prometheus-base-template", prometheusDiscoveryOptions.BaseTemplate, "Prometheus discovery base template")
-	flags.StringVar(&prometheusDiscoveryOptions.Vars, "prometheus-vars", prometheusDiscoveryOptions.Vars, "Prometheus discovery vars")
+	flags.StringVar(&discoveryPrometheusOptions.Names, "prometheus-names", discoveryPrometheusOptions.Names, "Prometheus discovery names")
+	flags.StringVar(&discoveryPrometheusOptions.URL, "prometheus-url", discoveryPrometheusOptions.URL, "Prometheus discovery URL")
+	flags.IntVar(&discoveryPrometheusOptions.Timeout, "prometheus-timeout", discoveryPrometheusOptions.Timeout, "Prometheus discovery timeout in seconds")
+	flags.BoolVar(&discoveryPrometheusOptions.Insecure, "prometheus-insecure", discoveryPrometheusOptions.Insecure, "Prometheus discovery insecure")
 
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafLabels, "prometheus-telegraf-labels", prometheusDiscoveryOptions.TelegrafLabels, "Prometheus discovery telegraf labels")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafTemplate, "prometheus-telegraf-template", prometheusDiscoveryOptions.TelegrafTemplate, "Prometheus discovery telegraf template")
-	flags.BoolVar(&prometheusDiscoveryOptions.TelegrafChecksum, "prometheus-telegraf-checksum", prometheusDiscoveryOptions.TelegrafChecksum, "Prometheus discovery telegraf checksum")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.URL, "prometheus-telegraf-url", prometheusDiscoveryOptions.TelegrafOptions.URL, "Prometheus discovery telegraf URL")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.Version, "prometheus-telegraf-version", prometheusDiscoveryOptions.TelegrafOptions.Version, "Prometheus discovery telegraf version")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.Params, "prometheus-telegraf-params", prometheusDiscoveryOptions.TelegrafOptions.Params, "Prometheus discovery telegraf params")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.Interval, "prometheus-telegraf-interval", prometheusDiscoveryOptions.TelegrafOptions.Interval, "Prometheus discovery telegraf interval")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.Timeout, "prometheus-telegraf-timeout", prometheusDiscoveryOptions.TelegrafOptions.Timeout, "Prometheus discovery telegraf timeout")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.Duration, "prometheus-telegraf-duration", prometheusDiscoveryOptions.TelegrafOptions.Duration, "Prometheus discovery telegraf duration")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.Prefix, "prometheus-telegraf-prefix", prometheusDiscoveryOptions.TelegrafOptions.Prefix, "Prometheus discovery telegraf prefix")
+	// Signal
+	flags.StringVar(&discoverySignalOptions.Schedule, "signal-schedule", discoverySignalOptions.Schedule, "Signal discovery schedule")
+	flags.StringVar(&discoverySignalOptions.Query, "signal-query", discoverySignalOptions.Query, "Signal discovery query")
+	flags.StringVar(&discoverySignalOptions.QueryPeriod, "signal-query-period", discoverySignalOptions.QueryPeriod, "Signal discovery query period")
+	flags.StringVar(&discoverySignalOptions.QueryStep, "signal-query-step", discoverySignalOptions.QueryStep, "Signal discovery query step")
+	flags.StringVar(&discoverySignalOptions.Service, "signal-service", discoverySignalOptions.Service, "Signal discovery service label")
+	flags.StringVar(&discoverySignalOptions.Field, "signal-field", discoverySignalOptions.Field, "Signal discovery field label")
+	flags.StringVar(&discoverySignalOptions.Metric, "signal-metric", discoverySignalOptions.Metric, "Signal discovery metric label")
+	flags.StringVar(&discoverySignalOptions.Files, "signal-files", discoverySignalOptions.Files, "Signal discovery files")
+	flags.StringSliceVar(&discoverySignalOptions.Disabled, "signal-disabled", discoverySignalOptions.Disabled, "Signal discovery disabled services")
+	flags.StringVar(&discoverySignalOptions.BaseTemplate, "signal-base-template", discoverySignalOptions.BaseTemplate, "Signal discovery base template")
+	flags.StringVar(&discoverySignalOptions.Vars, "signal-vars", discoverySignalOptions.Vars, "Signal discovery vars")
 
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.QualityName, "prometheus-telegraf-quality-name", prometheusDiscoveryOptions.TelegrafOptions.QualityName, "Prometheus discovery telegraf quality name")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.QualityRange, "prometheus-telegraf-quality-range", prometheusDiscoveryOptions.TelegrafOptions.QualityRange, "Prometheus discovery telegraf quality range")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.QualityEvery, "prometheus-telegraf-quality-every", prometheusDiscoveryOptions.TelegrafOptions.QualityEvery, "Prometheus discovery telegraf quality every")
-	flags.IntVar(&prometheusDiscoveryOptions.TelegrafOptions.QualityPoints, "prometheus-telegraf-quality-points", prometheusDiscoveryOptions.TelegrafOptions.QualityPoints, "Prometheus discovery telegraf quality points")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.QualityQuery, "prometheus-telegraf-quality-query", prometheusDiscoveryOptions.TelegrafOptions.QualityQuery, "Prometheus discovery telegraf quality query")
+	flags.StringVar(&discoverySignalOptions.TelegrafTags, "signal-telegraf-tags", discoverySignalOptions.TelegrafTags, "Signal discovery telegraf tags")
+	flags.StringVar(&discoverySignalOptions.TelegrafTemplate, "signal-telegraf-template", discoverySignalOptions.TelegrafTemplate, "Signal discovery telegraf template")
+	flags.BoolVar(&discoverySignalOptions.TelegrafChecksum, "signal-telegraf-checksum", discoverySignalOptions.TelegrafChecksum, "Signal discovery telegraf checksum")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.URL, "signal-telegraf-url", discoverySignalOptions.TelegrafOptions.URL, "Signal discovery telegraf URL")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Version, "signal-telegraf-version", discoverySignalOptions.TelegrafOptions.Version, "Signal discovery telegraf version")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Params, "signal-telegraf-params", discoverySignalOptions.TelegrafOptions.Params, "Signal discovery telegraf params")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Interval, "signal-telegraf-interval", discoverySignalOptions.TelegrafOptions.Interval, "Signal discovery telegraf interval")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Timeout, "signal-telegraf-timeout", discoverySignalOptions.TelegrafOptions.Timeout, "Signal discovery telegraf timeout")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Duration, "signal-telegraf-duration", discoverySignalOptions.TelegrafOptions.Duration, "Signal discovery telegraf duration")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Prefix, "signal-telegraf-prefix", discoverySignalOptions.TelegrafOptions.Prefix, "Signal discovery telegraf prefix")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.QualityName, "signal-telegraf-quality-name", discoverySignalOptions.TelegrafOptions.QualityName, "Signal discovery telegraf quality name")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.QualityRange, "signal-telegraf-quality-range", discoverySignalOptions.TelegrafOptions.QualityRange, "Signal discovery telegraf quality range")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.QualityEvery, "signal-telegraf-quality-every", discoverySignalOptions.TelegrafOptions.QualityEvery, "Signal discovery telegraf quality every")
+	flags.IntVar(&discoverySignalOptions.TelegrafOptions.QualityPoints, "signal-telegraf-quality-points", discoverySignalOptions.TelegrafOptions.QualityPoints, "Signal discovery telegraf quality points")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.QualityQuery, "signal-telegraf-quality-query", discoverySignalOptions.TelegrafOptions.QualityQuery, "Signal discovery telegraf quality query")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.AvailabilityName, "signal-telegraf-availability-name", discoverySignalOptions.TelegrafOptions.AvailabilityName, "Signal discovery telegraf availability name")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.MetricName, "signal-telegraf-metric-name", discoverySignalOptions.TelegrafOptions.MetricName, "Signal discovery telegraf metric name")
+	flags.StringSliceVar(&discoverySignalOptions.TelegrafOptions.DefaultTags, "signal-telegraf-default-tags", discoverySignalOptions.TelegrafOptions.DefaultTags, "Signal discovery telegraf default tags")
+	flags.StringVar(&discoverySignalOptions.TelegrafOptions.VarFormat, "signal-telegraf-var-format", discoverySignalOptions.TelegrafOptions.VarFormat, "Signal discovery telegraf var format")
 
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.AvailabilityName, "prometheus-telegraf-availability-name", prometheusDiscoveryOptions.TelegrafOptions.AvailabilityName, "Prometheus discovery telegraf availability name")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.MetricName, "prometheus-telegraf-metric-name", prometheusDiscoveryOptions.TelegrafOptions.MetricName, "Prometheus discovery telegraf metric name")
-	flags.StringSliceVar(&prometheusDiscoveryOptions.TelegrafOptions.DefaultTags, "prometheus-telegraf-default-tags", prometheusDiscoveryOptions.TelegrafOptions.DefaultTags, "Prometheus discovery telegraf default tags")
-	flags.StringVar(&prometheusDiscoveryOptions.TelegrafOptions.VarFormat, "prometheus-telegraf-var-format", prometheusDiscoveryOptions.TelegrafOptions.VarFormat, "Prometheus discovery telegraf var format")
+	// DNS
+	flags.StringVar(&discoveryDNSOptions.Schedule, "dns-schedule", discoveryDNSOptions.Schedule, "DNS discovery schedule")
+	flags.StringVar(&discoveryDNSOptions.Query, "dns-query", discoveryDNSOptions.Query, "DNS discovery query")
+	flags.StringVar(&discoveryDNSOptions.QueryPeriod, "dns-query-period", discoveryDNSOptions.QueryPeriod, "DNS discovery query period")
+	flags.StringVar(&discoveryDNSOptions.QueryStep, "dns-query-step", discoveryDNSOptions.QueryStep, "DNS discovery query step")
+	flags.StringVar(&discoveryDNSOptions.DomainPattern, "dns-domain-pattern", discoveryDNSOptions.DomainPattern, "DNS discovery domain pattern")
+	flags.StringVar(&discoveryDNSOptions.DomainNames, "dns-domain-names", discoveryDNSOptions.DomainNames, "DNS discovery domain names")
+
+	flags.StringVar(&discoveryDNSOptions.TelegrafConf, "dns-telegraf-conf", discoveryDNSOptions.TelegrafConf, "DNS discovery telegraf conf")
+	flags.StringVar(&discoveryDNSOptions.TelegrafTemplate, "dns-telegraf-template", discoveryDNSOptions.TelegrafTemplate, "DNS discovery telegraf template")
+	flags.BoolVar(&discoveryDNSOptions.TelegrafChecksum, "dns-telegraf-checksum", discoveryDNSOptions.TelegrafChecksum, "DNS discovery telegraf checksum")
+	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Interval, "dns-telegraf-interval", discoveryDNSOptions.TelegrafOptions.Interval, "DNS discovery telegraf interval")
+	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Servers, "dns-telegraf-servers", discoveryDNSOptions.TelegrafOptions.Servers, "DNS discovery telegraf servers")
+	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Network, "dns-telegraf-network", discoveryDNSOptions.TelegrafOptions.Network, "DNS discovery telegraf network")
+	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Domains, "dns-telegraf-domains", discoveryDNSOptions.TelegrafOptions.Domains, "DNS discovery telegraf domains")
+	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.RecordType, "dns-telegraf-record-type", discoveryDNSOptions.TelegrafOptions.RecordType, "DNS discovery telegraf record type")
+	flags.IntVar(&discoveryDNSOptions.TelegrafOptions.Port, "dns-telegraf-port", discoveryDNSOptions.TelegrafOptions.Port, "DNS discovery telegraf port")
+	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Timeout, "dns-telegraf-timeout", discoveryDNSOptions.TelegrafOptions.Timeout, "DNS discovery telegraf timeout")
+	flags.StringSliceVar(&discoveryDNSOptions.TelegrafOptions.Tags, "dns-telegraf-tags", discoveryDNSOptions.TelegrafOptions.Tags, "DNS discovery telegraf tags")
 
 	interceptSyscall()
 

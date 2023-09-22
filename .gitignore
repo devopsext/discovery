@@ -10,10 +10,11 @@ __debug_bin
 .telegraf/
 
 info.txt
-prometheus.telegraf.quality.query
-prometheus.telegraf.labels
-prometheus.vars
-prometheus.disabled
+signal.telegraf.quality.query
+signal.telegraf.tags
+signal.vars
+signal.disabled
+dns.telegraf.template
 cmdb.json
 _cmdb.json
 cmdb.yml

@@ -5,9 +5,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	toolsRender "github.com/devopsext/tools/render"
+	"github.com/devopsext/utils"
 )
 
 func ReadFiles(pattern string) ([]string, error) {
@@ -142,6 +145,14 @@ func GetFileKeys(arr map[string]*File) []string {
 	return keys
 }
 
+func GetDomainKeys(arr map[string]Labels) []string {
+	var keys []string
+	for k := range arr {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func StringContainsAny(s string, arr []string) bool {
 
 	for _, v := range arr {
@@ -150,4 +161,28 @@ func StringContainsAny(s string, arr []string) bool {
 		}
 	}
 	return false
+}
+
+func ParsePeriodFromNow(period string, t time.Time) string {
+
+	durStr := period
+	if utils.IsEmpty(durStr) {
+		return ""
+	}
+
+	if durStr == "" {
+		durStr = "0s"
+	}
+
+	if durStr == "0d" {
+		durStr = "0h"
+	}
+
+	dur, err := time.ParseDuration(durStr)
+	if err != nil {
+		return ""
+	}
+
+	from := t.Add(time.Duration(dur))
+	return strconv.Itoa(int(from.Unix()))
 }

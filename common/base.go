@@ -69,6 +69,8 @@ type Service struct {
 	Files   map[string]*File
 }
 
+type Labels map[string]string
+
 func (bc *BaseConfig) LabelsExist(c *BaseCondition, labels map[string]string) bool {
 
 	if labels == nil {
