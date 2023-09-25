@@ -12,7 +12,7 @@ type InputDNSQuery struct {
 	Domains       []string          `toml:"domains"`
 	RecordType    string            `toml:"record_type,omitempty"`
 	Port          int               `toml:"port,omitempty"`
-	Timeout       string            `toml:"timeout,omitempty"`
+	Timeout       int               `toml:"timeout,omitempty"`
 	Tags          map[string]string `toml:"tags,omitempty"`
 	Include       []string          `toml:"taginclude,omitempty"`
 	observability *common.Observability
@@ -25,7 +25,7 @@ type InputDNSQueryConfigOptions struct {
 	Domains    string
 	RecordType string
 	Port       int
-	Timeout    string
+	Timeout    int
 	Tags       []string
 }
 

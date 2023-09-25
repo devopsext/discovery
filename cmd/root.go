@@ -118,6 +118,7 @@ var discoveryDNSOptions = discovery.DNSOptions{
 		Network:    envGet("DNS_TELEGRAF_NETWORK", "upd").(string),
 		RecordType: envGet("DNS_TELEGRAF_RECORD_TYPE", "A").(string),
 		Port:       envGet("DNS_TELEGRAF_PORT", 53).(int),
+		Timeout:    envGet("DNS_TELEGRAF_TIMEOUT", 2).(int),
 		Tags:       strings.Split(envStringExpand("DNS_TELEGRAF_TAGS", ""), ","),
 	},
 }
@@ -356,7 +357,7 @@ func Execute() {
 	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Domains, "dns-telegraf-domains", discoveryDNSOptions.TelegrafOptions.Domains, "DNS discovery telegraf domains")
 	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.RecordType, "dns-telegraf-record-type", discoveryDNSOptions.TelegrafOptions.RecordType, "DNS discovery telegraf record type")
 	flags.IntVar(&discoveryDNSOptions.TelegrafOptions.Port, "dns-telegraf-port", discoveryDNSOptions.TelegrafOptions.Port, "DNS discovery telegraf port")
-	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Timeout, "dns-telegraf-timeout", discoveryDNSOptions.TelegrafOptions.Timeout, "DNS discovery telegraf timeout")
+	flags.IntVar(&discoveryDNSOptions.TelegrafOptions.Timeout, "dns-telegraf-timeout", discoveryDNSOptions.TelegrafOptions.Timeout, "DNS discovery telegraf timeout")
 	flags.StringSliceVar(&discoveryDNSOptions.TelegrafOptions.Tags, "dns-telegraf-tags", discoveryDNSOptions.TelegrafOptions.Tags, "DNS discovery telegraf tags")
 
 	// PubSub
