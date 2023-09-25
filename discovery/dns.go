@@ -121,6 +121,19 @@ func (d *DNS) createTelegrafConfigs(domains map[string]common.Labels) {
 	d.logger.Debug("%s: File %s created with md5 hash: %s", d.name, path, bytesHashString)
 }
 
+func (d *DNS) appendDomain(name string, domains map[string]common.Labels, labels map[string]string) {
+
+	a := net.ParseIP(name)
+	if a != nil {
+		return
+	}
+
+	if utils.Contains(domains, name) {
+		return
+	}
+	domains[name] = labels
+}
+
 func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) map[string]common.Labels {
 
 	ret := make(map[string]common.Labels)
@@ -156,15 +169,15 @@ func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) map[st
 			continue
 		}
 
-		a := net.ParseIP(domain)
-		if a != nil {
+		domains := r.FindAllString(domain, -1)
+		if len(domains) == 0 {
+			d.appendDomain(domain, ret, v.Labels)
 			continue
 		}
 
-		if utils.Contains(r, domain) {
-			continue
+		for _, k := range domains {
+			d.appendDomain(k, ret, v.Labels)
 		}
-		ret[domain] = v.Labels
 	}
 	return ret
 }
