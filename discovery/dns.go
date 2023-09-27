@@ -20,12 +20,13 @@ import (
 )
 
 type DNSOptions struct {
-	Query         string
-	QueryPeriod   string
-	QueryStep     string
-	Schedule      string
-	DomainPattern string
-	DomainNames   string
+	Query           string
+	QueryPeriod     string
+	QueryStep       string
+	Schedule        string
+	DomainPattern   string
+	DomainNames     string
+	DomainExclusion string
 
 	TelegrafConf     string
 	TelegrafTemplate string
@@ -121,7 +122,7 @@ func (d *DNS) createTelegrafConfigs(domains map[string]common.Labels) {
 	d.logger.Debug("%s: File %s created with md5 hash: %s", d.name, path, bytesHashString)
 }
 
-func (d *DNS) appendDomain(name string, domains map[string]common.Labels, labels map[string]string) {
+func (d *DNS) appendDomain(name string, domains map[string]common.Labels, labels map[string]string, r *regexp.Regexp) {
 
 	a := net.ParseIP(name)
 	if a != nil {
@@ -129,6 +130,10 @@ func (d *DNS) appendDomain(name string, domains map[string]common.Labels, labels
 	}
 
 	if utils.Contains(domains, name) {
+		return
+	}
+
+	if r != nil && r.MatchString(name) {
 		return
 	}
 	domains[name] = labels
@@ -145,7 +150,12 @@ func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) map[st
 		return ret
 	}
 
-	r := regexp.MustCompile(d.options.DomainPattern)
+	rPattern := regexp.MustCompile(d.options.DomainPattern)
+	var rExclusion *regexp.Regexp
+	if !utils.IsEmpty(d.options.DomainExclusion) {
+		rExclusion = regexp.MustCompile(d.options.DomainExclusion)
+	}
+
 	for _, v := range vectors {
 
 		if len(v.Labels) < 1 {
@@ -165,18 +175,18 @@ func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) map[st
 			domain = ident
 		}
 
-		if !r.MatchString(domain) {
+		if !rPattern.MatchString(domain) {
 			continue
 		}
 
-		domains := r.FindAllString(domain, -1)
+		domains := rPattern.FindAllString(domain, -1)
 		if len(domains) == 0 {
-			d.appendDomain(domain, ret, v.Labels)
+			d.appendDomain(domain, ret, v.Labels, rExclusion)
 			continue
 		}
 
 		for _, k := range domains {
-			d.appendDomain(k, ret, v.Labels)
+			d.appendDomain(k, ret, v.Labels, rExclusion)
 		}
 	}
 	return ret

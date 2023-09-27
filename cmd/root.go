@@ -101,12 +101,13 @@ var discoverySignalOptions = discovery.SignalOptions{
 }
 
 var discoveryDNSOptions = discovery.DNSOptions{
-	Schedule:      envGet("DNS_SCHEDULE", "").(string),
-	Query:         envFileContentExpand("DNS_QUERY", ""),
-	QueryPeriod:   envGet("DNS_QUERY_PERIOD", "").(string),
-	QueryStep:     envGet("DNS_QUERY_STEP", "").(string),
-	DomainPattern: envGet("DNS_DOMAIN_PATTERN", "").(string),
-	DomainNames:   envFileContentExpand("DNS_DOMAIN_NAMES", ""),
+	Schedule:        envGet("DNS_SCHEDULE", "").(string),
+	Query:           envFileContentExpand("DNS_QUERY", ""),
+	QueryPeriod:     envGet("DNS_QUERY_PERIOD", "").(string),
+	QueryStep:       envGet("DNS_QUERY_STEP", "").(string),
+	DomainPattern:   envGet("DNS_DOMAIN_PATTERN", "").(string),
+	DomainNames:     envFileContentExpand("DNS_DOMAIN_NAMES", ""),
+	DomainExclusion: envGet("DNS_DOMAIN_EXCLUSION", "").(string),
 
 	TelegrafConf:     envStringExpand("DNS_TELEGRAF_CONF", ""),
 	TelegrafTemplate: envFileContentExpand("DNS_TELEGRAF_TEMPLATE", ""),
@@ -347,6 +348,7 @@ func Execute() {
 	flags.StringVar(&discoveryDNSOptions.QueryStep, "dns-query-step", discoveryDNSOptions.QueryStep, "DNS discovery query step")
 	flags.StringVar(&discoveryDNSOptions.DomainPattern, "dns-domain-pattern", discoveryDNSOptions.DomainPattern, "DNS discovery domain pattern")
 	flags.StringVar(&discoveryDNSOptions.DomainNames, "dns-domain-names", discoveryDNSOptions.DomainNames, "DNS discovery domain names")
+	flags.StringVar(&discoveryDNSOptions.DomainExclusion, "dns-domain-exclusion", discoveryDNSOptions.DomainExclusion, "DNS discovery domain exclusion")
 
 	flags.StringVar(&discoveryDNSOptions.TelegrafConf, "dns-telegraf-conf", discoveryDNSOptions.TelegrafConf, "DNS discovery telegraf conf")
 	flags.StringVar(&discoveryDNSOptions.TelegrafTemplate, "dns-telegraf-template", discoveryDNSOptions.TelegrafTemplate, "DNS discovery telegraf template")
