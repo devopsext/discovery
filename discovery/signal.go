@@ -36,7 +36,7 @@ type SignalOptions struct {
 	TelegrafTags     string
 	TelegrafTemplate string
 	TelegrafChecksum bool
-	TelegrafOptions  telegraf.InputPrometheusHttpConfigOptions
+	TelegrafOptions  telegraf.InputPrometheusHttpOptions
 }
 
 type Signal struct {

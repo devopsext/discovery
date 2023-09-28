@@ -18,7 +18,7 @@ type InputDNSQuery struct {
 	observability *common.Observability
 }
 
-type InputDNSQueryConfigOptions struct {
+type InputDNSQueryOptions struct {
 	Interval   string
 	Servers    string
 	Network    string

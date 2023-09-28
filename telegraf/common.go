@@ -15,6 +15,7 @@ import (
 type Inputs struct {
 	PrometheusHttp []*InputPrometheusHttp `toml:"prometheus_http,omitempty"`
 	DNSQuery       []*InputDNSQuery       `toml:"dns_query,omitempty"`
+	HTTPResponse   []*InputHTTPResponse   `toml:"http_response,omitempty"`
 }
 
 type Config struct {
@@ -23,7 +24,7 @@ type Config struct {
 }
 
 func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Service, labelsTpl string,
-	opts InputPrometheusHttpConfigOptions, name string) ([]byte, error) {
+	opts InputPrometheusHttpOptions, name string) ([]byte, error) {
 
 	input := &InputPrometheusHttp{
 		observability: tc.Observability,
@@ -87,7 +88,7 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Service, labelsTpl 
 	return b.Bytes(), nil
 }
 
-func (tc *Config) GenerateInputDNSQueryBytes(opts InputDNSQueryConfigOptions, domains map[string]common.Labels) ([]byte, error) {
+func (tc *Config) GenerateInputDNSQueryBytes(opts InputDNSQueryOptions, domains map[string]common.Labels) ([]byte, error) {
 
 	servers := []string{}
 	arr := strings.Split(opts.Servers, ",")
@@ -120,6 +121,39 @@ func (tc *Config) GenerateInputDNSQueryBytes(opts InputDNSQueryConfigOptions, do
 
 		input.Tags = domains[k]
 		tc.Inputs.DNSQuery = append(tc.Inputs.DNSQuery, input)
+	}
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	if err := toml.NewEncoder(w).Encode(tc); err != nil {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
+}
+
+func (tc *Config) GenerateInputHTTPResponseBytes(opts InputHTTPResponseOptions, urls map[string]common.Labels) ([]byte, error) {
+
+	keys := common.GetDomainKeys(urls)
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		input := &InputHTTPResponse{
+			observability: tc.Observability,
+		}
+		input.Interval = opts.Interval
+		input.URLs = []string{k}
+		input.Timeout = opts.Timeout
+		input.Method = opts.Method
+		input.FollowRedirects = opts.FollowRedirects
+		input.StringMatch = opts.StringMatch
+		input.StatusCode = opts.StatusCode
+
+		input.updateIncludeTags(opts.Tags)
+		sort.Strings(input.Include)
+
+		input.Tags = urls[k]
+		tc.Inputs.HTTPResponse = append(tc.Inputs.HTTPResponse, input)
 	}
 
 	var b bytes.Buffer

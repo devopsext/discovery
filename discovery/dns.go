@@ -20,18 +20,18 @@ import (
 )
 
 type DNSOptions struct {
-	Query           string
-	QueryPeriod     string
-	QueryStep       string
-	Schedule        string
-	DomainPattern   string
-	DomainNames     string
-	DomainExclusion string
+	Query       string
+	QueryPeriod string
+	QueryStep   string
+	Schedule    string
+	Pattern     string
+	Names       string
+	Exclusion   string
 
 	TelegrafConf     string
 	TelegrafTemplate string
 	TelegrafChecksum bool
-	TelegrafOptions  telegraf.InputDNSQueryConfigOptions
+	TelegrafOptions  telegraf.InputDNSQueryOptions
 }
 
 type DNS struct {
@@ -150,10 +150,10 @@ func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) map[st
 		return ret
 	}
 
-	rPattern := regexp.MustCompile(d.options.DomainPattern)
+	rPattern := regexp.MustCompile(d.options.Pattern)
 	var rExclusion *regexp.Regexp
-	if !utils.IsEmpty(d.options.DomainExclusion) {
-		rExclusion = regexp.MustCompile(d.options.DomainExclusion)
+	if !utils.IsEmpty(d.options.Exclusion) {
+		rExclusion = regexp.MustCompile(d.options.Exclusion)
 	}
 
 	for _, v := range vectors {
@@ -164,12 +164,12 @@ func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) map[st
 		}
 
 		domain := ""
-		ident := d.render(d.domainNamesTemplate, d.options.DomainNames, v.Labels)
+		ident := d.render(d.domainNamesTemplate, d.options.Names, v.Labels)
 		if utils.IsEmpty(ident) {
 			d.logger.Debug("[%d] %s: No doman found in labels, but: %v", gid, d.name, v.Labels)
 			continue
 		}
-		if ident == d.options.DomainNames {
+		if ident == d.options.Names {
 			domain = v.Labels[ident]
 		} else {
 			domain = ident
@@ -258,8 +258,8 @@ func NewDNS(name string, prometheusOptions common.PrometheusOptions, options DNS
 	}
 
 	domainNamesOpts := toolsRender.TemplateOptions{
-		Content: options.DomainNames,
-		Name:    "dns-domain-names",
+		Content: options.Names,
+		Name:    "dns-names",
 	}
 	domainNamesTemplate, err := toolsRender.NewTextTemplate(domainNamesOpts, observability)
 	if err != nil {

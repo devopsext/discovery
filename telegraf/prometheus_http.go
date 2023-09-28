@@ -49,7 +49,7 @@ type InputPrometheusHttp struct {
 	observability *common.Observability
 }
 
-type InputPrometheusHttpConfigOptions struct {
+type InputPrometheusHttpOptions struct {
 	Interval         string
 	URL              string
 	Version          string
@@ -164,7 +164,7 @@ func (ti *InputPrometheusHttp) buildTags(name string, labels map[string]string, 
 }
 
 func (ti *InputPrometheusHttp) buildQualities(s *common.Service, qualities []*common.BaseQuality, tpl string,
-	opts InputPrometheusHttpConfigOptions,
+	opts InputPrometheusHttpOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
 
 	metric := &InputPrometheusHttpMetric{}
@@ -206,7 +206,7 @@ func (ti *InputPrometheusHttp) buildQualities(s *common.Service, qualities []*co
 }
 
 func (ti *InputPrometheusHttp) buildAvailability(s *common.Service, baseAvailability *common.BaseAvailability, tpl string,
-	opts InputPrometheusHttpConfigOptions,
+	opts InputPrometheusHttpOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
 
 	if baseAvailability == nil {
@@ -247,7 +247,7 @@ func (ti *InputPrometheusHttp) buildAvailability(s *common.Service, baseAvailabi
 }
 
 func (ti *InputPrometheusHttp) buildMetrics(s *common.Service, metrics []*common.BaseMetric, tpl string,
-	opts InputPrometheusHttpConfigOptions,
+	opts InputPrometheusHttpOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
 
 	for _, m := range metrics {

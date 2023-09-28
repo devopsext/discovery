@@ -80,7 +80,7 @@ var discoverySignalOptions = discovery.SignalOptions{
 	TelegrafTemplate: envStringExpand("SIGNAL_TELEGRAF_TEMPLATE", ""),
 	TelegrafChecksum: envGet("SIGNAL_TELEGRAF_CHECKSUM", false).(bool),
 
-	TelegrafOptions: telegraf.InputPrometheusHttpConfigOptions{
+	TelegrafOptions: telegraf.InputPrometheusHttpOptions{
 		Interval:         envGet("SIGNAL_TELEGRAF_INTERVAL", "10s").(string),
 		URL:              envStringExpand("SIGNAL_TELEGRAF_URL", ""),
 		Version:          envGet("SIGNAL_TELEGRAF_VERSION", "v1").(string),
@@ -101,19 +101,19 @@ var discoverySignalOptions = discovery.SignalOptions{
 }
 
 var discoveryDNSOptions = discovery.DNSOptions{
-	Schedule:        envGet("DNS_SCHEDULE", "").(string),
-	Query:           envFileContentExpand("DNS_QUERY", ""),
-	QueryPeriod:     envGet("DNS_QUERY_PERIOD", "").(string),
-	QueryStep:       envGet("DNS_QUERY_STEP", "").(string),
-	DomainPattern:   envGet("DNS_DOMAIN_PATTERN", "").(string),
-	DomainNames:     envFileContentExpand("DNS_DOMAIN_NAMES", ""),
-	DomainExclusion: envGet("DNS_DOMAIN_EXCLUSION", "").(string),
+	Schedule:    envGet("DNS_SCHEDULE", "").(string),
+	Query:       envFileContentExpand("DNS_QUERY", ""),
+	QueryPeriod: envGet("DNS_QUERY_PERIOD", "").(string),
+	QueryStep:   envGet("DNS_QUERY_STEP", "").(string),
+	Pattern:     envGet("DNS_PATTERN", "").(string),
+	Names:       envFileContentExpand("DNS_NAMES", ""),
+	Exclusion:   envGet("DNS_EXCLUSION", "").(string),
 
 	TelegrafConf:     envStringExpand("DNS_TELEGRAF_CONF", ""),
 	TelegrafTemplate: envFileContentExpand("DNS_TELEGRAF_TEMPLATE", ""),
 	TelegrafChecksum: envGet("DNS_TELEGRAF_CHECKSUM", false).(bool),
 
-	TelegrafOptions: telegraf.InputDNSQueryConfigOptions{
+	TelegrafOptions: telegraf.InputDNSQueryOptions{
 		Interval:   envGet("DNS_TELEGRAF_INTERVAL", "10s").(string),
 		Servers:    envGet("DNS_TELEGRAF_SERVERS", "").(string),
 		Network:    envGet("DNS_TELEGRAF_NETWORK", "upd").(string),
@@ -121,6 +121,32 @@ var discoveryDNSOptions = discovery.DNSOptions{
 		Port:       envGet("DNS_TELEGRAF_PORT", 53).(int),
 		Timeout:    envGet("DNS_TELEGRAF_TIMEOUT", 2).(int),
 		Tags:       strings.Split(envStringExpand("DNS_TELEGRAF_TAGS", ""), ","),
+	},
+}
+
+var discoveryHTTPOptions = discovery.HTTPOptions{
+	Schedule:    envGet("HTTP_SCHEDULE", "").(string),
+	Query:       envFileContentExpand("HTTP_QUERY", ""),
+	QueryPeriod: envGet("HTTP_QUERY_PERIOD", "").(string),
+	QueryStep:   envGet("HTTP_QUERY_STEP", "").(string),
+	Pattern:     envGet("HTTP_PATTERN", "").(string),
+	Names:       envFileContentExpand("HTTP_NAMES", ""),
+	Exclusion:   envGet("HTTP_EXCLUSION", "").(string),
+	NoSSL:       envGet("HTTP_NO_SSL", "").(string),
+
+	TelegrafConf:     envStringExpand("HTTP_TELEGRAF_CONF", ""),
+	TelegrafTemplate: envFileContentExpand("HTTP_TELEGRAF_TEMPLATE", ""),
+	TelegrafChecksum: envGet("HTTP_TELEGRAF_CHECKSUM", false).(bool),
+
+	TelegrafOptions: telegraf.InputHTTPResponseOptions{
+		Interval:        envGet("HTTP_TELEGRAF_INTERVAL", "10s").(string),
+		URLs:            envGet("HTTP_TELEGRAF_URLS", "").(string),
+		Method:          envGet("HTTP_TELEGRAF_METHOD", "GET").(string),
+		FollowRedirects: envGet("HTTP_TELEGRAF_FOLLOW_REDIRECTS", false).(bool),
+		StringMatch:     envGet("HTTP_TELEGRAF_STRING_MATCH", "").(string),
+		StatusCode:      envGet("HTTP_TELEGRAF_STATUS_CODE", 0).(int),
+		Timeout:         envGet("HTTP_TELEGRAF_TIMEOUT", "5s").(string),
+		Tags:            strings.Split(envStringExpand("HTTP_TELEGRAF_TAGS", ""), ","),
 	},
 }
 
@@ -269,6 +295,7 @@ func Execute() {
 				}
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoverySignalOptions.Schedule, "Signal", k, v, discovery.NewSignal(k, opts, discoverySignalOptions, observability), logger)
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryDNSOptions.Schedule, "DNS", k, v, discovery.NewDNS(k, opts, discoveryDNSOptions, observability), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryHTTPOptions.Schedule, "HTTP", k, v, discovery.NewHTTP(k, opts, discoveryHTTPOptions, observability), logger)
 			}
 
 			// run supportive discoveries without scheduler
@@ -346,9 +373,9 @@ func Execute() {
 	flags.StringVar(&discoveryDNSOptions.Query, "dns-query", discoveryDNSOptions.Query, "DNS discovery query")
 	flags.StringVar(&discoveryDNSOptions.QueryPeriod, "dns-query-period", discoveryDNSOptions.QueryPeriod, "DNS discovery query period")
 	flags.StringVar(&discoveryDNSOptions.QueryStep, "dns-query-step", discoveryDNSOptions.QueryStep, "DNS discovery query step")
-	flags.StringVar(&discoveryDNSOptions.DomainPattern, "dns-domain-pattern", discoveryDNSOptions.DomainPattern, "DNS discovery domain pattern")
-	flags.StringVar(&discoveryDNSOptions.DomainNames, "dns-domain-names", discoveryDNSOptions.DomainNames, "DNS discovery domain names")
-	flags.StringVar(&discoveryDNSOptions.DomainExclusion, "dns-domain-exclusion", discoveryDNSOptions.DomainExclusion, "DNS discovery domain exclusion")
+	flags.StringVar(&discoveryDNSOptions.Pattern, "dns-pattern", discoveryDNSOptions.Pattern, "DNS discovery domain pattern")
+	flags.StringVar(&discoveryDNSOptions.Names, "dns-names", discoveryDNSOptions.Names, "DNS discovery domain names")
+	flags.StringVar(&discoveryDNSOptions.Exclusion, "dns-exclusion", discoveryDNSOptions.Exclusion, "DNS discovery domain exclusion")
 
 	flags.StringVar(&discoveryDNSOptions.TelegrafConf, "dns-telegraf-conf", discoveryDNSOptions.TelegrafConf, "DNS discovery telegraf conf")
 	flags.StringVar(&discoveryDNSOptions.TelegrafTemplate, "dns-telegraf-template", discoveryDNSOptions.TelegrafTemplate, "DNS discovery telegraf template")
@@ -361,6 +388,28 @@ func Execute() {
 	flags.IntVar(&discoveryDNSOptions.TelegrafOptions.Port, "dns-telegraf-port", discoveryDNSOptions.TelegrafOptions.Port, "DNS discovery telegraf port")
 	flags.IntVar(&discoveryDNSOptions.TelegrafOptions.Timeout, "dns-telegraf-timeout", discoveryDNSOptions.TelegrafOptions.Timeout, "DNS discovery telegraf timeout")
 	flags.StringSliceVar(&discoveryDNSOptions.TelegrafOptions.Tags, "dns-telegraf-tags", discoveryDNSOptions.TelegrafOptions.Tags, "DNS discovery telegraf tags")
+
+	// HTTP
+	flags.StringVar(&discoveryHTTPOptions.Schedule, "http-schedule", discoveryHTTPOptions.Schedule, "HTTP discovery schedule")
+	flags.StringVar(&discoveryHTTPOptions.Query, "http-query", discoveryHTTPOptions.Query, "HTTP discovery query")
+	flags.StringVar(&discoveryHTTPOptions.QueryPeriod, "http-query-period", discoveryHTTPOptions.QueryPeriod, "HTTP discovery query period")
+	flags.StringVar(&discoveryHTTPOptions.QueryStep, "http-query-step", discoveryHTTPOptions.QueryStep, "HTTP discovery query step")
+	flags.StringVar(&discoveryHTTPOptions.Pattern, "http-pattern", discoveryHTTPOptions.Pattern, "HTTP discovery pattern")
+	flags.StringVar(&discoveryHTTPOptions.Names, "http-names", discoveryHTTPOptions.Names, "HTTP discovery names")
+	flags.StringVar(&discoveryHTTPOptions.Exclusion, "http-exclusion", discoveryHTTPOptions.Exclusion, "HTTP discovery exclusion")
+	flags.StringVar(&discoveryHTTPOptions.NoSSL, "http-no-ssl", discoveryHTTPOptions.NoSSL, "HTTP no SSL pattern")
+
+	flags.StringVar(&discoveryHTTPOptions.TelegrafConf, "http-telegraf-conf", discoveryHTTPOptions.TelegrafConf, "HTTP discovery telegraf conf")
+	flags.StringVar(&discoveryHTTPOptions.TelegrafTemplate, "http-telegraf-template", discoveryHTTPOptions.TelegrafTemplate, "HTTP discovery telegraf template")
+	flags.BoolVar(&discoveryHTTPOptions.TelegrafChecksum, "http-telegraf-checksum", discoveryHTTPOptions.TelegrafChecksum, "HTTP discovery telegraf checksum")
+	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.Interval, "http-telegraf-interval", discoveryHTTPOptions.TelegrafOptions.Interval, "HTTP discovery telegraf interval")
+	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.URLs, "http-telegraf-urls", discoveryHTTPOptions.TelegrafOptions.URLs, "HTTP discovery telegraf URLs")
+	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.Method, "http-telegraf-method", discoveryHTTPOptions.TelegrafOptions.Method, "HTTP discovery telegraf method")
+	flags.BoolVar(&discoveryHTTPOptions.TelegrafOptions.FollowRedirects, "http-telegraf-follow-redirects", discoveryHTTPOptions.TelegrafOptions.FollowRedirects, "HTTP discovery telegraf follow redirects")
+	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.StringMatch, "http-telegraf-string-match", discoveryHTTPOptions.TelegrafOptions.StringMatch, "HTTP discovery telegraf string match")
+	flags.IntVar(&discoveryHTTPOptions.TelegrafOptions.StatusCode, "http-telegraf-status-code", discoveryHTTPOptions.TelegrafOptions.StatusCode, "HTTP discovery telegraf status code")
+	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.Timeout, "http-telegraf-timeout", discoveryHTTPOptions.TelegrafOptions.Timeout, "HTTP discovery telegraf timeout")
+	flags.StringSliceVar(&discoveryHTTPOptions.TelegrafOptions.Tags, "http-telegraf-tags", discoveryHTTPOptions.TelegrafOptions.Tags, "HTTP discovery telegraf tags")
 
 	// PubSub
 	flags.BoolVar(&discoveryPubSubOptions.Enabled, "pubsub-enabled", discoveryPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")
