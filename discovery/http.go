@@ -137,26 +137,27 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 	if rNoSSL != nil && rNoSSL.MatchString(name) {
 		proto = "http"
 	}
+
 	host := ""
+	arr := strings.Split(name, "://")
+	if len(arr) == 2 {
+		proto = strings.TrimSpace(arr[0])
+		host = strings.TrimSpace(arr[1])
+	} else {
+		host = name
+	}
 	port := ""
 
-	arr := strings.Split(name, ":")
-	if len(arr) > 0 {
-		if len(arr) > 1 {
-			if len(arr) > 2 {
-				proto = strings.TrimSpace(arr[0])
-				host = strings.TrimSpace(arr[1])
-				port = strings.TrimSpace(arr[2])
-			} else {
-				host = strings.TrimSpace(arr[0])
-				port = strings.TrimSpace(arr[1])
-			}
-		} else {
-			host = strings.TrimSpace(arr[0])
-		}
+	arr = strings.Split(host, ":")
+	if len(arr) == 2 {
+		host = strings.TrimSpace(arr[0])
+		port = strings.TrimSpace(arr[1])
 	}
 
-	name = fmt.Sprintf("%s://%s:%s", proto, host, port)
+	if !utils.IsEmpty(port) {
+		port = fmt.Sprintf(":%s", port)
+	}
+	name = fmt.Sprintf("%s://%s%s", proto, host, port)
 	urls[name] = labels
 }
 
