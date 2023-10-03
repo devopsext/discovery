@@ -150,6 +150,29 @@ var discoveryHTTPOptions = discovery.HTTPOptions{
 	},
 }
 
+var discoveryTCPOptions = discovery.TCPOptions{
+	Schedule:    envGet("TCP_SCHEDULE", "").(string),
+	Query:       envFileContentExpand("TCP_QUERY", ""),
+	QueryPeriod: envGet("TCP_QUERY_PERIOD", "").(string),
+	QueryStep:   envGet("TCP_QUERY_STEP", "").(string),
+	Pattern:     envGet("TCP_PATTERN", "").(string),
+	Names:       envFileContentExpand("TCP_NAMES", ""),
+	Exclusion:   envGet("TCP_EXCLUSION", "").(string),
+
+	TelegrafConf:     envStringExpand("TCP_TELEGRAF_CONF", ""),
+	TelegrafTemplate: envFileContentExpand("TCP_TELEGRAF_TEMPLATE", ""),
+	TelegrafChecksum: envGet("TCP_TELEGRAF_CHECKSUM", false).(bool),
+
+	TelegrafOptions: telegraf.InputNetResponseOptions{
+		Interval:    envGet("TCP_TELEGRAF_INTERVAL", "10s").(string),
+		Timeout:     envGet("TCP_TELEGRAF_TIMEOUT", "5s").(string),
+		ReadTimeout: envGet("TCP_TELEGRAF_READ_TIMEOUT", "3s").(string),
+		Send:        envGet("TCP_TELEGRAF_SEND", "").(string),
+		Expect:      envGet("TCP_TELEGRAF_EXPECT", "").(string),
+		Tags:        strings.Split(envStringExpand("TCP_TELEGRAF_TAGS", ""), ","),
+	},
+}
+
 var discoveryPubSubOptions = discovery.PubSubOptions{
 	Enabled:                 envGet("PUBSUB_ENABLED", false).(bool),
 	Credentials:             envGet("PUBSUB_CREDENTIALS", "").(string),
@@ -296,6 +319,7 @@ func Execute() {
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoverySignalOptions.Schedule, "Signal", k, v, discovery.NewSignal(k, opts, discoverySignalOptions, observability), logger)
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryDNSOptions.Schedule, "DNS", k, v, discovery.NewDNS(k, opts, discoveryDNSOptions, observability), logger)
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryHTTPOptions.Schedule, "HTTP", k, v, discovery.NewHTTP(k, opts, discoveryHTTPOptions, observability), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryTCPOptions.Schedule, "TCP", k, v, discovery.NewTCP(k, opts, discoveryTCPOptions, observability), logger)
 			}
 
 			// run supportive discoveries without scheduler
@@ -410,6 +434,25 @@ func Execute() {
 	flags.IntVar(&discoveryHTTPOptions.TelegrafOptions.StatusCode, "http-telegraf-status-code", discoveryHTTPOptions.TelegrafOptions.StatusCode, "HTTP discovery telegraf status code")
 	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.Timeout, "http-telegraf-timeout", discoveryHTTPOptions.TelegrafOptions.Timeout, "HTTP discovery telegraf timeout")
 	flags.StringSliceVar(&discoveryHTTPOptions.TelegrafOptions.Tags, "http-telegraf-tags", discoveryHTTPOptions.TelegrafOptions.Tags, "HTTP discovery telegraf tags")
+
+	// TCP
+	flags.StringVar(&discoveryTCPOptions.Schedule, "tcp-schedule", discoveryTCPOptions.Schedule, "TCP discovery schedule")
+	flags.StringVar(&discoveryTCPOptions.Query, "tcp-query", discoveryTCPOptions.Query, "TCP discovery query")
+	flags.StringVar(&discoveryTCPOptions.QueryPeriod, "tcp-query-period", discoveryTCPOptions.QueryPeriod, "TCP discovery query period")
+	flags.StringVar(&discoveryTCPOptions.QueryStep, "tcp-query-step", discoveryTCPOptions.QueryStep, "TCP discovery query step")
+	flags.StringVar(&discoveryTCPOptions.Pattern, "tcp-pattern", discoveryTCPOptions.Pattern, "TCP discovery pattern")
+	flags.StringVar(&discoveryTCPOptions.Names, "tcp-names", discoveryTCPOptions.Names, "TCP discovery names")
+	flags.StringVar(&discoveryTCPOptions.Exclusion, "tcp-exclusion", discoveryTCPOptions.Exclusion, "TCP discovery exclusion")
+
+	flags.StringVar(&discoveryTCPOptions.TelegrafConf, "tcp-telegraf-conf", discoveryTCPOptions.TelegrafConf, "TCP discovery telegraf conf")
+	flags.StringVar(&discoveryTCPOptions.TelegrafTemplate, "tcp-telegraf-template", discoveryTCPOptions.TelegrafTemplate, "TCP discovery telegraf template")
+	flags.BoolVar(&discoveryTCPOptions.TelegrafChecksum, "tcp-telegraf-checksum", discoveryTCPOptions.TelegrafChecksum, "TCP discovery telegraf checksum")
+	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.Interval, "tcp-telegraf-interval", discoveryTCPOptions.TelegrafOptions.Interval, "TCP discovery telegraf interval")
+	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.Send, "tcp-telegraf-send", discoveryTCPOptions.TelegrafOptions.Send, "TCP discovery telegraf send")
+	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.Expect, "tcp-telegraf-expect", discoveryTCPOptions.TelegrafOptions.Expect, "TCP discovery telegraf expect")
+	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.Timeout, "tcp-telegraf-timeout", discoveryTCPOptions.TelegrafOptions.Timeout, "TCP discovery telegraf timeout")
+	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.ReadTimeout, "tcp-telegraf-read-timeout", discoveryTCPOptions.TelegrafOptions.ReadTimeout, "TCP discovery telegraf read timeout")
+	flags.StringSliceVar(&discoveryTCPOptions.TelegrafOptions.Tags, "tcp-telegraf-tags", discoveryTCPOptions.TelegrafOptions.Tags, "TCP discovery telegraf tags")
 
 	// PubSub
 	flags.BoolVar(&discoveryPubSubOptions.Enabled, "pubsub-enabled", discoveryPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")

@@ -163,7 +163,7 @@ func GetFileKeys(arr map[string]*File) []string {
 	return keys
 }
 
-func GetDomainKeys(arr map[string]Labels) []string {
+func GetLabelsKeys(arr map[string]Labels) []string {
 	var keys []string
 	for k := range arr {
 		keys = append(keys, k)

@@ -122,56 +122,7 @@ func (s *Signal) createTelegrafConfigs(services map[string]*common.Service) {
 			s.logger.Error("%s: Service %s error: %s", s.name, k, err)
 			continue
 		}
-
-		if bytes == nil || (len(bytes) == 0) {
-			s.logger.Debug("%s: No service config for %s", s.name, k)
-			continue
-		}
-
-		bytesHashString := ""
-		bytesHash := common.ByteMD5(bytes)
-		if bytesHash != nil {
-			bytesHashString = fmt.Sprintf("%x", bytesHash)
-		}
-
-		if s.options.TelegrafChecksum {
-
-			if _, err := os.Stat(path); err == nil {
-				fileHashString := ""
-				fileHash := common.FileMD5(path)
-				if fileHash != nil {
-					fileHashString = fmt.Sprintf("%x", fileHash)
-				}
-
-				if fileHashString == bytesHashString {
-					s.logger.Debug("%s: File %s has the same md5 hash: %s, skipped", s.name, path, fileHashString)
-					continue
-				}
-			}
-		}
-
-		dir := filepath.Dir(path)
-		if _, err = os.Stat(dir); os.IsNotExist(err) {
-			err := os.MkdirAll(dir, os.ModePerm)
-			if err != nil {
-				s.logger.Error(err)
-				continue
-			}
-		}
-
-		f, err := os.Create(path)
-		if err != nil {
-			s.logger.Error(err)
-			continue
-		}
-		defer f.Close()
-
-		_, err = f.Write(bytes)
-		if err != nil {
-			s.logger.Error(err)
-			continue
-		}
-		s.logger.Debug("%s: File %s created with md5 hash: %s", s.name, path, bytesHashString)
+		telegrafConfig.CreateIfCheckSumIsDifferent(s.name, path, s.options.TelegrafChecksum, bytes, s.logger)
 	}
 }
 
@@ -534,21 +485,21 @@ func (s *Signal) Discover() {
 	}
 
 	if (res.Data == nil) || (len(res.Data.Result) == 0) {
-		s.logger.Error("%s: Empty data on response", s.name)
+		s.logger.Error("%s: Signal empty data on response", s.name)
 		return
 	}
 
 	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-		s.logger.Error("%s: Only vector and matrix are allowed", s.name)
+		s.logger.Error("%s: Signal only vector and matrix are allowed", s.name)
 		return
 	}
 
 	services := s.findServices(res.Data.Result)
 	if len(services) == 0 {
-		s.logger.Debug("%s: Not found any services according query", s.name)
+		s.logger.Debug("%s: Signal not found any services according query", s.name)
 		return
 	}
-	s.logger.Debug("%s: Found %d services according query", s.name, len(services))
+	s.logger.Debug("%s: Signal found %d services according query", s.name, len(services))
 	s.createTelegrafConfigs(services)
 }
 
@@ -557,7 +508,7 @@ func NewSignal(name string, prometheusOptions common.PrometheusOptions, options 
 	logger := observability.Logs()
 
 	if utils.IsEmpty(prometheusOptions.URL) {
-		logger.Debug("%s: No prometheus URL. Skipped", name)
+		logger.Debug("%s: Signal no prometheus URL. Skipped", name)
 		return nil
 	}
 
@@ -566,7 +517,7 @@ func NewSignal(name string, prometheusOptions common.PrometheusOptions, options 
 	}
 
 	if utils.IsEmpty(options.Query) {
-		logger.Debug("%s: No signal query. Skipped", name)
+		logger.Debug("%s: Signal no signal query. Skipped", name)
 		return nil
 	}
 

@@ -1,11 +1,8 @@
 package discovery
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -56,76 +53,23 @@ func (h *HTTP) render(tpl *toolsRender.TextTemplate, def string, obj interface{}
 }
 
 // .telegraf/HTTP-discovery.conf
-func (h *HTTP) createTelegrafConfigs(domains map[string]common.Labels) {
+func (h *HTTP) createTelegrafConfigs(names map[string]common.Labels) {
 
 	telegrafConfig := &telegraf.Config{
 		Observability: h.observability,
 	}
-	bs, err := telegrafConfig.GenerateInputHTTPResponseBytes(h.options.TelegrafOptions, domains)
+	bs, err := telegrafConfig.GenerateInputHTTPResponseBytes(h.options.TelegrafOptions, names)
 	if err != nil {
 		h.logger.Error("%s: HTTP query error: %s", h.name, err)
 		return
 	}
-
-	if bs == nil || (len(bs) == 0) {
-		h.logger.Debug("%s: No HTTP query config", h.name)
-		return
-	}
-
-	if !utils.IsEmpty(h.options.TelegrafTemplate) {
-		bs = bytes.Join([][]byte{bs, []byte(h.options.TelegrafTemplate)}, []byte("\n"))
-	}
-
-	bytesHashString := ""
-	bytesHash := common.ByteMD5(bs)
-	if bytesHash != nil {
-		bytesHashString = fmt.Sprintf("%x", bytesHash)
-	}
-
-	path := h.options.TelegrafConf
-	if h.options.TelegrafChecksum {
-
-		if _, err := os.Stat(path); err == nil {
-			fileHashString := ""
-			fileHash := common.FileMD5(path)
-			if fileHash != nil {
-				fileHashString = fmt.Sprintf("%x", fileHash)
-			}
-
-			if fileHashString == bytesHashString {
-				h.logger.Debug("%s: File %s has the same md5 hash: %s, skipped", h.name, path, fileHashString)
-				return
-			}
-		}
-	}
-
-	dir := filepath.Dir(path)
-	if _, err = os.Stat(dir); os.IsNotExist(err) {
-		err := os.MkdirAll(dir, os.ModePerm)
-		if err != nil {
-			h.logger.Error(err)
-			return
-		}
-	}
-
-	f, err := os.Create(path)
-	if err != nil {
-		h.logger.Error(err)
-		return
-	}
-	defer f.Close()
-
-	_, err = f.Write(bs)
-	if err != nil {
-		h.logger.Error(err)
-		return
-	}
-	h.logger.Debug("%s: File %s created with md5 hash: %s", h.name, path, bytesHashString)
+	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(h.name, h.options.TelegrafTemplate, h.options.TelegrafConf, h.options.TelegrafChecksum, bs, h.logger)
 }
 
 func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[string]string, rExclusion, rNoSSL *regexp.Regexp) {
 
-	if utils.Contains(urls, name) {
+	keys := common.GetLabelsKeys(urls)
+	if utils.Contains(keys, name) {
 		return
 	}
 
@@ -251,21 +195,21 @@ func (h *HTTP) Discover() {
 	}
 
 	if (res.Data == nil) || (len(res.Data.Result) == 0) {
-		h.logger.Error("%s: Empty data on response", h.name)
+		h.logger.Error("%s: HTTP empty data on response", h.name)
 		return
 	}
 
 	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-		h.logger.Error("%s: Only vector and matrix are allowed", h.name)
+		h.logger.Error("%s: HTTP only vector and matrix are allowed", h.name)
 		return
 	}
 
 	urls := h.findURLs(res.Data.Result)
 	if len(urls) == 0 {
-		h.logger.Debug("%s: Not found any urls according query", h.name)
+		h.logger.Debug("%s: HTTP not found any urls according query", h.name)
 		return
 	}
-	h.logger.Debug("%s: Found %d urls according query", h.name, len(urls))
+	h.logger.Debug("%s: HTTP found %d urls according query", h.name, len(urls))
 	h.createTelegrafConfigs(urls)
 }
 
@@ -274,12 +218,12 @@ func NewHTTP(name string, prometheusOptions common.PrometheusOptions, options HT
 	logger := observability.Logs()
 
 	if utils.IsEmpty(prometheusOptions.URL) {
-		logger.Debug("%s: No prometheus URL. Skipped", name)
+		logger.Debug("%s: HTTP no prometheus URL. Skipped", name)
 		return nil
 	}
 
 	if utils.IsEmpty(options.Query) {
-		logger.Debug("%s: No HTTP query. Skipped", name)
+		logger.Debug("%s: HTTP not query. Skipped", name)
 		return nil
 	}
 

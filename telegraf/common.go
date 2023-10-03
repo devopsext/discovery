@@ -3,11 +3,15 @@ package telegraf
 import (
 	"bufio"
 	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/devopsext/discovery/common"
+	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
 	"github.com/pkg/errors"
 )
@@ -16,11 +20,74 @@ type Inputs struct {
 	PrometheusHttp []*InputPrometheusHttp `toml:"prometheus_http,omitempty"`
 	DNSQuery       []*InputDNSQuery       `toml:"dns_query,omitempty"`
 	HTTPResponse   []*InputHTTPResponse   `toml:"http_response,omitempty"`
+	NetResponse    []*InputNetResponse    `toml:"net_response,omitempty"`
 }
 
 type Config struct {
 	Inputs        Inputs                `toml:"inputs"`
 	Observability *common.Observability `toml:"-"`
+}
+
+func (tc *Config) CreateWithTemplateIfCheckSumIsDifferent(name, template, conf string, checksum bool, bs []byte, logger sreCommon.Logger) {
+
+	if bs == nil || (len(bs) == 0) {
+		logger.Debug("%s: No query config", name)
+		return
+	}
+
+	if !utils.IsEmpty(template) {
+		bs = bytes.Join([][]byte{bs, []byte(template)}, []byte("\n"))
+	}
+
+	bytesHashString := ""
+	bytesHash := common.ByteMD5(bs)
+	if bytesHash != nil {
+		bytesHashString = fmt.Sprintf("%x", bytesHash)
+	}
+
+	path := conf
+	if checksum {
+
+		if _, err := os.Stat(path); err == nil {
+			fileHashString := ""
+			fileHash := common.FileMD5(path)
+			if fileHash != nil {
+				fileHashString = fmt.Sprintf("%x", fileHash)
+			}
+
+			if fileHashString == bytesHashString {
+				logger.Debug("%s: File %s has the same md5 hash: %s, skipped", name, path, fileHashString)
+				return
+			}
+		}
+	}
+
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err := os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			logger.Error(err)
+			return
+		}
+	}
+
+	f, err := os.Create(path)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+	defer f.Close()
+
+	_, err = f.Write(bs)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+	logger.Debug("%s: File %s created with md5 hash: %s", name, path, bytesHashString)
+}
+
+func (tc *Config) CreateIfCheckSumIsDifferent(name, conf string, checksum bool, bs []byte, logger sreCommon.Logger) {
+	tc.CreateWithTemplateIfCheckSumIsDifferent(name, "", conf, checksum, bs, logger)
 }
 
 func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Service, labelsTpl string,
@@ -101,7 +168,7 @@ func (tc *Config) GenerateInputDNSQueryBytes(opts InputDNSQueryOptions, domains 
 
 	sort.Strings(servers)
 
-	keys := common.GetDomainKeys(domains)
+	keys := common.GetLabelsKeys(domains)
 	sort.Strings(keys)
 
 	for _, k := range keys {
@@ -134,7 +201,7 @@ func (tc *Config) GenerateInputDNSQueryBytes(opts InputDNSQueryOptions, domains 
 
 func (tc *Config) GenerateInputHTTPResponseBytes(opts InputHTTPResponseOptions, urls map[string]common.Labels) ([]byte, error) {
 
-	keys := common.GetDomainKeys(urls)
+	keys := common.GetLabelsKeys(urls)
 	sort.Strings(keys)
 
 	for _, k := range keys {
@@ -154,6 +221,39 @@ func (tc *Config) GenerateInputHTTPResponseBytes(opts InputHTTPResponseOptions, 
 
 		input.Tags = urls[k]
 		tc.Inputs.HTTPResponse = append(tc.Inputs.HTTPResponse, input)
+	}
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	if err := toml.NewEncoder(w).Encode(tc); err != nil {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
+}
+
+func (tc *Config) GenerateInputNetResponseBytes(opts InputNetResponseOptions, addresses map[string]common.Labels, protocol string) ([]byte, error) {
+
+	keys := common.GetLabelsKeys(addresses)
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		input := &InputNetResponse{
+			observability: tc.Observability,
+		}
+		input.Interval = opts.Interval
+		input.Address = k
+		input.Protocol = protocol
+		input.Timeout = opts.Timeout
+		input.ReadTimeout = opts.ReadTimeout
+		input.Send = opts.Send
+		input.Expect = opts.Expect
+
+		input.updateIncludeTags(opts.Tags)
+		sort.Strings(input.Include)
+
+		input.Tags = addresses[k]
+		tc.Inputs.NetResponse = append(tc.Inputs.NetResponse, input)
 	}
 
 	var b bytes.Buffer

@@ -1,12 +1,8 @@
 package discovery
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"time"
@@ -65,71 +61,18 @@ func (d *DNS) createTelegrafConfigs(domains map[string]common.Labels) {
 		d.logger.Error("%s: DNS query error: %s", d.name, err)
 		return
 	}
-
-	if bs == nil || (len(bs) == 0) {
-		d.logger.Debug("%s: No DNS query config", d.name)
-		return
-	}
-
-	if !utils.IsEmpty(d.options.TelegrafTemplate) {
-		bs = bytes.Join([][]byte{bs, []byte(d.options.TelegrafTemplate)}, []byte("\n"))
-	}
-
-	bytesHashString := ""
-	bytesHash := common.ByteMD5(bs)
-	if bytesHash != nil {
-		bytesHashString = fmt.Sprintf("%x", bytesHash)
-	}
-
-	path := d.options.TelegrafConf
-	if d.options.TelegrafChecksum {
-
-		if _, err := os.Stat(path); err == nil {
-			fileHashString := ""
-			fileHash := common.FileMD5(path)
-			if fileHash != nil {
-				fileHashString = fmt.Sprintf("%x", fileHash)
-			}
-
-			if fileHashString == bytesHashString {
-				d.logger.Debug("%s: File %s has the same md5 hash: %s, skipped", d.name, path, fileHashString)
-				return
-			}
-		}
-	}
-
-	dir := filepath.Dir(path)
-	if _, err = os.Stat(dir); os.IsNotExist(err) {
-		err := os.MkdirAll(dir, os.ModePerm)
-		if err != nil {
-			d.logger.Error(err)
-			return
-		}
-	}
-
-	f, err := os.Create(path)
-	if err != nil {
-		d.logger.Error(err)
-		return
-	}
-	defer f.Close()
-
-	_, err = f.Write(bs)
-	if err != nil {
-		d.logger.Error(err)
-		return
-	}
-	d.logger.Debug("%s: File %s created with md5 hash: %s", d.name, path, bytesHashString)
+	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(d.name, d.options.TelegrafTemplate, d.options.TelegrafConf, d.options.TelegrafChecksum, bs, d.logger)
 }
 
 func (d *DNS) appendDomain(name string, domains map[string]common.Labels, labels map[string]string, r *regexp.Regexp) {
 
-	a := net.ParseIP(name)
-	if a != nil {
+	keys := common.GetLabelsKeys(domains)
+	if utils.Contains(keys, name) {
 		return
 	}
 
-	if utils.Contains(domains, name) {
+	a := net.ParseIP(name)
+	if a != nil {
 		return
 	}
 
@@ -225,21 +168,21 @@ func (d *DNS) Discover() {
 	}
 
 	if (res.Data == nil) || (len(res.Data.Result) == 0) {
-		d.logger.Error("%s: Empty data on response", d.name)
+		d.logger.Error("%s: DNS empty data on response", d.name)
 		return
 	}
 
 	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-		d.logger.Error("%s: Only vector and matrix are allowed", d.name)
+		d.logger.Error("%s: DNS only vector and matrix are allowed", d.name)
 		return
 	}
 
 	domains := d.findDomains(res.Data.Result)
 	if len(domains) == 0 {
-		d.logger.Debug("%s: Not found any domains according query", d.name)
+		d.logger.Debug("%s: DNS not found any domains according query", d.name)
 		return
 	}
-	d.logger.Debug("%s: Found %d domains according query", d.name, len(domains))
+	d.logger.Debug("%s: DNS found %d domains according query", d.name, len(domains))
 	d.createTelegrafConfigs(domains)
 }
 
@@ -248,12 +191,12 @@ func NewDNS(name string, prometheusOptions common.PrometheusOptions, options DNS
 	logger := observability.Logs()
 
 	if utils.IsEmpty(prometheusOptions.URL) {
-		logger.Debug("%s: No prometheus URL. Skipped", name)
+		logger.Debug("%s: DNS no prometheus URL. Skipped", name)
 		return nil
 	}
 
 	if utils.IsEmpty(options.Query) {
-		logger.Debug("%s: No DNS query. Skipped", name)
+		logger.Debug("%s: DNS no query. Skipped", name)
 		return nil
 	}
 
