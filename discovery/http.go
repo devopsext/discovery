@@ -99,6 +99,12 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 	}
 
 	if !utils.IsEmpty(port) {
+		if port == "80" || port == "443" {
+			port = ""
+		}
+	}
+
+	if !utils.IsEmpty(port) {
 		port = fmt.Sprintf(":%s", port)
 	}
 	name = fmt.Sprintf("%s://%s%s", proto, host, port)
