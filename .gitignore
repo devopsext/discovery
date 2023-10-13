@@ -8,6 +8,7 @@ coverage.txt
 __debug_bin
 .templates/
 .telegraf/
+.cmdb/
 
 info.txt
 signal.telegraf.quality.query
@@ -27,3 +28,4 @@ ha*.json
 discovery.json
 hosts.json
 ips.json
+pubsub.json

@@ -231,20 +231,18 @@ func runSchedule(s *gocron.Scheduler, schedule string, jobFun interface{}) {
 	}
 }
 
-func runStandAloneDiscovery(wg *sync.WaitGroup, runOnce bool, typ string, discovery common.Discovery, logger *sreCommon.Logs) {
+func runStandAloneDiscovery(wg *sync.WaitGroup, typ string, discovery common.Discovery, logger *sreCommon.Logs) {
 
 	if reflect.ValueOf(discovery).IsNil() {
 		logger.Debug("%s: discovery disabled", typ)
 		return
 	}
-	// run once and return if there is flag
-	if runOnce {
-		wg.Add(1)
-		go func(d common.Discovery) {
-			defer wg.Done()
-			d.Discover()
-		}(discovery)
-	}
+	wg.Add(1)
+	go func(d common.Discovery) {
+		defer wg.Done()
+		d.Discover()
+	}(discovery)
+	logger.Debug("%s: discovery enabled on event", typ)
 }
 
 func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.Scheduler, schedule string, typ, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
@@ -321,14 +319,13 @@ func Execute() {
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryHTTPOptions.Schedule, "HTTP", k, v, discovery.NewHTTP(k, opts, discoveryHTTPOptions, observability), logger)
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryTCPOptions.Schedule, "TCP", k, v, discovery.NewTCP(k, opts, discoveryTCPOptions, observability), logger)
 			}
+			scheduler.StartAsync()
 
 			// run supportive discoveries without scheduler
 			if !rootOptions.RunOnce {
-				runStandAloneDiscovery(wg, true, "PubSub", discovery.NewPubSub(discoveryPubSubOptions, observability), logger)
+				runStandAloneDiscovery(wg, "PubSub", discovery.NewPubSub(discoveryPubSubOptions, observability), logger)
 			}
-
 			wg.Wait()
-			scheduler.StartAsync()
 
 			// start wait if there are some jobs
 			if scheduler.Len() > 0 {
