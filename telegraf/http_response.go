@@ -6,16 +6,17 @@ import "github.com/devopsext/discovery/common"
 //[[inputs.dns_query]]
 
 type InputHTTPResponse struct {
-	Interval        string            `toml:"interval,omitempty"`
-	URLs            []string          `toml:"urls"`
-	Timeout         string            `toml:"response_timeout,omitempty"`
-	Method          string            `toml:"method,omitempty"`
-	FollowRedirects bool              `toml:"follow_redirects,omitempty"`
-	StringMatch     string            `toml:"response_string_match,omitempty"`
-	StatusCode      int               `toml:"response_status_code,omitempty"`
-	Tags            map[string]string `toml:"tags,omitempty"`
-	Include         []string          `toml:"taginclude,omitempty"`
-	observability   *common.Observability
+	Interval           string            `toml:"interval,omitempty"`
+	URLs               []string          `toml:"urls"`
+	Timeout            string            `toml:"response_timeout,omitempty"`
+	Method             string            `toml:"method,omitempty"`
+	FollowRedirects    bool              `toml:"follow_redirects,omitempty"`
+	StringMatch        string            `toml:"response_string_match,omitempty"`
+	StatusCode         int               `toml:"response_status_code,omitempty"`
+	InsecureSkipVerify bool              `toml:"insecure_skip_verify,omitempty"`
+	Tags               map[string]string `toml:"tags,omitempty"`
+	Include            []string          `toml:"taginclude,omitempty"`
+	observability      *common.Observability
 }
 
 type InputHTTPResponseOptions struct {

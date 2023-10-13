@@ -215,6 +215,7 @@ func (tc *Config) GenerateInputHTTPResponseBytes(opts InputHTTPResponseOptions, 
 		input.FollowRedirects = opts.FollowRedirects
 		input.StringMatch = opts.StringMatch
 		input.StatusCode = opts.StatusCode
+		input.InsecureSkipVerify = true
 
 		input.updateIncludeTags(opts.Tags)
 		sort.Strings(input.Include)
