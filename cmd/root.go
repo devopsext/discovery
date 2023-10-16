@@ -141,6 +141,7 @@ var discoveryHTTPOptions = discovery.HTTPOptions{
 	TelegrafOptions: telegraf.InputHTTPResponseOptions{
 		Interval:        envGet("HTTP_TELEGRAF_INTERVAL", "10s").(string),
 		URLs:            envGet("HTTP_TELEGRAF_URLS", "").(string),
+		Path:            envGet("HTTP_TELEGRAF_PATH", "/ping").(string),
 		Method:          envGet("HTTP_TELEGRAF_METHOD", "GET").(string),
 		FollowRedirects: envGet("HTTP_TELEGRAF_FOLLOW_REDIRECTS", false).(bool),
 		StringMatch:     envGet("HTTP_TELEGRAF_STRING_MATCH", "").(string),
@@ -425,6 +426,7 @@ func Execute() {
 	flags.BoolVar(&discoveryHTTPOptions.TelegrafChecksum, "http-telegraf-checksum", discoveryHTTPOptions.TelegrafChecksum, "HTTP discovery telegraf checksum")
 	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.Interval, "http-telegraf-interval", discoveryHTTPOptions.TelegrafOptions.Interval, "HTTP discovery telegraf interval")
 	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.URLs, "http-telegraf-urls", discoveryHTTPOptions.TelegrafOptions.URLs, "HTTP discovery telegraf URLs")
+	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.Path, "http-telegraf-path", discoveryHTTPOptions.TelegrafOptions.Path, "HTTP discovery telegraf path")
 	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.Method, "http-telegraf-method", discoveryHTTPOptions.TelegrafOptions.Method, "HTTP discovery telegraf method")
 	flags.BoolVar(&discoveryHTTPOptions.TelegrafOptions.FollowRedirects, "http-telegraf-follow-redirects", discoveryHTTPOptions.TelegrafOptions.FollowRedirects, "HTTP discovery telegraf follow redirects")
 	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.StringMatch, "http-telegraf-string-match", discoveryHTTPOptions.TelegrafOptions.StringMatch, "HTTP discovery telegraf string match")
