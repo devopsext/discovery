@@ -22,6 +22,7 @@ type InputHTTPResponse struct {
 type InputHTTPResponseOptions struct {
 	Interval        string
 	URLs            string
+	Path            string
 	Method          string
 	FollowRedirects bool
 	StringMatch     string
