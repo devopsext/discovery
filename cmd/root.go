@@ -300,25 +300,27 @@ func Execute() {
 			scheduler := gocron.NewScheduler(time.UTC)
 
 			// use each prometheus name for URLs and run related discoveries
-			proms := common.GetPrometheusDiscoveriesByInstances(discoveryPrometheusOptions.Names)
-			for k, v := range proms {
+			promDiscoveryObjects := common.GetPrometheusDiscoveriesByInstances(discoveryPrometheusOptions.Names)
+			for _, prom := range promDiscoveryObjects {
 
 				opts := common.PrometheusOptions{}
 				copier.CopyWithOption(&opts, &discoveryPrometheusOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 
 				m := make(map[string]string)
-				m["name"] = k
-				m["url"] = v
+				m["name"] = prom.Name
+				m["url"] = prom.URL
 				opts.URL = common.Render(discoveryPrometheusOptions.URL, m, observability)
+				opts.HttpUsername = prom.HttpUsername
+				opts.HttpPassword = prom.HttpPassword
 
-				if utils.IsEmpty(opts.URL) || utils.IsEmpty(k) {
+				if utils.IsEmpty(opts.URL) || utils.IsEmpty(prom.Name) {
 					logger.Debug("Prometheus discovery is not found")
 					continue
 				}
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoverySignalOptions.Schedule, "Signal", k, v, discovery.NewSignal(k, opts, discoverySignalOptions, observability), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryDNSOptions.Schedule, "DNS", k, v, discovery.NewDNS(k, opts, discoveryDNSOptions, observability), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryHTTPOptions.Schedule, "HTTP", k, v, discovery.NewHTTP(k, opts, discoveryHTTPOptions, observability), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryTCPOptions.Schedule, "TCP", k, v, discovery.NewTCP(k, opts, discoveryTCPOptions, observability), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoverySignalOptions.Schedule, "Signal", prom.Name, prom.URL, discovery.NewSignal(prom.Name, opts, discoverySignalOptions, observability), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryDNSOptions.Schedule, "DNS", prom.Name, prom.URL, discovery.NewDNS(prom.Name, opts, discoveryDNSOptions, observability), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryHTTPOptions.Schedule, "HTTP", prom.Name, prom.URL, discovery.NewHTTP(prom.Name, opts, discoveryHTTPOptions, observability), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryTCPOptions.Schedule, "TCP", prom.Name, prom.URL, discovery.NewTCP(prom.Name, opts, discoveryTCPOptions, observability), logger)
 			}
 			scheduler.StartAsync()
 

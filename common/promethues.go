@@ -1,10 +1,19 @@
 package common
 
+type PromDiscoveryObject struct {
+	Name         string
+	URL          string
+	HttpUsername string
+	HttpPassword string
+}
+
 type PrometheusOptions struct {
-	Names    string
-	URL      string
-	Timeout  int
-	Insecure bool
+	Names        string
+	URL          string
+	HttpUsername string
+	HttpPassword string
+	Timeout      int
+	Insecure     bool
 }
 
 type PrometheusResponseDataVector struct {

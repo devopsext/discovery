@@ -205,33 +205,40 @@ func ParsePeriodFromNow(period string, t time.Time) string {
 	return strconv.Itoa(int(from.Unix()))
 }
 
-func GetPrometheusDiscoveriesByInstances(names string) map[string]string {
+func GetPrometheusDiscoveriesByInstances(names string) []PromDiscoveryObject {
+	nameItems := strings.Split(names, ",")
+	var promDiscoveryObjects []PromDiscoveryObject
 
-	m := make(map[string]string)
-	def := "unknown"
-	arr := strings.Split(names, ",")
-	if len(arr) > 0 {
-		index := 0
-		for _, v := range arr {
-
-			n := fmt.Sprintf("%s%d", def, index)
-			kv := strings.Split(v, "=")
-			if len(kv) > 1 {
-				name := strings.TrimSpace(kv[0])
-				if utils.IsEmpty(name) {
-					name = n
-				}
-				url := strings.TrimSpace(kv[1])
-				if !utils.IsEmpty(url) {
-					m[name] = url
-				}
-			} else {
-				m[n] = strings.TrimSpace(kv[0])
-			}
-			index++
+	for index, item := range nameItems {
+		var name, data, usernamePassword, url, username, password string
+		parts := strings.SplitN(item, "=", 2)
+		if len(parts) == 2 {
+			name, data = strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+		} else {
+			name, data = fmt.Sprintf("unknown%d", index), strings.TrimSpace(parts[0])
 		}
-	} else {
-		m[def] = strings.TrimSpace(names)
+
+		dataParts := strings.SplitN(data, "@", 2)
+		if len(dataParts) == 2 {
+			usernamePassword, url = strings.TrimSpace(dataParts[0]), strings.TrimSpace(dataParts[1])
+		} else {
+			url = strings.TrimSpace(dataParts[0])
+		}
+
+		usernamePasswordParts := strings.SplitN(usernamePassword, ":", 2)
+		if len(usernamePasswordParts) == 2 {
+			username = strings.TrimSpace(usernamePasswordParts[0])
+			password = strings.TrimSpace(usernamePasswordParts[1])
+		}
+
+		promDiscoveryObject := PromDiscoveryObject{
+			Name:         name,
+			URL:          url,
+			HttpUsername: username,
+			HttpPassword: password,
+		}
+
+		promDiscoveryObjects = append(promDiscoveryObjects, promDiscoveryObject)
 	}
-	return m
+	return promDiscoveryObjects
 }
