@@ -141,7 +141,7 @@ var discoveryHTTPOptions = discovery.HTTPOptions{
 	TelegrafOptions: telegraf.InputHTTPResponseOptions{
 		Interval:        envGet("HTTP_TELEGRAF_INTERVAL", "10s").(string),
 		URLs:            envGet("HTTP_TELEGRAF_URLS", "").(string),
-		Path:            envGet("HTTP_TELEGRAF_PATH", "").(string),
+		Path:            envFileContentExpand("HTTP_TELEGRAF_PATH", ""),
 		Method:          envGet("HTTP_TELEGRAF_METHOD", "GET").(string),
 		FollowRedirects: envGet("HTTP_TELEGRAF_FOLLOW_REDIRECTS", false).(bool),
 		StringMatch:     envGet("HTTP_TELEGRAF_STRING_MATCH", "").(string),

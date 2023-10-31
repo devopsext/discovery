@@ -17,6 +17,7 @@ signal.vars
 signal.disabled
 dns.telegraf.template
 http.telegraf.template
+http.telegraf.path
 tcp.telegraf.template
 cmdb.json
 _cmdb.json

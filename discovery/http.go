@@ -40,6 +40,7 @@ type HTTP struct {
 	logger         sreCommon.Logger
 	observability  *common.Observability
 	namesTemplate  *toolsRender.TextTemplate
+	pathTemplate   *toolsRender.TextTemplate
 }
 
 func (h *HTTP) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
@@ -110,8 +111,11 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 
 	path := ""
 	if !utils.IsEmpty(h.options.TelegrafOptions.Path) {
-		path = strings.TrimLeft(h.options.TelegrafOptions.Path, "/")
-		path = fmt.Sprintf("/%s", path)
+		path = h.render(h.pathTemplate, h.options.TelegrafOptions.Path, labels)
+		path = strings.TrimLeft(path, "/")
+		if !utils.IsEmpty(path) {
+			path = fmt.Sprintf("/%s", path)
+		}
 	}
 
 	name = fmt.Sprintf("%s://%s%s%s", proto, host, port, path)
@@ -240,11 +244,21 @@ func NewHTTP(name string, prometheusOptions common.PrometheusOptions, options HT
 		return nil
 	}
 
-	domainNamesOpts := toolsRender.TemplateOptions{
+	namesOpts := toolsRender.TemplateOptions{
 		Content: options.Names,
 		Name:    "http-names",
 	}
-	namesTemplate, err := toolsRender.NewTextTemplate(domainNamesOpts, observability)
+	namesTemplate, err := toolsRender.NewTextTemplate(namesOpts, observability)
+	if err != nil {
+		logger.Error(err)
+		return nil
+	}
+
+	pathOpts := toolsRender.TemplateOptions{
+		Content: options.TelegrafOptions.Path,
+		Name:    "http-path",
+	}
+	pathTemplate, err := toolsRender.NewTextTemplate(pathOpts, observability)
 	if err != nil {
 		logger.Error(err)
 		return nil
@@ -265,5 +279,6 @@ func NewHTTP(name string, prometheusOptions common.PrometheusOptions, options HT
 		logger:         logger,
 		observability:  observability,
 		namesTemplate:  namesTemplate,
+		pathTemplate:   pathTemplate,
 	}
 }
