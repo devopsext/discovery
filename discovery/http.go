@@ -69,15 +69,6 @@ func (h *HTTP) createTelegrafConfigs(names map[string]common.Labels) {
 
 func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[string]string, rExclusion, rNoSSL *regexp.Regexp) {
 
-	keys := common.GetLabelsKeys(urls)
-	if utils.Contains(keys, name) {
-		return
-	}
-
-	if rExclusion != nil && rExclusion.MatchString(name) {
-		return
-	}
-
 	proto := "https"
 	if rNoSSL != nil && rNoSSL.MatchString(name) {
 		proto = "http"
@@ -119,6 +110,16 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 	}
 
 	name = fmt.Sprintf("%s://%s%s%s", proto, host, port, path)
+
+	keys := common.GetLabelsKeys(urls)
+	if utils.Contains(keys, name) {
+		return
+	}
+
+	if rExclusion != nil && rExclusion.MatchString(name) {
+		return
+	}
+
 	urls[name] = labels
 }
 

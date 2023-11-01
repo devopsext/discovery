@@ -5,6 +5,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/devopsext/discovery/common"
@@ -64,22 +65,29 @@ func (d *DNS) createTelegrafConfigs(domains map[string]common.Labels) {
 	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(d.name, d.options.TelegrafTemplate, d.options.TelegrafConf, d.options.TelegrafChecksum, bs, d.logger)
 }
 
-func (d *DNS) appendDomain(name string, domains map[string]common.Labels, labels map[string]string, r *regexp.Regexp) {
+func (d *DNS) appendDomain(name string, domains map[string]common.Labels, labels map[string]string, rExclusion *regexp.Regexp) {
+
+	ipOrHost := strings.TrimSpace(name)
+
+	arr := strings.Split(ipOrHost, ":")
+	if len(arr) == 2 {
+		ipOrHost = strings.TrimSpace(arr[0])
+	}
 
 	keys := common.GetLabelsKeys(domains)
-	if utils.Contains(keys, name) {
+	if utils.Contains(keys, ipOrHost) {
 		return
 	}
 
-	a := net.ParseIP(name)
+	a := net.ParseIP(ipOrHost)
 	if a != nil {
 		return
 	}
 
-	if r != nil && r.MatchString(name) {
+	if rExclusion != nil && rExclusion.MatchString(ipOrHost) {
 		return
 	}
-	domains[name] = labels
+	domains[ipOrHost] = labels
 }
 
 func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) map[string]common.Labels {

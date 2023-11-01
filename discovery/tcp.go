@@ -69,15 +69,6 @@ func (t *TCP) createTelegrafConfigs(names map[string]common.Labels) {
 
 func (t *TCP) appendAddress(name string, addresses map[string]common.Labels, labels map[string]string, rExclusion *regexp.Regexp) {
 
-	keys := common.GetLabelsKeys(addresses)
-	if utils.Contains(keys, name) {
-		return
-	}
-
-	if rExclusion != nil && rExclusion.MatchString(name) {
-		return
-	}
-
 	host := strings.TrimSpace(name)
 	port := ""
 
@@ -90,7 +81,18 @@ func (t *TCP) appendAddress(name string, addresses map[string]common.Labels, lab
 	if !utils.IsEmpty(port) {
 		port = fmt.Sprintf(":%s", port)
 	}
+
 	name = fmt.Sprintf("%s%s", host, port)
+
+	keys := common.GetLabelsKeys(addresses)
+	if utils.Contains(keys, name) {
+		return
+	}
+
+	if rExclusion != nil && rExclusion.MatchString(name) {
+		return
+	}
+
 	addresses[name] = labels
 }
 
