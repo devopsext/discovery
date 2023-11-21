@@ -266,10 +266,12 @@ func NewHTTP(name string, prometheusOptions common.PrometheusOptions, options HT
 	}
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
-		URL:      prometheusOptions.URL,
-		Timeout:  prometheusOptions.Timeout,
-		Insecure: prometheusOptions.Insecure,
-		Query:    options.Query,
+		URL:          prometheusOptions.URL,
+		HttpUsername: prometheusOptions.HttpUsername,
+		HttpPassword: prometheusOptions.HttpPassword,
+		Timeout:      prometheusOptions.Timeout,
+		Insecure:     prometheusOptions.Insecure,
+		Query:        options.Query,
 	}
 
 	return &HTTP{
