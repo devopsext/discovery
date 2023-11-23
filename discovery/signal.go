@@ -516,6 +516,11 @@ func NewSignal(name string, prometheusOptions common.PrometheusOptions, options 
 		options.TelegrafOptions.URL = prometheusOptions.URL
 	}
 
+	if !utils.IsEmpty(prometheusOptions.HttpUsername) && !utils.IsEmpty(prometheusOptions.HttpPassword) {
+		options.TelegrafOptions.HttpUsername = prometheusOptions.HttpUsername
+		options.TelegrafOptions.HttpPassword = prometheusOptions.HttpPassword
+	}
+
 	if utils.IsEmpty(options.Query) {
 		logger.Debug("%s: Signal no signal query. Skipped", name)
 		return nil
@@ -562,10 +567,12 @@ func NewSignal(name string, prometheusOptions common.PrometheusOptions, options 
 	}
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
-		URL:      prometheusOptions.URL,
-		Timeout:  prometheusOptions.Timeout,
-		Insecure: prometheusOptions.Insecure,
-		Query:    options.Query,
+		URL:          prometheusOptions.URL,
+		HttpUsername: prometheusOptions.HttpUsername,
+		HttpPassword: prometheusOptions.HttpPassword,
+		Timeout:      prometheusOptions.Timeout,
+		Insecure:     prometheusOptions.Insecure,
+		Query:        options.Query,
 	}
 
 	return &Signal{

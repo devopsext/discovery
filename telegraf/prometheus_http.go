@@ -34,6 +34,8 @@ type InputPrometheusHttpAvailability struct {
 type InputPrometheusHttp struct {
 	Name          string                             `toml:"name"`
 	URL           string                             `toml:"url"`
+	HttpUsername  string                             `toml:"http_username"`
+	HttpPassword  string                             `toml:"http_password"`
 	Version       string                             `toml:"version"`
 	Params        string                             `toml:"params"`
 	Interval      string                             `toml:"interval"`
@@ -52,6 +54,8 @@ type InputPrometheusHttp struct {
 type InputPrometheusHttpOptions struct {
 	Interval         string
 	URL              string
+	HttpUsername     string
+	HttpPassword     string
 	Version          string
 	Params           string
 	Timeout          string
