@@ -19,6 +19,7 @@ dns.telegraf.template
 http.telegraf.template
 http.telegraf.path
 tcp.telegraf.template
+cert.telegraf.template
 cmdb.json
 _cmdb.json
 cmdb.yml

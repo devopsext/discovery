@@ -21,6 +21,7 @@ type Inputs struct {
 	DNSQuery       []*InputDNSQuery       `toml:"dns_query,omitempty"`
 	HTTPResponse   []*InputHTTPResponse   `toml:"http_response,omitempty"`
 	NetResponse    []*InputNetResponse    `toml:"net_response,omitempty"`
+	X509Cert       []*InputX509Cert       `toml:"x509_cert,omitempty"`
 }
 
 type Config struct {
@@ -257,6 +258,43 @@ func (tc *Config) GenerateInputNetResponseBytes(opts InputNetResponseOptions, ad
 
 		input.Tags = addresses[k]
 		tc.Inputs.NetResponse = append(tc.Inputs.NetResponse, input)
+	}
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	if err := toml.NewEncoder(w).Encode(tc); err != nil {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
+}
+
+func (tc *Config) GenerateInputX509CertBytes(opts InputX509CertOptions, addresses map[string]common.Labels) ([]byte, error) {
+
+	keys := common.GetLabelsKeys(addresses)
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		input := &InputX509Cert{
+			observability: tc.Observability,
+		}
+		input.Interval = opts.Interval
+		input.Sources = []string{k}
+		input.Timeout = opts.Timeout
+		input.ServerName = opts.ServerName
+		input.ExcludeRootCerts = opts.ExcludeRootCerts
+		input.TLSCA = opts.TLSCA
+		input.TLSCert = opts.TLSCert
+		input.TLSKey = opts.TLSKey
+		input.TLSServerName = opts.TLSServerName
+		input.UseProxy = opts.UseProxy
+		input.ProxyURL = opts.ProxyURL
+
+		input.updateIncludeTags(opts.Tags)
+		sort.Strings(input.Include)
+
+		input.Tags = addresses[k]
+		tc.Inputs.X509Cert = append(tc.Inputs.X509Cert, input)
 	}
 
 	var b bytes.Buffer

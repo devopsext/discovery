@@ -174,6 +174,34 @@ var discoveryTCPOptions = discovery.TCPOptions{
 	},
 }
 
+var discoveryCertOptions = discovery.CertOptions{
+	Schedule:    envGet("CERT_SCHEDULE", "").(string),
+	Query:       envFileContentExpand("CERT_QUERY", ""),
+	QueryPeriod: envGet("CERT_QUERY_PERIOD", "").(string),
+	QueryStep:   envGet("CERT_QUERY_STEP", "").(string),
+	Pattern:     envGet("CERT_PATTERN", "").(string),
+	Names:       envFileContentExpand("CERT_NAMES", ""),
+	Exclusion:   envGet("CERT_EXCLUSION", "").(string),
+
+	TelegrafConf:     envStringExpand("CERT_TELEGRAF_CONF", ""),
+	TelegrafTemplate: envFileContentExpand("CERT_TELEGRAF_TEMPLATE", ""),
+	TelegrafChecksum: envGet("CERT_TELEGRAF_CHECKSUM", false).(bool),
+
+	TelegrafOptions: telegraf.InputX509CertOptions{
+		Interval:         envGet("CERT_TELEGRAF_INTERVAL", "10s").(string),
+		Timeout:          envGet("CERT_TELEGRAF_TIMEOUT", "5s").(string),
+		ServerName:       envGet("CERT_TELEGRAF_SERVER_NAME", "").(string),
+		ExcludeRootCerts: envGet("CERT_TELEGRAF_EXCLUDE_ROOT_CERTS", false).(bool),
+		TLSCA:            envGet("CERT_TELEGRAF_TLS_CA", "").(string),
+		TLSCert:          envGet("CERT_TELEGRAF_TLS_CERT", "").(string),
+		TLSKey:           envGet("CERT_TELEGRAF_TLS_KEY", "").(string),
+		TLSServerName:    envGet("CERT_TELEGRAF_TLS_SERVER_NAME", "").(string),
+		UseProxy:         envGet("CERT_TELEGRAF_USE_PROXY", false).(bool),
+		ProxyURL:         envGet("CERT_TELEGRAF_PROXY_URL", "").(string),
+		Tags:             strings.Split(envStringExpand("CERT_TELEGRAF_TAGS", ""), ","),
+	},
+}
+
 var discoveryPubSubOptions = discovery.PubSubOptions{
 	Enabled:                 envGet("PUBSUB_ENABLED", false).(bool),
 	Credentials:             envGet("PUBSUB_CREDENTIALS", "").(string),
@@ -321,6 +349,7 @@ func Execute() {
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryDNSOptions.Schedule, "DNS", prom.Name, prom.URL, discovery.NewDNS(prom.Name, opts, discoveryDNSOptions, observability), logger)
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryHTTPOptions.Schedule, "HTTP", prom.Name, prom.URL, discovery.NewHTTP(prom.Name, opts, discoveryHTTPOptions, observability), logger)
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryTCPOptions.Schedule, "TCP", prom.Name, prom.URL, discovery.NewTCP(prom.Name, opts, discoveryTCPOptions, observability), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryCertOptions.Schedule, "Cert", prom.Name, prom.URL, discovery.NewCert(prom.Name, opts, discoveryCertOptions, observability), logger)
 			}
 			scheduler.StartAsync()
 
@@ -454,6 +483,29 @@ func Execute() {
 	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.Timeout, "tcp-telegraf-timeout", discoveryTCPOptions.TelegrafOptions.Timeout, "TCP discovery telegraf timeout")
 	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.ReadTimeout, "tcp-telegraf-read-timeout", discoveryTCPOptions.TelegrafOptions.ReadTimeout, "TCP discovery telegraf read timeout")
 	flags.StringSliceVar(&discoveryTCPOptions.TelegrafOptions.Tags, "tcp-telegraf-tags", discoveryTCPOptions.TelegrafOptions.Tags, "TCP discovery telegraf tags")
+
+	// CERT
+	flags.StringVar(&discoveryCertOptions.Schedule, "cert-schedule", discoveryCertOptions.Schedule, "Cert discovery schedule")
+	flags.StringVar(&discoveryCertOptions.Query, "cert-query", discoveryCertOptions.Query, "Cert discovery query")
+	flags.StringVar(&discoveryCertOptions.QueryPeriod, "cert-query-period", discoveryCertOptions.QueryPeriod, "Cert discovery query period")
+	flags.StringVar(&discoveryCertOptions.QueryStep, "cert-query-step", discoveryCertOptions.QueryStep, "Cert discovery query step")
+	flags.StringVar(&discoveryCertOptions.Pattern, "cert-pattern", discoveryCertOptions.Pattern, "Cert discovery pattern")
+	flags.StringVar(&discoveryCertOptions.Names, "cert-names", discoveryCertOptions.Names, "Cert discovery names")
+	flags.StringVar(&discoveryCertOptions.Exclusion, "cert-exclusion", discoveryCertOptions.Exclusion, "Cert discovery exclusion")
+
+	flags.StringVar(&discoveryCertOptions.TelegrafConf, "cert-telegraf-conf", discoveryCertOptions.TelegrafConf, "Cert discovery telegraf conf")
+	flags.StringVar(&discoveryCertOptions.TelegrafTemplate, "cert-telegraf-template", discoveryCertOptions.TelegrafTemplate, "Cert discovery telegraf template")
+	flags.BoolVar(&discoveryCertOptions.TelegrafChecksum, "cert-telegraf-checksum", discoveryCertOptions.TelegrafChecksum, "Cert discovery telegraf checksum")
+	flags.StringVar(&discoveryCertOptions.TelegrafOptions.Interval, "cert-telegraf-interval", discoveryCertOptions.TelegrafOptions.Interval, "Cert discovery telegraf interval")
+	flags.StringVar(&discoveryCertOptions.TelegrafOptions.Timeout, "cert-telegraf-timeout", discoveryCertOptions.TelegrafOptions.Timeout, "Cert discovery telegraf timeout")
+	flags.StringVar(&discoveryCertOptions.TelegrafOptions.ServerName, "cert-telegraf-server-name", discoveryCertOptions.TelegrafOptions.ServerName, "Cert discovery telegraf server name")
+	flags.BoolVar(&discoveryCertOptions.TelegrafOptions.ExcludeRootCerts, "cert-telegraf-exclude-root-certs", discoveryCertOptions.TelegrafOptions.ExcludeRootCerts, "Cert discovery telegraf exclude root certs")
+	flags.StringVar(&discoveryCertOptions.TelegrafOptions.TLSCA, "cert-telegraf-read-tls-ca", discoveryCertOptions.TelegrafOptions.TLSCA, "Cert discovery telegraf TLS CA")
+	flags.StringVar(&discoveryCertOptions.TelegrafOptions.TLSCert, "cert-telegraf-read-tls-cert", discoveryCertOptions.TelegrafOptions.TLSCert, "Cert discovery telegraf TLS cert")
+	flags.StringVar(&discoveryCertOptions.TelegrafOptions.TLSServerName, "cert-telegraf-read-tls-server-name", discoveryCertOptions.TelegrafOptions.TLSServerName, "Cert discovery telegraf TLS server name")
+	flags.BoolVar(&discoveryCertOptions.TelegrafOptions.UseProxy, "cert-telegraf-use-proxy", discoveryCertOptions.TelegrafOptions.UseProxy, "Cert discovery telegraf use proxy")
+	flags.StringVar(&discoveryCertOptions.TelegrafOptions.ProxyURL, "cert-telegraf-read-proxy-url", discoveryCertOptions.TelegrafOptions.ProxyURL, "Cert discovery telegraf proxy URL")
+	flags.StringSliceVar(&discoveryCertOptions.TelegrafOptions.Tags, "cert-telegraf-tags", discoveryCertOptions.TelegrafOptions.Tags, "Cert discovery telegraf tags")
 
 	// PubSub
 	flags.BoolVar(&discoveryPubSubOptions.Enabled, "pubsub-enabled", discoveryPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")
