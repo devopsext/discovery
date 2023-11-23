@@ -98,6 +98,8 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Service, labelsTpl 
 	}
 	input.Name = name
 	input.URL = opts.URL
+	input.HttpUsername = opts.HttpUsername
+	input.HttpPassword = opts.HttpPassword
 	input.Version = opts.Version
 	input.Params = opts.Params
 	input.Interval = opts.Interval
