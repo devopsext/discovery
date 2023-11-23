@@ -254,7 +254,7 @@ func runSchedule(s *gocron.Scheduler, schedule string, jobFun interface{}) {
 
 	arr := strings.Split(schedule, " ")
 	if len(arr) == 1 {
-		s.Every(schedule).Do(jobFun)
+		s.Every(schedule).WaitForSchedule().Do(jobFun)
 	} else {
 		s.Cron(schedule).Do(jobFun)
 	}
