@@ -1,17 +1,18 @@
 module github.com/devopsext/discovery
 
-go 1.19
+go 1.21
 
 require (
 	cloud.google.com/go/pubsub v1.3.1
 	github.com/BurntSushi/toml v0.3.1
 	github.com/devopsext/sre v0.1.6
-	github.com/devopsext/tools v0.9.14
+	github.com/devopsext/tools v0.9.15
 	github.com/devopsext/utils v0.2.1
 	github.com/go-co-op/gocron v1.18.0
 	github.com/jinzhu/copier v0.3.5
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.6.1
+	google.golang.org/api v0.30.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -88,7 +89,6 @@ require (
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306 // indirect
 	golang.org/x/tools v0.1.5 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
-	google.golang.org/api v0.30.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220426171045-31bebdecfb46 // indirect
 	google.golang.org/grpc v1.45.0 // indirect

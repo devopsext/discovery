@@ -270,6 +270,7 @@ func (ti *InputPrometheusHttp) buildMetrics(s *common.Service, metrics []*common
 		metric.Name = common.IfDef(m.Name, opts.MetricName).(string)
 		metric.Query = ti.sanitizeQuery(qe)
 		metric.UniqueBy = m.UniqueBy
+  
 		tags1 := ti.buildTags(metric.Name, labels, opts.VarFormat, vars)
 		tags2 := ti.buildTags(metric.Name, m.Labels, opts.VarFormat, vars)
 		tags := common.MergeStringMaps(tags1, tags2)

@@ -202,6 +202,11 @@ var discoveryCertOptions = discovery.CertOptions{
 	},
 }
 
+var discoveryObserviumOptions = discovery.ObserviumOptions{
+	Schedule: envGet("OBSERVIUM_SCHEDULE", "").(string),
+	URL:      envGet("OBSERVIUM_URL", "").(string),
+}
+
 var discoveryPubSubOptions = discovery.PubSubOptions{
 	Enabled:                 envGet("PUBSUB_ENABLED", false).(bool),
 	Credentials:             envGet("PUBSUB_CREDENTIALS", "").(string),
@@ -296,6 +301,28 @@ func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.
 	}
 }
 
+func runSimpleDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.Scheduler, schedule string, typ string, discovery common.Discovery, logger *sreCommon.Logs) {
+
+	if reflect.ValueOf(discovery).IsNil() {
+		logger.Debug("%s: discovery disabled", typ)
+		return
+	}
+	// run once and return if there is flag
+	if runOnce {
+		wg.Add(1)
+		go func(d common.Discovery) {
+			defer wg.Done()
+			d.Discover()
+		}(discovery)
+		return
+	}
+	// run on schedule if there is one defined
+	if !utils.IsEmpty(schedule) {
+		runSchedule(scheduler, schedule, discovery.Discover)
+		logger.Debug("%s: discovery enabled on schedule: %s", typ, schedule)
+	}
+}
+
 func Execute() {
 
 	rootCmd := &cobra.Command{
@@ -327,7 +354,7 @@ func Execute() {
 			wg := &sync.WaitGroup{}
 			scheduler := gocron.NewScheduler(time.UTC)
 
-			// use each prometheus name for URLs and run related discoveries
+			// run prometheus discoveries for each prometheus name for URLs and run related discoveries
 			promDiscoveryObjects := common.GetPrometheusDiscoveriesByInstances(discoveryPrometheusOptions.Names)
 			for _, prom := range promDiscoveryObjects {
 
@@ -351,6 +378,9 @@ func Execute() {
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryTCPOptions.Schedule, "TCP", prom.Name, prom.URL, discovery.NewTCP(prom.Name, opts, discoveryTCPOptions, observability), logger)
 				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryCertOptions.Schedule, "Cert", prom.Name, prom.URL, discovery.NewCert(prom.Name, opts, discoveryCertOptions, observability), logger)
 			}
+			// run simple discoveries
+			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryObserviumOptions.Schedule, "Observium", discovery.NewObservium(discoveryObserviumOptions, observability), logger)
+
 			scheduler.StartAsync()
 
 			// run supportive discoveries without scheduler
@@ -506,6 +536,10 @@ func Execute() {
 	flags.BoolVar(&discoveryCertOptions.TelegrafOptions.UseProxy, "cert-telegraf-use-proxy", discoveryCertOptions.TelegrafOptions.UseProxy, "Cert discovery telegraf use proxy")
 	flags.StringVar(&discoveryCertOptions.TelegrafOptions.ProxyURL, "cert-telegraf-read-proxy-url", discoveryCertOptions.TelegrafOptions.ProxyURL, "Cert discovery telegraf proxy URL")
 	flags.StringSliceVar(&discoveryCertOptions.TelegrafOptions.Tags, "cert-telegraf-tags", discoveryCertOptions.TelegrafOptions.Tags, "Cert discovery telegraf tags")
+
+	// Observium
+	flags.StringVar(&discoveryObserviumOptions.Schedule, "observium-schedule", discoveryObserviumOptions.Schedule, "Observium discovery schedule")
+	flags.StringVar(&discoveryObserviumOptions.URL, "observium-url", discoveryObserviumOptions.URL, "Observium discovery URL")
 
 	// PubSub
 	flags.BoolVar(&discoveryPubSubOptions.Enabled, "pubsub-enabled", discoveryPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")
