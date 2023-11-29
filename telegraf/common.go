@@ -236,7 +236,7 @@ func (tc *Config) GenerateInputHTTPResponseBytes(opts InputHTTPResponseOptions, 
 	return b.Bytes(), nil
 }
 
-func (tc *Config) GenerateInputNetResponseBytes(opts InputNetResponseOptions, addresses map[string]common.Labels, protocol string) ([]byte, error) {
+func (tc *Config) GenerateInputNETResponseBytes(opts InputNetResponseOptions, addresses map[string]common.Labels, protocol string) ([]byte, error) {
 
 	keys := common.GetLabelsKeys(addresses)
 	sort.Strings(keys)

@@ -32,13 +32,35 @@ type CertOptions struct {
 }
 
 type Cert struct {
-	name           string
+	source         string
 	prometheus     *toolsVendors.Prometheus
 	prometheusOpts toolsVendors.PrometheusOptions
 	options        CertOptions
 	logger         sreCommon.Logger
 	observability  *common.Observability
 	namesTemplate  *toolsRender.TextTemplate
+	sinks          *common.Sinks
+}
+
+type CertSink struct {
+	sinkMap common.SinkMap
+	cert    *Cert
+}
+
+func (cs *CertSink) Map() common.SinkMap {
+	return cs.sinkMap
+}
+
+func (cs *CertSink) Options() interface{} {
+	return cs.cert.options
+}
+
+func (c *Cert) Name() string {
+	return "Cert"
+}
+
+func (c *Cert) Source() string {
+	return c.source
 }
 
 func (c *Cert) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
@@ -51,21 +73,7 @@ func (c *Cert) render(tpl *toolsRender.TextTemplate, def string, obj interface{}
 	return s1
 }
 
-// .telegraf/cert-discovery.conf
-func (c *Cert) createTelegrafConfigs(names map[string]common.Labels) {
-
-	telegrafConfig := &telegraf.Config{
-		Observability: c.observability,
-	}
-	bs, err := telegrafConfig.GenerateInputX509CertBytes(c.options.TelegrafOptions, names)
-	if err != nil {
-		c.logger.Error("%s: Cert query error: %s", c.name, err)
-		return
-	}
-	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(c.name, c.options.TelegrafTemplate, c.options.TelegrafConf, c.options.TelegrafChecksum, bs, c.logger)
-}
-
-func (c *Cert) appendAddress(name string, urls map[string]common.Labels, labels map[string]string, rExclusion *regexp.Regexp) {
+func (c *Cert) appendAddress(name string, urls common.LabelsMap, labels map[string]string, rExclusion *regexp.Regexp) {
 
 	proto := ""
 	host := ""
@@ -112,13 +120,13 @@ func (c *Cert) appendAddress(name string, urls map[string]common.Labels, labels 
 	urls[name] = labels
 }
 
-func (c *Cert) findURLs(vectors []*common.PrometheusResponseDataVector) map[string]common.Labels {
+func (c *Cert) findURLs(vectors []*common.PrometheusResponseDataVector) common.LabelsMap {
 
-	ret := make(map[string]common.Labels)
+	ret := make(common.LabelsMap)
 	gid := utils.GetRoutineID()
 
 	l := len(vectors)
-	c.logger.Debug("[%d] %s: found %d series", gid, c.name, l)
+	c.logger.Debug("[%d] %s: found %d series", gid, c.source, l)
 	if len(vectors) == 0 {
 		return ret
 	}
@@ -132,14 +140,14 @@ func (c *Cert) findURLs(vectors []*common.PrometheusResponseDataVector) map[stri
 	for _, v := range vectors {
 
 		if len(v.Labels) < 1 {
-			c.logger.Debug("[%d] %s: No labels, min requirements (1): %v", gid, c.name, v.Labels)
+			c.logger.Debug("[%d] %s: No labels, min requirements (1): %v", gid, c.source, v.Labels)
 			continue
 		}
 
 		name := ""
 		ident := c.render(c.namesTemplate, c.options.Names, v.Labels)
 		if utils.IsEmpty(ident) {
-			c.logger.Debug("[%d] %s: No name found in labels, but: %v", gid, c.name, v.Labels)
+			c.logger.Debug("[%d] %s: No name found in labels, but: %v", gid, c.source, v.Labels)
 			continue
 		}
 		if ident == c.options.Names {
@@ -167,7 +175,7 @@ func (c *Cert) findURLs(vectors []*common.PrometheusResponseDataVector) map[stri
 
 func (c *Cert) Discover() {
 
-	c.logger.Debug("%s: cert discovery by query: %s", c.name, c.options.Query)
+	c.logger.Debug("%s: cert discovery by query: %s", c.source, c.options.Query)
 	if !utils.IsEmpty(c.options.QueryPeriod) {
 		// https://Signal.io/docs/Signal/latest/querying/api/#range-queries
 		t := time.Now().UTC()
@@ -177,7 +185,7 @@ func (c *Cert) Discover() {
 		if utils.IsEmpty(c.prometheusOpts.Step) {
 			c.prometheusOpts.Step = "15s"
 		}
-		c.logger.Debug("%s: cert discovery range: %s <-> %s", c.name, c.prometheusOpts.From, c.prometheusOpts.To)
+		c.logger.Debug("%s: cert discovery range: %s <-> %s", c.source, c.prometheusOpts.From, c.prometheusOpts.To)
 	}
 
 	data, err := c.prometheus.CustomGet(c.prometheusOpts)
@@ -198,35 +206,39 @@ func (c *Cert) Discover() {
 	}
 
 	if (res.Data == nil) || (len(res.Data.Result) == 0) {
-		c.logger.Error("%s: cert empty data on response", c.name)
+		c.logger.Error("%s: cert empty data on response", c.source)
 		return
 	}
 
 	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-		c.logger.Error("%s: cert only vector and matrix are allowed", c.name)
+		c.logger.Error("%s: cert only vector and matrix are allowed", c.source)
 		return
 	}
 
 	urls := c.findURLs(res.Data.Result)
 	if len(urls) == 0 {
-		c.logger.Debug("%s: cert not found any urls according query", c.name)
+		c.logger.Debug("%s: cert not found any urls according query", c.source)
 		return
 	}
-	c.logger.Debug("%s: cert found %d urls according query", c.name, len(urls))
-	c.createTelegrafConfigs(urls)
+	c.logger.Debug("%s: cert found %d urls according query. Processing...", c.source, len(urls))
+
+	c.sinks.Process(c, &CertSink{
+		sinkMap: common.ConvertLabelsMapToSinkMap(urls),
+		cert:    c,
+	})
 }
 
-func NewCert(name string, prometheusOptions common.PrometheusOptions, options CertOptions, observability *common.Observability) *Cert {
+func NewCert(source string, prometheusOptions common.PrometheusOptions, options CertOptions, observability *common.Observability, sinks *common.Sinks) *Cert {
 
 	logger := observability.Logs()
 
 	if utils.IsEmpty(prometheusOptions.URL) {
-		logger.Debug("%s: Cert no prometheus URL. Skipped", name)
+		logger.Debug("%s: Cert no prometheus URL. Skipped", source)
 		return nil
 	}
 
 	if utils.IsEmpty(options.Query) {
-		logger.Debug("%s: Cert not query. Skipped", name)
+		logger.Debug("%s: Cert not query. Skipped", source)
 		return nil
 	}
 
@@ -248,12 +260,13 @@ func NewCert(name string, prometheusOptions common.PrometheusOptions, options Ce
 	}
 
 	return &Cert{
-		name:           name,
+		source:         source,
 		prometheus:     toolsVendors.NewPrometheus(prometheusOpts),
 		prometheusOpts: prometheusOpts,
 		options:        options,
 		logger:         logger,
 		observability:  observability,
 		namesTemplate:  namesTemplate,
+		sinks:          sinks,
 	}
 }

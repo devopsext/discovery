@@ -242,3 +242,59 @@ func GetPrometheusDiscoveriesByInstances(names string) []PromDiscoveryObject {
 	}
 	return promDiscoveryObjects
 }
+
+func RemoveEmptyStrings(items []string) []string {
+
+	r := []string{}
+
+	for _, v := range items {
+		if utils.IsEmpty(v) {
+			continue
+		}
+		r = append(r, strings.TrimSpace(v))
+	}
+
+	return r
+}
+
+func ConvertLabelsMapToSinkMap(m LabelsMap) SinkMap {
+
+	r := make(SinkMap)
+	for k, v := range m {
+		r[k] = v
+	}
+	return r
+}
+
+func ConvertSyncMapToLabelsMap(m SinkMap) LabelsMap {
+
+	r := make(LabelsMap)
+	for k, v := range m {
+		s, ok := v.(Labels)
+		if ok {
+			r[k] = s
+		}
+	}
+	return r
+}
+
+func ConvertServicesToSinkMap(m Services) SinkMap {
+
+	r := make(SinkMap)
+	for k, v := range m {
+		r[k] = v
+	}
+	return r
+}
+
+func ConvertSyncMapToServices(m SinkMap) Services {
+
+	r := make(Services)
+	for k, v := range m {
+		s, ok := v.(*Service)
+		if ok {
+			r[k] = s
+		}
+	}
+	return r
+}

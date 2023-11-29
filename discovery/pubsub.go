@@ -29,12 +29,21 @@ type PubSub struct {
 	options       PubSubOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
+	sinks         *common.Sinks
 }
 
 type File struct {
 	Time time.Time   `json:"time"`
 	Type string      `json:"type"`
 	Data interface{} `json:"data"`
+}
+
+func (ps *PubSub) Name() string {
+	return "PubSub"
+}
+
+func (ps *PubSub) Source() string {
+	return ""
 }
 
 func (ps *PubSub) createSubscription(client *pubsub.Client, ctx context.Context, topic *pubsub.Topic, subID string) error {
@@ -168,7 +177,7 @@ func (ps *PubSub) Discover() {
 	}
 }
 
-func NewPubSub(options PubSubOptions, observability *common.Observability) *PubSub {
+func NewPubSub(options PubSubOptions, observability *common.Observability, sinks *common.Sinks) *PubSub {
 
 	logger := observability.Logs()
 
@@ -181,5 +190,6 @@ func NewPubSub(options PubSubOptions, observability *common.Observability) *PubS
 		options:       options,
 		logger:        logger,
 		observability: observability,
+		sinks:         sinks,
 	}
 }

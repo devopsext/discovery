@@ -34,13 +34,35 @@ type TCPOptions struct {
 }
 
 type TCP struct {
-	name           string
+	source         string
 	prometheus     *toolsVendors.Prometheus
 	prometheusOpts toolsVendors.PrometheusOptions
 	options        TCPOptions
 	logger         sreCommon.Logger
 	observability  *common.Observability
 	namesTemplate  *toolsRender.TextTemplate
+	sinks          *common.Sinks
+}
+
+type TCPSink struct {
+	sinkMap common.SinkMap
+	tcp     *TCP
+}
+
+func (ts *TCPSink) Map() common.SinkMap {
+	return ts.sinkMap
+}
+
+func (ts *TCPSink) Options() interface{} {
+	return ts.tcp.options
+}
+
+func (t *TCP) Name() string {
+	return "TCP"
+}
+
+func (t *TCP) Source() string {
+	return t.source
 }
 
 func (t *TCP) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
@@ -51,20 +73,6 @@ func (t *TCP) render(tpl *toolsRender.TextTemplate, def string, obj interface{})
 		return def
 	}
 	return s1
-}
-
-// .telegraf/TCP-discovery.conf
-func (t *TCP) createTelegrafConfigs(names map[string]common.Labels) {
-
-	telegrafConfig := &telegraf.Config{
-		Observability: t.observability,
-	}
-	bs, err := telegrafConfig.GenerateInputNetResponseBytes(t.options.TelegrafOptions, names, "tcp")
-	if err != nil {
-		t.logger.Error("%s: TCP query error: %s", t.name, err)
-		return
-	}
-	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(t.name, t.options.TelegrafTemplate, t.options.TelegrafConf, t.options.TelegrafChecksum, bs, t.logger)
 }
 
 func (t *TCP) appendAddress(name string, addresses map[string]common.Labels, labels map[string]string, rExclusion *regexp.Regexp) {
@@ -96,13 +104,13 @@ func (t *TCP) appendAddress(name string, addresses map[string]common.Labels, lab
 	addresses[name] = labels
 }
 
-func (t *TCP) findAddresses(vectors []*common.PrometheusResponseDataVector) map[string]common.Labels {
+func (t *TCP) findAddresses(vectors []*common.PrometheusResponseDataVector) common.LabelsMap {
 
-	ret := make(map[string]common.Labels)
+	ret := make(common.LabelsMap)
 	gid := utils.GetRoutineID()
 
 	l := len(vectors)
-	t.logger.Debug("[%d] %s: found %d series", gid, t.name, l)
+	t.logger.Debug("[%d] %s: found %d series", gid, t.source, l)
 	if len(vectors) == 0 {
 		return ret
 	}
@@ -116,14 +124,14 @@ func (t *TCP) findAddresses(vectors []*common.PrometheusResponseDataVector) map[
 	for _, v := range vectors {
 
 		if len(v.Labels) < 1 {
-			t.logger.Debug("[%d] %s: No labels, min requirements (1): %v", gid, t.name, v.Labels)
+			t.logger.Debug("[%d] %s: No labels, min requirements (1): %v", gid, t.source, v.Labels)
 			continue
 		}
 
 		name := ""
 		ident := t.render(t.namesTemplate, t.options.Names, v.Labels)
 		if utils.IsEmpty(ident) {
-			t.logger.Debug("[%d] %s: No name found in labels, but: %v", gid, t.name, v.Labels)
+			t.logger.Debug("[%d] %s: No name found in labels, but: %v", gid, t.source, v.Labels)
 			continue
 		}
 		if ident == t.options.Names {
@@ -151,7 +159,7 @@ func (t *TCP) findAddresses(vectors []*common.PrometheusResponseDataVector) map[
 
 func (t *TCP) Discover() {
 
-	t.logger.Debug("%s: TCP discovery by query: %s", t.name, t.options.Query)
+	t.logger.Debug("%s: TCP discovery by query: %s", t.source, t.options.Query)
 	if !utils.IsEmpty(t.options.QueryPeriod) {
 		// https://Signal.io/docs/Signal/latest/querying/api/#range-queries
 		tm := time.Now().UTC()
@@ -161,7 +169,7 @@ func (t *TCP) Discover() {
 		if utils.IsEmpty(t.prometheusOpts.Step) {
 			t.prometheusOpts.Step = "15s"
 		}
-		t.logger.Debug("%s: TCP discovery range: %s <-> %s", t.name, t.prometheusOpts.From, t.prometheusOpts.To)
+		t.logger.Debug("%s: TCP discovery range: %s <-> %s", t.source, t.prometheusOpts.From, t.prometheusOpts.To)
 	}
 
 	data, err := t.prometheus.CustomGet(t.prometheusOpts)
@@ -182,35 +190,39 @@ func (t *TCP) Discover() {
 	}
 
 	if (res.Data == nil) || (len(res.Data.Result) == 0) {
-		t.logger.Error("%s: TCP empty data on response", t.name)
+		t.logger.Error("%s: TCP empty data on response", t.source)
 		return
 	}
 
 	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-		t.logger.Error("%s: TCP only vector and matrix are allowed", t.name)
+		t.logger.Error("%s: TCP only vector and matrix are allowed", t.source)
 		return
 	}
 
 	addresses := t.findAddresses(res.Data.Result)
 	if len(addresses) == 0 {
-		t.logger.Debug("%s: TCP not found any addresses according query", t.name)
+		t.logger.Debug("%s: TCP not found any addresses according query", t.source)
 		return
 	}
-	t.logger.Debug("%s: TCP found %d addresses according query", t.name, len(addresses))
-	t.createTelegrafConfigs(addresses)
+	t.logger.Debug("%s: TCP found %d addresses according query. Processing...", t.source, len(addresses))
+
+	t.sinks.Process(t, &TCPSink{
+		sinkMap: common.ConvertLabelsMapToSinkMap(addresses),
+		tcp:     t,
+	})
 }
 
-func NewTCP(name string, prometheusOptions common.PrometheusOptions, options TCPOptions, observability *common.Observability) *TCP {
+func NewTCP(source string, prometheusOptions common.PrometheusOptions, options TCPOptions, observability *common.Observability, sinks *common.Sinks) *TCP {
 
 	logger := observability.Logs()
 
 	if utils.IsEmpty(prometheusOptions.URL) {
-		logger.Debug("%s: TCP no prometheus URL. Skipped", name)
+		logger.Debug("%s: TCP no prometheus URL. Skipped", source)
 		return nil
 	}
 
 	if utils.IsEmpty(options.Query) {
-		logger.Debug("%s: TCP no query. Skipped", name)
+		logger.Debug("%s: TCP no query. Skipped", source)
 		return nil
 	}
 
@@ -232,7 +244,7 @@ func NewTCP(name string, prometheusOptions common.PrometheusOptions, options TCP
 	}
 
 	return &TCP{
-		name:           name,
+		source:         source,
 		prometheus:     toolsVendors.NewPrometheus(prometheusOpts),
 		prometheusOpts: prometheusOpts,
 		options:        options,
