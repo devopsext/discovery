@@ -1,15 +1,53 @@
 package sink
 
 import (
+	"errors"
+
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
 	telegraf "github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
-	"github.com/pkg/errors"
+	"github.com/devopsext/utils"
 )
 
+type TelegrafSignalOptions struct {
+	telegraf.InputPrometheusHttpOptions
+	Template string
+	Tags     string
+}
+
+type TelegrafCertOptions struct {
+	telegraf.InputX509CertOptions
+	Template string
+	Conf     string
+}
+
+type TelegrafDNSOptions struct {
+	telegraf.InputDNSQueryOptions
+	Template string
+	Conf     string
+}
+
+type TelegrafHTTPOptions struct {
+	telegraf.InputHTTPResponseOptions
+	Template string
+	Conf     string
+}
+
+type TelegrafTCPOptions struct {
+	telegraf.InputNetResponseOptions
+	Template string
+	Conf     string
+}
+
 type TelegrafOptions struct {
-	Pass []string
+	Pass     []string
+	Signal   TelegrafSignalOptions
+	Cert     TelegrafCertOptions
+	DNS      TelegrafDNSOptions
+	HTTP     TelegrafHTTPOptions
+	TCP      TelegrafTCPOptions
+	Checksum bool
 }
 
 type Telegraf struct {
@@ -31,27 +69,39 @@ func (t *Telegraf) processSignal(d common.Discovery, so common.SinkObject) error
 
 	opts, ok := so.Options().(discovery.SignalOptions)
 	if !ok {
-		return errors.New("No options")
+		return errors.New("no options")
 	}
 
-	telegrafConfig := &telegraf.Config{
-		Observability: t.observability,
+	if utils.IsEmpty(t.options.Signal.URL) {
+		t.options.Signal.URL = opts.URL
 	}
+
+	if utils.IsEmpty(t.options.Signal.User) {
+		t.options.Signal.User = opts.User
+	}
+
+	if utils.IsEmpty(t.options.Signal.Password) {
+		t.options.Signal.Password = opts.Password
+	}
+
 	m := common.ConvertSyncMapToServices(so.Map())
 	source := d.Source()
 
 	for k, s1 := range m {
 
-		path := common.Render(opts.TelegrafTemplate, s1.Vars, t.observability)
+		path := common.Render(t.options.Signal.Template, s1.Vars, t.observability)
 		t.logger.Debug("%s: Processing service: %s for path: %s", source, k, path)
 		t.logger.Debug("%s: Found metrics: %v", source, s1.Metrics)
 
-		bytes, err := telegrafConfig.GenerateInputPrometheusHttpBytes(s1, opts.TelegrafTags, opts.TelegrafOptions, path)
+		telegrafConfig := &telegraf.Config{
+			Observability: t.observability,
+		}
+		bytes, err := telegrafConfig.GenerateInputPrometheusHttpBytes(s1, t.options.Signal.Tags, t.options.Signal.InputPrometheusHttpOptions, path)
 		if err != nil {
 			t.logger.Error("%s: Service %s error: %s", source, k, err)
 			continue
 		}
-		telegrafConfig.CreateIfCheckSumIsDifferent(source, path, opts.TelegrafChecksum, bytes, t.logger)
+		telegrafConfig.CreateIfCheckSumIsDifferent(source, path, t.options.Checksum, bytes, t.logger)
 	}
 
 	return nil
@@ -59,73 +109,57 @@ func (t *Telegraf) processSignal(d common.Discovery, so common.SinkObject) error
 
 func (t *Telegraf) processCert(d common.Discovery, so common.SinkObject) error {
 
-	opts, ok := so.Options().(discovery.CertOptions)
-	if !ok {
-		return errors.New("No options")
-	}
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
 	m := common.ConvertSyncMapToLabelsMap(so.Map())
-	bs, err := telegrafConfig.GenerateInputX509CertBytes(opts.TelegrafOptions, m)
+	bs, err := telegrafConfig.GenerateInputX509CertBytes(t.options.Cert.InputX509CertOptions, m)
 	if err != nil {
 		return err
 	}
-	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(d.Source(), opts.TelegrafTemplate, opts.TelegrafConf, opts.TelegrafChecksum, bs, t.logger)
+	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(d.Source(), t.options.Cert.Template, t.options.Cert.Conf, t.options.Checksum, bs, t.logger)
 	return nil
 }
 
 func (t *Telegraf) processDNS(d common.Discovery, so common.SinkObject) error {
 
-	opts, ok := so.Options().(discovery.DNSOptions)
-	if !ok {
-		return errors.New("No options")
-	}
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
 	m := common.ConvertSyncMapToLabelsMap(so.Map())
-	bs, err := telegrafConfig.GenerateInputDNSQueryBytes(opts.TelegrafOptions, m)
+	bs, err := telegrafConfig.GenerateInputDNSQueryBytes(t.options.DNS.InputDNSQueryOptions, m)
 	if err != nil {
 		return err
 	}
-	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(d.Source(), opts.TelegrafTemplate, opts.TelegrafConf, opts.TelegrafChecksum, bs, t.logger)
+	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(d.Source(), t.options.DNS.Template, t.options.DNS.Conf, t.options.Checksum, bs, t.logger)
 	return nil
 }
 
 func (t *Telegraf) processHTTP(d common.Discovery, so common.SinkObject) error {
 
-	opts, ok := so.Options().(discovery.HTTPOptions)
-	if !ok {
-		return errors.New("No options")
-	}
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
 	m := common.ConvertSyncMapToLabelsMap(so.Map())
-	bs, err := telegrafConfig.GenerateInputHTTPResponseBytes(opts.TelegrafOptions, m)
+	bs, err := telegrafConfig.GenerateInputHTTPResponseBytes(t.options.HTTP.InputHTTPResponseOptions, m)
 	if err != nil {
 		return err
 	}
-	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(d.Source(), opts.TelegrafTemplate, opts.TelegrafConf, opts.TelegrafChecksum, bs, t.logger)
+	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(d.Source(), t.options.HTTP.Template, t.options.HTTP.Conf, t.options.Checksum, bs, t.logger)
 	return nil
 }
 
 func (t *Telegraf) processTCP(d common.Discovery, so common.SinkObject) error {
 
-	opts, ok := so.Options().(discovery.TCPOptions)
-	if !ok {
-		return errors.New("No options")
-	}
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
 	m := common.ConvertSyncMapToLabelsMap(so.Map())
-	bs, err := telegrafConfig.GenerateInputNETResponseBytes(opts.TelegrafOptions, m, "tcp")
+	bs, err := telegrafConfig.GenerateInputNETResponseBytes(t.options.TCP.InputNetResponseOptions, m, "tcp")
 	if err != nil {
 		return err
 	}
-	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(d.Source(), opts.TelegrafTemplate, opts.TelegrafConf, opts.TelegrafChecksum, bs, t.logger)
+	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(d.Source(), t.options.TCP.Template, t.options.TCP.Conf, t.options.Checksum, bs, t.logger)
 	return nil
 }
 

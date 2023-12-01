@@ -99,8 +99,8 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Service, labelsTpl 
 	}
 	input.Name = name
 	input.URL = opts.URL
-	input.HttpUsername = opts.HttpUsername
-	input.HttpPassword = opts.HttpPassword
+	input.User = opts.User
+	input.Password = opts.Password
 	input.Version = opts.Version
 	input.Params = opts.Params
 	input.Interval = opts.Interval
@@ -132,7 +132,8 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Service, labelsTpl 
 	for _, k := range keys {
 
 		c := s.Configs[k]
-		labels := common.MergeStringMaps(c.Labels, s.Labels)
+		//labels := common.MergeStringMaps(c.Labels, s.Labels)
+		labels := c.Labels
 		vars := common.MergeStringMaps(c.Vars, s.Vars)
 
 		input.buildQualities(s, c.Qualities, labelsTpl, opts, labels, vars, fl)

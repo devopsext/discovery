@@ -22,16 +22,16 @@ type Observium struct {
 	sinks         *common.Sinks
 }
 
-type ObserviumSink struct {
+type ObserviumSinkObject struct {
 	sinkMap   common.SinkMap
 	observium *Observium
 }
 
-func (os *ObserviumSink) Map() common.SinkMap {
+func (os *ObserviumSinkObject) Map() common.SinkMap {
 	return os.sinkMap
 }
 
-func (os *ObserviumSink) Options() interface{} {
+func (os *ObserviumSinkObject) Options() interface{} {
 	return os.observium.options
 }
 
@@ -86,7 +86,7 @@ func (o *Observium) Discover() {
 	devices := o.makeDevicesSinkMap(res.Devices)
 	o.logger.Debug("Observium found %d devices. Processing...", len(devices))
 
-	o.sinks.Process(o, &ObserviumSink{
+	o.sinks.Process(o, &ObserviumSinkObject{
 		sinkMap:   devices,
 		observium: o,
 	})

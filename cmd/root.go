@@ -66,6 +66,9 @@ var discoveryPrometheusOptions = common.PrometheusOptions{
 }
 
 var discoverySignalOptions = discovery.SignalOptions{
+	URL:          envGet("SIGNAL_URL", "").(string),
+	User:         envGet("SIGNAL_USER", "").(string),
+	Password:     envGet("SIGNAL_PASSWORD", "").(string),
 	Disabled:     strings.Split(envStringExpand("SIGNAL_DISABLED", ""), ","),
 	Schedule:     envGet("SIGNAL_SCHEDULE", "").(string),
 	Query:        envFileContentExpand("SIGNAL_QUERY", ""),
@@ -77,29 +80,6 @@ var discoverySignalOptions = discovery.SignalOptions{
 	Files:        envFileContentExpand("SIGNAL_FILES", ""),
 	Vars:         envFileContentExpand("SIGNAL_VARS", ""),
 	BaseTemplate: envStringExpand("SIGNAL_BASE_TEMPLATE", ""),
-
-	TelegrafTags:     envFileContentExpand("SIGNAL_TELEGRAF_TAGS", ""),
-	TelegrafTemplate: envStringExpand("SIGNAL_TELEGRAF_TEMPLATE", ""),
-	TelegrafChecksum: envGet("SIGNAL_TELEGRAF_CHECKSUM", false).(bool),
-
-	TelegrafOptions: telegraf.InputPrometheusHttpOptions{
-		Interval:         envGet("SIGNAL_TELEGRAF_INTERVAL", "10s").(string),
-		URL:              envStringExpand("SIGNAL_TELEGRAF_URL", ""),
-		Version:          envGet("SIGNAL_TELEGRAF_VERSION", "v1").(string),
-		Params:           envGet("SIGNAL_TELEGRAF_PARAMS", "").(string),
-		Duration:         envGet("SIGNAL_TELEGRAF_DURATION", "").(string),
-		Timeout:          envGet("SIGNAL_TELEGRAF_TIMEOUT", "5s").(string),
-		Prefix:           envGet("SIGNAL_TELEGRAF_PREFIX", "").(string),
-		QualityName:      envGet("SIGNAL_TELEGRAF_QUALITY_NAME", "quality").(string),
-		QualityRange:     envGet("SIGNAL_TELEGRAF_QUALITY_RANGE", "5m").(string),
-		QualityEvery:     envGet("SIGNAL_TELEGRAF_QUALITY_EVERY", "15s").(string),
-		QualityPoints:    envGet("SIGNAL_TELEGRAF_QUALITY_POINTS", 20).(int),
-		QualityQuery:     envFileContentExpand("SIGNAL_TELEGRAF_QUALITY_QUERY", ""),
-		AvailabilityName: envGet("SIGNAL_TELEGRAF_AVAILABILITY_NAME", "availability").(string),
-		MetricName:       envGet("SIGNAL_TELEGRAF_METRIC_NAME", "metric").(string),
-		DefaultTags:      strings.Split(envStringExpand("SIGNAL_TELEGRAF_DEFAULT_TAGS", ""), ","),
-		VarFormat:        envGet("SIGNAL_TELEGRAF_VAR_FORMAT", "$%s").(string),
-	},
 }
 
 var discoveryDNSOptions = discovery.DNSOptions{
@@ -110,20 +90,6 @@ var discoveryDNSOptions = discovery.DNSOptions{
 	Pattern:     envGet("DNS_PATTERN", "").(string),
 	Names:       envFileContentExpand("DNS_NAMES", ""),
 	Exclusion:   envGet("DNS_EXCLUSION", "").(string),
-
-	TelegrafConf:     envStringExpand("DNS_TELEGRAF_CONF", ""),
-	TelegrafTemplate: envFileContentExpand("DNS_TELEGRAF_TEMPLATE", ""),
-	TelegrafChecksum: envGet("DNS_TELEGRAF_CHECKSUM", false).(bool),
-
-	TelegrafOptions: telegraf.InputDNSQueryOptions{
-		Interval:   envGet("DNS_TELEGRAF_INTERVAL", "10s").(string),
-		Servers:    envGet("DNS_TELEGRAF_SERVERS", "").(string),
-		Network:    envGet("DNS_TELEGRAF_NETWORK", "upd").(string),
-		RecordType: envGet("DNS_TELEGRAF_RECORD_TYPE", "A").(string),
-		Port:       envGet("DNS_TELEGRAF_PORT", 53).(int),
-		Timeout:    envGet("DNS_TELEGRAF_TIMEOUT", 2).(int),
-		Tags:       strings.Split(envStringExpand("DNS_TELEGRAF_TAGS", ""), ","),
-	},
 }
 
 var discoveryHTTPOptions = discovery.HTTPOptions{
@@ -135,22 +101,7 @@ var discoveryHTTPOptions = discovery.HTTPOptions{
 	Names:       envFileContentExpand("HTTP_NAMES", ""),
 	Exclusion:   envGet("HTTP_EXCLUSION", "").(string),
 	NoSSL:       envGet("HTTP_NO_SSL", "").(string),
-
-	TelegrafConf:     envStringExpand("HTTP_TELEGRAF_CONF", ""),
-	TelegrafTemplate: envFileContentExpand("HTTP_TELEGRAF_TEMPLATE", ""),
-	TelegrafChecksum: envGet("HTTP_TELEGRAF_CHECKSUM", false).(bool),
-
-	TelegrafOptions: telegraf.InputHTTPResponseOptions{
-		Interval:        envGet("HTTP_TELEGRAF_INTERVAL", "10s").(string),
-		URLs:            envGet("HTTP_TELEGRAF_URLS", "").(string),
-		Path:            envFileContentExpand("HTTP_TELEGRAF_PATH", ""),
-		Method:          envGet("HTTP_TELEGRAF_METHOD", "GET").(string),
-		FollowRedirects: envGet("HTTP_TELEGRAF_FOLLOW_REDIRECTS", false).(bool),
-		StringMatch:     envGet("HTTP_TELEGRAF_STRING_MATCH", "").(string),
-		StatusCode:      envGet("HTTP_TELEGRAF_STATUS_CODE", 0).(int),
-		Timeout:         envGet("HTTP_TELEGRAF_TIMEOUT", "5s").(string),
-		Tags:            strings.Split(envStringExpand("HTTP_TELEGRAF_TAGS", ""), ","),
-	},
+	Path:        envFileContentExpand("HTTP_PATH", ""),
 }
 
 var discoveryTCPOptions = discovery.TCPOptions{
@@ -161,19 +112,6 @@ var discoveryTCPOptions = discovery.TCPOptions{
 	Pattern:     envGet("TCP_PATTERN", "").(string),
 	Names:       envFileContentExpand("TCP_NAMES", ""),
 	Exclusion:   envGet("TCP_EXCLUSION", "").(string),
-
-	TelegrafConf:     envStringExpand("TCP_TELEGRAF_CONF", ""),
-	TelegrafTemplate: envFileContentExpand("TCP_TELEGRAF_TEMPLATE", ""),
-	TelegrafChecksum: envGet("TCP_TELEGRAF_CHECKSUM", false).(bool),
-
-	TelegrafOptions: telegraf.InputNetResponseOptions{
-		Interval:    envGet("TCP_TELEGRAF_INTERVAL", "10s").(string),
-		Timeout:     envGet("TCP_TELEGRAF_TIMEOUT", "5s").(string),
-		ReadTimeout: envGet("TCP_TELEGRAF_READ_TIMEOUT", "3s").(string),
-		Send:        envGet("TCP_TELEGRAF_SEND", "").(string),
-		Expect:      envGet("TCP_TELEGRAF_EXPECT", "").(string),
-		Tags:        strings.Split(envStringExpand("TCP_TELEGRAF_TAGS", ""), ","),
-	},
 }
 
 var discoveryCertOptions = discovery.CertOptions{
@@ -184,24 +122,6 @@ var discoveryCertOptions = discovery.CertOptions{
 	Pattern:     envGet("CERT_PATTERN", "").(string),
 	Names:       envFileContentExpand("CERT_NAMES", ""),
 	Exclusion:   envGet("CERT_EXCLUSION", "").(string),
-
-	TelegrafConf:     envStringExpand("CERT_TELEGRAF_CONF", ""),
-	TelegrafTemplate: envFileContentExpand("CERT_TELEGRAF_TEMPLATE", ""),
-	TelegrafChecksum: envGet("CERT_TELEGRAF_CHECKSUM", false).(bool),
-
-	TelegrafOptions: telegraf.InputX509CertOptions{
-		Interval:         envGet("CERT_TELEGRAF_INTERVAL", "10s").(string),
-		Timeout:          envGet("CERT_TELEGRAF_TIMEOUT", "5s").(string),
-		ServerName:       envGet("CERT_TELEGRAF_SERVER_NAME", "").(string),
-		ExcludeRootCerts: envGet("CERT_TELEGRAF_EXCLUDE_ROOT_CERTS", false).(bool),
-		TLSCA:            envGet("CERT_TELEGRAF_TLS_CA", "").(string),
-		TLSCert:          envGet("CERT_TELEGRAF_TLS_CERT", "").(string),
-		TLSKey:           envGet("CERT_TELEGRAF_TLS_KEY", "").(string),
-		TLSServerName:    envGet("CERT_TELEGRAF_TLS_SERVER_NAME", "").(string),
-		UseProxy:         envGet("CERT_TELEGRAF_USE_PROXY", false).(bool),
-		ProxyURL:         envGet("CERT_TELEGRAF_PROXY_URL", "").(string),
-		Tags:             strings.Split(envStringExpand("CERT_TELEGRAF_TAGS", ""), ","),
-	},
 }
 
 var discoveryObserviumOptions = discovery.ObserviumOptions{
@@ -236,7 +156,86 @@ var sinkYamlOptions = sink.YamlOptions{
 }
 
 var sinkTelegrafOptions = sink.TelegrafOptions{
-	Pass: strings.Split(envStringExpand("SINK_TELEGRAF_PASS", ""), ","),
+	Pass:     strings.Split(envStringExpand("SINK_TELEGRAF_PASS", ""), ","),
+	Checksum: envGet("SINK_TELEGRAF_CHECKSUM", false).(bool),
+	Signal: sink.TelegrafSignalOptions{
+		Template: envFileContentExpand("SINK_TELEGRAF_SIGNAL_TEMPLATE", ""),
+		Tags:     envFileContentExpand("SINK_TELEGRAF_SIGNAL_TAGS", ""),
+		InputPrometheusHttpOptions: telegraf.InputPrometheusHttpOptions{
+			Interval:         envGet("SINK_TELEGRAF_SIGNAL_INTERVAL", "10s").(string),
+			URL:              envStringExpand("SINK_TELEGRAF_SIGNAL_URL", ""),
+			Version:          envGet("SINK_TELEGRAF_SIGNAL_VERSION", "v1").(string),
+			Params:           envGet("SINK_TELEGRAF_SIGNAL_PARAMS", "").(string),
+			Duration:         envGet("SINK_TELEGRAF_SIGNAL_DURATION", "").(string),
+			Timeout:          envGet("SINK_TELEGRAF_SIGNAL_TIMEOUT", "5s").(string),
+			Prefix:           envGet("SINK_TELEGRAF_SIGNAL_PREFIX", "").(string),
+			QualityName:      envGet("SINK_TELEGRAF_SIGNAL_QUALITY_NAME", "quality").(string),
+			QualityRange:     envGet("SINK_TELEGRAF_SIGNAL_QUALITY_RANGE", "5m").(string),
+			QualityEvery:     envGet("SINK_TELEGRAF_SIGNAL_QUALITY_EVERY", "15s").(string),
+			QualityPoints:    envGet("SINK_TELEGRAF_SIGNAL_QUALITY_POINTS", 20).(int),
+			QualityQuery:     envFileContentExpand("SINK_TELEGRAF_SIGNAL_QUALITY_QUERY", ""),
+			AvailabilityName: envGet("SINK_TELEGRAF_SIGNAL_AVAILABILITY_NAME", "availability").(string),
+			MetricName:       envGet("SINK_TELEGRAF_SIGNAL_METRIC_NAME", "metric").(string),
+			DefaultTags:      strings.Split(envStringExpand("SINK_TELEGRAF_SIGNAL_DEFAULT_TAGS", ""), ","),
+			VarFormat:        envGet("SINK_TELEGRAF_SIGNAL_VAR_FORMAT", "$%s").(string),
+		},
+	},
+	Cert: sink.TelegrafCertOptions{
+		Conf:     envStringExpand("SINK_TELEGRAF_CERT_CONF", ""),
+		Template: envFileContentExpand("SINK_TELEGRAF_CERT_TEMPLATE", ""),
+		InputX509CertOptions: telegraf.InputX509CertOptions{
+			Interval:         envGet("SINK_TELEGRAF_CERT_INTERVAL", "10s").(string),
+			Timeout:          envGet("SINK_TELEGRAF_CERT_TIMEOUT", "5s").(string),
+			ServerName:       envGet("SINK_TELEGRAF_CERT_SERVER_NAME", "").(string),
+			ExcludeRootCerts: envGet("SINK_TELEGRAF_CERT_EXCLUDE_ROOT_CERTS", false).(bool),
+			TLSCA:            envGet("SINK_TELEGRAF_CERT_TLS_CA", "").(string),
+			TLSCert:          envGet("SINK_TELEGRAF_CERT_TLS_CERT", "").(string),
+			TLSKey:           envGet("SINK_TELEGRAF_CERT_TLS_KEY", "").(string),
+			TLSServerName:    envGet("SINK_TELEGRAF_CERT_TLS_SERVER_NAME", "").(string),
+			UseProxy:         envGet("SINK_TELEGRAF_CERT_USE_PROXY", false).(bool),
+			ProxyURL:         envGet("SINK_TELEGRAF_CERT_PROXY_URL", "").(string),
+			Tags:             strings.Split(envStringExpand("SINK_TELEGRAF_CERT_TAGS", ""), ","),
+		},
+	},
+	DNS: sink.TelegrafDNSOptions{
+		Conf:     envStringExpand("SINK_TELEGRAF_DNS_CONF", ""),
+		Template: envFileContentExpand("SINK_TELEGRAF_DNS_TEMPLATE", ""),
+		InputDNSQueryOptions: telegraf.InputDNSQueryOptions{
+			Interval:   envGet("SINK_TELEGRAF_DNS_INTERVAL", "10s").(string),
+			Servers:    envGet("SINK_TELEGRAF_DNS_SERVERS", "").(string),
+			Network:    envGet("SINK_TELEGRAF_DNS_NETWORK", "upd").(string),
+			RecordType: envGet("SINK_TELEGRAF_DNS_RECORD_TYPE", "A").(string),
+			Port:       envGet("SINK_TELEGRAF_DNS_PORT", 53).(int),
+			Timeout:    envGet("SINK_TELEGRAF_DNS_TIMEOUT", 2).(int),
+			Tags:       strings.Split(envStringExpand("SINK_TELEGRAF_DNS_TAGS", ""), ","),
+		},
+	},
+	HTTP: sink.TelegrafHTTPOptions{
+		Conf:     envStringExpand("SINK_TELEGRAF_HTTP_CONF", ""),
+		Template: envFileContentExpand("SINK_TELEGRAF_HTTP_TEMPLATE", ""),
+		InputHTTPResponseOptions: telegraf.InputHTTPResponseOptions{
+			Interval:        envGet("SINK_TELEGRAF_HTTP_INTERVAL", "10s").(string),
+			URLs:            envGet("SINK_TELEGRAF_HTTP_URLS", "").(string),
+			Method:          envGet("SINK_TELEGRAF_HTTP_METHOD", "GET").(string),
+			FollowRedirects: envGet("SINK_TELEGRAF_HTTP_FOLLOW_REDIRECTS", false).(bool),
+			StringMatch:     envGet("SINK_TELEGRAF_HTTP_STRING_MATCH", "").(string),
+			StatusCode:      envGet("SINK_TELEGRAF_HTTP_STATUS_CODE", 0).(int),
+			Timeout:         envGet("SINK_TELEGRAF_HTTP_TIMEOUT", "5s").(string),
+			Tags:            strings.Split(envStringExpand("SINK_TELEGRAF_HTTP_TAGS", ""), ","),
+		},
+	},
+	TCP: sink.TelegrafTCPOptions{
+		Conf:     envStringExpand("SINK_TELEGRAF_TCP_CONF", ""),
+		Template: envFileContentExpand("SINK_TELEGRAF_TCP_TEMPLATE", ""),
+		InputNetResponseOptions: telegraf.InputNetResponseOptions{
+			Interval:    envGet("SINK_TELEGRAF_TCP_INTERVAL", "10s").(string),
+			Timeout:     envGet("SINK_TELEGRAF_TCP_TIMEOUT", "5s").(string),
+			ReadTimeout: envGet("SINK_TELEGRAF_TCP_READ_TIMEOUT", "3s").(string),
+			Send:        envGet("SINK_TELEGRAF_TCP_SEND", "").(string),
+			Expect:      envGet("SINK_TELEGRAF_TCP_EXPECT", "").(string),
+			Tags:        strings.Split(envStringExpand("SINK_TELEGRAF_TCP_TAGS", ""), ","),
+		},
+	},
 }
 
 func getOnlyEnv(key string) string {
@@ -390,8 +389,8 @@ func Execute() {
 				m["name"] = prom.Name
 				m["url"] = prom.URL
 				opts.URL = common.Render(discoveryPrometheusOptions.URL, m, obs)
-				opts.HttpUsername = prom.HttpUsername
-				opts.HttpPassword = prom.HttpPassword
+				opts.User = prom.User
+				opts.Password = prom.Password
 
 				if utils.IsEmpty(opts.URL) || utils.IsEmpty(prom.Name) {
 					logger.Debug("Prometheus discovery is not found")
@@ -444,6 +443,9 @@ func Execute() {
 	flags.BoolVar(&discoveryPrometheusOptions.Insecure, "prometheus-insecure", discoveryPrometheusOptions.Insecure, "Prometheus discovery insecure")
 
 	// Signal
+	flags.StringVar(&discoverySignalOptions.URL, "signal-url", discoverySignalOptions.URL, "Signal discovery url")
+	flags.StringVar(&discoverySignalOptions.User, "signal-user", discoverySignalOptions.User, "Signal discovery user")
+	flags.StringVar(&discoverySignalOptions.Password, "signal-password", discoverySignalOptions.Password, "Signal discovery password")
 	flags.StringVar(&discoverySignalOptions.Schedule, "signal-schedule", discoverySignalOptions.Schedule, "Signal discovery schedule")
 	flags.StringVar(&discoverySignalOptions.Query, "signal-query", discoverySignalOptions.Query, "Signal discovery query")
 	flags.StringVar(&discoverySignalOptions.QueryPeriod, "signal-query-period", discoverySignalOptions.QueryPeriod, "Signal discovery query period")
@@ -456,26 +458,6 @@ func Execute() {
 	flags.StringVar(&discoverySignalOptions.BaseTemplate, "signal-base-template", discoverySignalOptions.BaseTemplate, "Signal discovery base template")
 	flags.StringVar(&discoverySignalOptions.Vars, "signal-vars", discoverySignalOptions.Vars, "Signal discovery vars")
 
-	flags.StringVar(&discoverySignalOptions.TelegrafTags, "signal-telegraf-tags", discoverySignalOptions.TelegrafTags, "Signal discovery telegraf tags")
-	flags.StringVar(&discoverySignalOptions.TelegrafTemplate, "signal-telegraf-template", discoverySignalOptions.TelegrafTemplate, "Signal discovery telegraf template")
-	flags.BoolVar(&discoverySignalOptions.TelegrafChecksum, "signal-telegraf-checksum", discoverySignalOptions.TelegrafChecksum, "Signal discovery telegraf checksum")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.URL, "signal-telegraf-url", discoverySignalOptions.TelegrafOptions.URL, "Signal discovery telegraf URL")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Version, "signal-telegraf-version", discoverySignalOptions.TelegrafOptions.Version, "Signal discovery telegraf version")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Params, "signal-telegraf-params", discoverySignalOptions.TelegrafOptions.Params, "Signal discovery telegraf params")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Interval, "signal-telegraf-interval", discoverySignalOptions.TelegrafOptions.Interval, "Signal discovery telegraf interval")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Timeout, "signal-telegraf-timeout", discoverySignalOptions.TelegrafOptions.Timeout, "Signal discovery telegraf timeout")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Duration, "signal-telegraf-duration", discoverySignalOptions.TelegrafOptions.Duration, "Signal discovery telegraf duration")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.Prefix, "signal-telegraf-prefix", discoverySignalOptions.TelegrafOptions.Prefix, "Signal discovery telegraf prefix")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.QualityName, "signal-telegraf-quality-name", discoverySignalOptions.TelegrafOptions.QualityName, "Signal discovery telegraf quality name")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.QualityRange, "signal-telegraf-quality-range", discoverySignalOptions.TelegrafOptions.QualityRange, "Signal discovery telegraf quality range")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.QualityEvery, "signal-telegraf-quality-every", discoverySignalOptions.TelegrafOptions.QualityEvery, "Signal discovery telegraf quality every")
-	flags.IntVar(&discoverySignalOptions.TelegrafOptions.QualityPoints, "signal-telegraf-quality-points", discoverySignalOptions.TelegrafOptions.QualityPoints, "Signal discovery telegraf quality points")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.QualityQuery, "signal-telegraf-quality-query", discoverySignalOptions.TelegrafOptions.QualityQuery, "Signal discovery telegraf quality query")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.AvailabilityName, "signal-telegraf-availability-name", discoverySignalOptions.TelegrafOptions.AvailabilityName, "Signal discovery telegraf availability name")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.MetricName, "signal-telegraf-metric-name", discoverySignalOptions.TelegrafOptions.MetricName, "Signal discovery telegraf metric name")
-	flags.StringSliceVar(&discoverySignalOptions.TelegrafOptions.DefaultTags, "signal-telegraf-default-tags", discoverySignalOptions.TelegrafOptions.DefaultTags, "Signal discovery telegraf default tags")
-	flags.StringVar(&discoverySignalOptions.TelegrafOptions.VarFormat, "signal-telegraf-var-format", discoverySignalOptions.TelegrafOptions.VarFormat, "Signal discovery telegraf var format")
-
 	// DNS
 	flags.StringVar(&discoveryDNSOptions.Schedule, "dns-schedule", discoveryDNSOptions.Schedule, "DNS discovery schedule")
 	flags.StringVar(&discoveryDNSOptions.Query, "dns-query", discoveryDNSOptions.Query, "DNS discovery query")
@@ -484,18 +466,6 @@ func Execute() {
 	flags.StringVar(&discoveryDNSOptions.Pattern, "dns-pattern", discoveryDNSOptions.Pattern, "DNS discovery domain pattern")
 	flags.StringVar(&discoveryDNSOptions.Names, "dns-names", discoveryDNSOptions.Names, "DNS discovery domain names")
 	flags.StringVar(&discoveryDNSOptions.Exclusion, "dns-exclusion", discoveryDNSOptions.Exclusion, "DNS discovery domain exclusion")
-
-	flags.StringVar(&discoveryDNSOptions.TelegrafConf, "dns-telegraf-conf", discoveryDNSOptions.TelegrafConf, "DNS discovery telegraf conf")
-	flags.StringVar(&discoveryDNSOptions.TelegrafTemplate, "dns-telegraf-template", discoveryDNSOptions.TelegrafTemplate, "DNS discovery telegraf template")
-	flags.BoolVar(&discoveryDNSOptions.TelegrafChecksum, "dns-telegraf-checksum", discoveryDNSOptions.TelegrafChecksum, "DNS discovery telegraf checksum")
-	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Interval, "dns-telegraf-interval", discoveryDNSOptions.TelegrafOptions.Interval, "DNS discovery telegraf interval")
-	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Servers, "dns-telegraf-servers", discoveryDNSOptions.TelegrafOptions.Servers, "DNS discovery telegraf servers")
-	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Network, "dns-telegraf-network", discoveryDNSOptions.TelegrafOptions.Network, "DNS discovery telegraf network")
-	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.Domains, "dns-telegraf-domains", discoveryDNSOptions.TelegrafOptions.Domains, "DNS discovery telegraf domains")
-	flags.StringVar(&discoveryDNSOptions.TelegrafOptions.RecordType, "dns-telegraf-record-type", discoveryDNSOptions.TelegrafOptions.RecordType, "DNS discovery telegraf record type")
-	flags.IntVar(&discoveryDNSOptions.TelegrafOptions.Port, "dns-telegraf-port", discoveryDNSOptions.TelegrafOptions.Port, "DNS discovery telegraf port")
-	flags.IntVar(&discoveryDNSOptions.TelegrafOptions.Timeout, "dns-telegraf-timeout", discoveryDNSOptions.TelegrafOptions.Timeout, "DNS discovery telegraf timeout")
-	flags.StringSliceVar(&discoveryDNSOptions.TelegrafOptions.Tags, "dns-telegraf-tags", discoveryDNSOptions.TelegrafOptions.Tags, "DNS discovery telegraf tags")
 
 	// HTTP
 	flags.StringVar(&discoveryHTTPOptions.Schedule, "http-schedule", discoveryHTTPOptions.Schedule, "HTTP discovery schedule")
@@ -507,19 +477,6 @@ func Execute() {
 	flags.StringVar(&discoveryHTTPOptions.Exclusion, "http-exclusion", discoveryHTTPOptions.Exclusion, "HTTP discovery exclusion")
 	flags.StringVar(&discoveryHTTPOptions.NoSSL, "http-no-ssl", discoveryHTTPOptions.NoSSL, "HTTP no SSL pattern")
 
-	flags.StringVar(&discoveryHTTPOptions.TelegrafConf, "http-telegraf-conf", discoveryHTTPOptions.TelegrafConf, "HTTP discovery telegraf conf")
-	flags.StringVar(&discoveryHTTPOptions.TelegrafTemplate, "http-telegraf-template", discoveryHTTPOptions.TelegrafTemplate, "HTTP discovery telegraf template")
-	flags.BoolVar(&discoveryHTTPOptions.TelegrafChecksum, "http-telegraf-checksum", discoveryHTTPOptions.TelegrafChecksum, "HTTP discovery telegraf checksum")
-	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.Interval, "http-telegraf-interval", discoveryHTTPOptions.TelegrafOptions.Interval, "HTTP discovery telegraf interval")
-	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.URLs, "http-telegraf-urls", discoveryHTTPOptions.TelegrafOptions.URLs, "HTTP discovery telegraf URLs")
-	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.Path, "http-telegraf-path", discoveryHTTPOptions.TelegrafOptions.Path, "HTTP discovery telegraf path")
-	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.Method, "http-telegraf-method", discoveryHTTPOptions.TelegrafOptions.Method, "HTTP discovery telegraf method")
-	flags.BoolVar(&discoveryHTTPOptions.TelegrafOptions.FollowRedirects, "http-telegraf-follow-redirects", discoveryHTTPOptions.TelegrafOptions.FollowRedirects, "HTTP discovery telegraf follow redirects")
-	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.StringMatch, "http-telegraf-string-match", discoveryHTTPOptions.TelegrafOptions.StringMatch, "HTTP discovery telegraf string match")
-	flags.IntVar(&discoveryHTTPOptions.TelegrafOptions.StatusCode, "http-telegraf-status-code", discoveryHTTPOptions.TelegrafOptions.StatusCode, "HTTP discovery telegraf status code")
-	flags.StringVar(&discoveryHTTPOptions.TelegrafOptions.Timeout, "http-telegraf-timeout", discoveryHTTPOptions.TelegrafOptions.Timeout, "HTTP discovery telegraf timeout")
-	flags.StringSliceVar(&discoveryHTTPOptions.TelegrafOptions.Tags, "http-telegraf-tags", discoveryHTTPOptions.TelegrafOptions.Tags, "HTTP discovery telegraf tags")
-
 	// TCP
 	flags.StringVar(&discoveryTCPOptions.Schedule, "tcp-schedule", discoveryTCPOptions.Schedule, "TCP discovery schedule")
 	flags.StringVar(&discoveryTCPOptions.Query, "tcp-query", discoveryTCPOptions.Query, "TCP discovery query")
@@ -529,16 +486,6 @@ func Execute() {
 	flags.StringVar(&discoveryTCPOptions.Names, "tcp-names", discoveryTCPOptions.Names, "TCP discovery names")
 	flags.StringVar(&discoveryTCPOptions.Exclusion, "tcp-exclusion", discoveryTCPOptions.Exclusion, "TCP discovery exclusion")
 
-	flags.StringVar(&discoveryTCPOptions.TelegrafConf, "tcp-telegraf-conf", discoveryTCPOptions.TelegrafConf, "TCP discovery telegraf conf")
-	flags.StringVar(&discoveryTCPOptions.TelegrafTemplate, "tcp-telegraf-template", discoveryTCPOptions.TelegrafTemplate, "TCP discovery telegraf template")
-	flags.BoolVar(&discoveryTCPOptions.TelegrafChecksum, "tcp-telegraf-checksum", discoveryTCPOptions.TelegrafChecksum, "TCP discovery telegraf checksum")
-	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.Interval, "tcp-telegraf-interval", discoveryTCPOptions.TelegrafOptions.Interval, "TCP discovery telegraf interval")
-	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.Send, "tcp-telegraf-send", discoveryTCPOptions.TelegrafOptions.Send, "TCP discovery telegraf send")
-	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.Expect, "tcp-telegraf-expect", discoveryTCPOptions.TelegrafOptions.Expect, "TCP discovery telegraf expect")
-	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.Timeout, "tcp-telegraf-timeout", discoveryTCPOptions.TelegrafOptions.Timeout, "TCP discovery telegraf timeout")
-	flags.StringVar(&discoveryTCPOptions.TelegrafOptions.ReadTimeout, "tcp-telegraf-read-timeout", discoveryTCPOptions.TelegrafOptions.ReadTimeout, "TCP discovery telegraf read timeout")
-	flags.StringSliceVar(&discoveryTCPOptions.TelegrafOptions.Tags, "tcp-telegraf-tags", discoveryTCPOptions.TelegrafOptions.Tags, "TCP discovery telegraf tags")
-
 	// CERT
 	flags.StringVar(&discoveryCertOptions.Schedule, "cert-schedule", discoveryCertOptions.Schedule, "Cert discovery schedule")
 	flags.StringVar(&discoveryCertOptions.Query, "cert-query", discoveryCertOptions.Query, "Cert discovery query")
@@ -547,20 +494,6 @@ func Execute() {
 	flags.StringVar(&discoveryCertOptions.Pattern, "cert-pattern", discoveryCertOptions.Pattern, "Cert discovery pattern")
 	flags.StringVar(&discoveryCertOptions.Names, "cert-names", discoveryCertOptions.Names, "Cert discovery names")
 	flags.StringVar(&discoveryCertOptions.Exclusion, "cert-exclusion", discoveryCertOptions.Exclusion, "Cert discovery exclusion")
-
-	flags.StringVar(&discoveryCertOptions.TelegrafConf, "cert-telegraf-conf", discoveryCertOptions.TelegrafConf, "Cert discovery telegraf conf")
-	flags.StringVar(&discoveryCertOptions.TelegrafTemplate, "cert-telegraf-template", discoveryCertOptions.TelegrafTemplate, "Cert discovery telegraf template")
-	flags.BoolVar(&discoveryCertOptions.TelegrafChecksum, "cert-telegraf-checksum", discoveryCertOptions.TelegrafChecksum, "Cert discovery telegraf checksum")
-	flags.StringVar(&discoveryCertOptions.TelegrafOptions.Interval, "cert-telegraf-interval", discoveryCertOptions.TelegrafOptions.Interval, "Cert discovery telegraf interval")
-	flags.StringVar(&discoveryCertOptions.TelegrafOptions.Timeout, "cert-telegraf-timeout", discoveryCertOptions.TelegrafOptions.Timeout, "Cert discovery telegraf timeout")
-	flags.StringVar(&discoveryCertOptions.TelegrafOptions.ServerName, "cert-telegraf-server-name", discoveryCertOptions.TelegrafOptions.ServerName, "Cert discovery telegraf server name")
-	flags.BoolVar(&discoveryCertOptions.TelegrafOptions.ExcludeRootCerts, "cert-telegraf-exclude-root-certs", discoveryCertOptions.TelegrafOptions.ExcludeRootCerts, "Cert discovery telegraf exclude root certs")
-	flags.StringVar(&discoveryCertOptions.TelegrafOptions.TLSCA, "cert-telegraf-read-tls-ca", discoveryCertOptions.TelegrafOptions.TLSCA, "Cert discovery telegraf TLS CA")
-	flags.StringVar(&discoveryCertOptions.TelegrafOptions.TLSCert, "cert-telegraf-read-tls-cert", discoveryCertOptions.TelegrafOptions.TLSCert, "Cert discovery telegraf TLS cert")
-	flags.StringVar(&discoveryCertOptions.TelegrafOptions.TLSServerName, "cert-telegraf-read-tls-server-name", discoveryCertOptions.TelegrafOptions.TLSServerName, "Cert discovery telegraf TLS server name")
-	flags.BoolVar(&discoveryCertOptions.TelegrafOptions.UseProxy, "cert-telegraf-use-proxy", discoveryCertOptions.TelegrafOptions.UseProxy, "Cert discovery telegraf use proxy")
-	flags.StringVar(&discoveryCertOptions.TelegrafOptions.ProxyURL, "cert-telegraf-read-proxy-url", discoveryCertOptions.TelegrafOptions.ProxyURL, "Cert discovery telegraf proxy URL")
-	flags.StringSliceVar(&discoveryCertOptions.TelegrafOptions.Tags, "cert-telegraf-tags", discoveryCertOptions.TelegrafOptions.Tags, "Cert discovery telegraf tags")
 
 	// Observium
 	flags.StringVar(&discoveryObserviumOptions.Schedule, "observium-schedule", discoveryObserviumOptions.Schedule, "Observium discovery schedule")
@@ -587,8 +520,74 @@ func Execute() {
 	// Sink Yaml
 	flags.StringVar(&sinkYamlOptions.Dir, "sink-yaml-dir", sinkYamlOptions.Dir, "Sink yaml directory")
 
-	// Sink Telegraf
-	flags.StringSliceVar(&sinkTelegrafOptions.Pass, "sink-telegraf-pass", sinkTelegrafOptions.Pass, "Telegraf pass through")
+	// Sink Telegraf general
+	flags.StringSliceVar(&sinkTelegrafOptions.Pass, "sink-telegraf-pass", sinkTelegrafOptions.Pass, "Telegraf sink pass through")
+	flags.BoolVar(&sinkTelegrafOptions.Checksum, "sink-telegraf-checksum", sinkTelegrafOptions.Checksum, "Telegraf sink checksum")
+	// Sink Telegraf Signal
+	flags.StringVar(&sinkTelegrafOptions.Signal.Template, "sink-telegraf-signal-template", sinkTelegrafOptions.Signal.Template, "Telegraf sink Signal template")
+	flags.StringVar(&sinkTelegrafOptions.Signal.Tags, "sink-telegraf-signal-tags", sinkTelegrafOptions.Signal.Tags, "Telegraf sink Signal tags")
+	flags.StringVar(&sinkTelegrafOptions.Signal.URL, "sink-telegraf-signal-url", sinkTelegrafOptions.Signal.URL, "Telegraf sink Signal URL")
+	flags.StringVar(&sinkTelegrafOptions.Signal.User, "sink-telegraf-signal-user", sinkTelegrafOptions.Signal.User, "Telegraf sink Signal user")
+	flags.StringVar(&sinkTelegrafOptions.Signal.Password, "sink-telegraf-signal-password", sinkTelegrafOptions.Signal.Password, "Telegraf sink Signal password")
+	flags.StringVar(&sinkTelegrafOptions.Signal.Version, "sink-telegraf-signal-version", sinkTelegrafOptions.Signal.Version, "Telegraf sink Signal version")
+	flags.StringVar(&sinkTelegrafOptions.Signal.Params, "sink-telegraf-signal-params", sinkTelegrafOptions.Signal.Params, "Telegraf sink Signal params")
+	flags.StringVar(&sinkTelegrafOptions.Signal.Interval, "ssink-telegraf-signal-interval", sinkTelegrafOptions.Signal.Interval, "Telegraf sink Signal interval")
+	flags.StringVar(&sinkTelegrafOptions.Signal.Timeout, "sink-telegraf-signal-timeout", sinkTelegrafOptions.Signal.Timeout, "Telegraf sink Signal timeout")
+	flags.StringVar(&sinkTelegrafOptions.Signal.Duration, "sink-telegraf-signal-duration", sinkTelegrafOptions.Signal.Duration, "Telegraf sink Signal duration")
+	flags.StringVar(&sinkTelegrafOptions.Signal.Prefix, "sink-telegraf-signal-prefix", sinkTelegrafOptions.Signal.Prefix, "Telegraf sink Signal prefix")
+	flags.StringVar(&sinkTelegrafOptions.Signal.QualityName, "sink-telegraf-signal-quality-name", sinkTelegrafOptions.Signal.QualityName, "Telegraf sink Signal quality name")
+	flags.StringVar(&sinkTelegrafOptions.Signal.QualityRange, "sink-telegraf-signal-quality-range", sinkTelegrafOptions.Signal.QualityRange, "Telegraf sink Signal quality range")
+	flags.StringVar(&sinkTelegrafOptions.Signal.QualityEvery, "sink-telegraf-signal-quality-every", sinkTelegrafOptions.Signal.QualityEvery, "Telegraf sink Signal quality every")
+	flags.IntVar(&sinkTelegrafOptions.Signal.QualityPoints, "sink-telegraf-signal-quality-points", sinkTelegrafOptions.Signal.QualityPoints, "Telegraf sink Signal quality points")
+	flags.StringVar(&sinkTelegrafOptions.Signal.QualityQuery, "sink-telegraf-signal-quality-query", sinkTelegrafOptions.Signal.QualityQuery, "Telegraf sink Signal quality query")
+	flags.StringVar(&sinkTelegrafOptions.Signal.AvailabilityName, "sink-telegraf-signal-availability-name", sinkTelegrafOptions.Signal.AvailabilityName, "Telegraf sink Signal availability name")
+	flags.StringVar(&sinkTelegrafOptions.Signal.MetricName, "sink-telegraf-signal-metric-name", sinkTelegrafOptions.Signal.MetricName, "Telegraf sink Signal metric name")
+	flags.StringSliceVar(&sinkTelegrafOptions.Signal.DefaultTags, "sink-telegraf-signal-default-tags", sinkTelegrafOptions.Signal.DefaultTags, "Telegraf sink Signal default tags")
+	flags.StringVar(&sinkTelegrafOptions.Signal.VarFormat, "sink-telegraf-signal-var-format", sinkTelegrafOptions.Signal.VarFormat, "Telegraf sink Signal var format")
+	// Sink Telegraf Cert
+	flags.StringVar(&sinkTelegrafOptions.Cert.Conf, "cert-telegraf-conf", sinkTelegrafOptions.Cert.Conf, "Telegraf sink Cert conf")
+	flags.StringVar(&sinkTelegrafOptions.Cert.Template, "cert-telegraf-template", sinkTelegrafOptions.Cert.Template, "Telegraf sink Cert template")
+	flags.StringVar(&sinkTelegrafOptions.Cert.Interval, "cert-telegraf-interval", sinkTelegrafOptions.Cert.Interval, "Telegraf sink Cert interval")
+	flags.StringVar(&sinkTelegrafOptions.Cert.Timeout, "cert-telegraf-timeout", sinkTelegrafOptions.Cert.Timeout, "Telegraf sink Cert timeout")
+	flags.StringVar(&sinkTelegrafOptions.Cert.ServerName, "cert-telegraf-server-name", sinkTelegrafOptions.Cert.ServerName, "Telegraf sink Cert server name")
+	flags.BoolVar(&sinkTelegrafOptions.Cert.ExcludeRootCerts, "cert-telegraf-exclude-root-certs", sinkTelegrafOptions.Cert.ExcludeRootCerts, "Telegraf sink Cert exclude root certs")
+	flags.StringVar(&sinkTelegrafOptions.Cert.TLSCA, "cert-telegraf-read-tls-ca", sinkTelegrafOptions.Cert.TLSCA, "Telegraf sink Cert TLS CA")
+	flags.StringVar(&sinkTelegrafOptions.Cert.TLSCert, "cert-telegraf-read-tls-cert", sinkTelegrafOptions.Cert.TLSCert, "Telegraf sink Cert TLS cert")
+	flags.StringVar(&sinkTelegrafOptions.Cert.TLSServerName, "cert-telegraf-read-tls-server-name", sinkTelegrafOptions.Cert.TLSServerName, "Telegraf sink Cert TLS server name")
+	flags.BoolVar(&sinkTelegrafOptions.Cert.UseProxy, "cert-telegraf-use-proxy", sinkTelegrafOptions.Cert.UseProxy, "Telegraf sink Cert use proxy")
+	flags.StringVar(&sinkTelegrafOptions.Cert.ProxyURL, "cert-telegraf-read-proxy-url", sinkTelegrafOptions.Cert.ProxyURL, "Telegraf sink Cert proxy URL")
+	flags.StringSliceVar(&sinkTelegrafOptions.Cert.Tags, "cert-telegraf-tags", sinkTelegrafOptions.Cert.Tags, "Telegraf sink Cert tags")
+	// Sink Telegraf DNS
+	flags.StringVar(&sinkTelegrafOptions.DNS.Conf, "sink-telegraf-dns-conf", sinkTelegrafOptions.DNS.Conf, "Telegraf sink DNS conf")
+	flags.StringVar(&sinkTelegrafOptions.DNS.Template, "sink-telegraf-dns-template", sinkTelegrafOptions.DNS.Template, "Telegraf sink DNS template")
+	flags.StringVar(&sinkTelegrafOptions.DNS.Interval, "sink-telegraf-dns-interval", sinkTelegrafOptions.DNS.Interval, "Telegraf sink DNS interval")
+	flags.StringVar(&sinkTelegrafOptions.DNS.Servers, "sink-telegraf-dns-servers", sinkTelegrafOptions.DNS.Servers, "Telegraf sink DNS servers")
+	flags.StringVar(&sinkTelegrafOptions.DNS.Network, "sink-telegraf-dns-network", sinkTelegrafOptions.DNS.Network, "Telegraf sink DNS network")
+	flags.StringVar(&sinkTelegrafOptions.DNS.Domains, "sink-telegraf-dns-domains", sinkTelegrafOptions.DNS.Domains, "Telegraf sink DNS domains")
+	flags.StringVar(&sinkTelegrafOptions.DNS.RecordType, "sink-telegraf-dns-record-type", sinkTelegrafOptions.DNS.RecordType, "Telegraf sink DNS record type")
+	flags.IntVar(&sinkTelegrafOptions.DNS.Port, "sink-telegraf-dns-port", sinkTelegrafOptions.DNS.Port, "Telegraf sink DNS port")
+	flags.IntVar(&sinkTelegrafOptions.DNS.Timeout, "sink-telegraf-dns-timeout", sinkTelegrafOptions.DNS.Timeout, "Telegraf sink DNS timeout")
+	flags.StringSliceVar(&sinkTelegrafOptions.DNS.Tags, "sink-telegraf-dns-tags", sinkTelegrafOptions.DNS.Tags, "Telegraf sink DNS tags")
+	// Sink Telegraf HTTP
+	flags.StringVar(&sinkTelegrafOptions.HTTP.Conf, "sink-telegraf-http-conf", sinkTelegrafOptions.HTTP.Conf, "Telegraf sink HTTP conf")
+	flags.StringVar(&sinkTelegrafOptions.HTTP.Template, "sink-telegraf-http-template", sinkTelegrafOptions.HTTP.Template, "Telegraf sink HTTP template")
+	flags.StringVar(&sinkTelegrafOptions.HTTP.Interval, "sink-telegraf-http-interval", sinkTelegrafOptions.HTTP.Interval, "Telegraf sink HTTP interval")
+	flags.StringVar(&sinkTelegrafOptions.HTTP.URLs, "sink-telegraf-http-urls", sinkTelegrafOptions.HTTP.URLs, "Telegraf sink HTTP URLs")
+	flags.StringVar(&sinkTelegrafOptions.HTTP.Method, "sink-telegraf-http-method", sinkTelegrafOptions.HTTP.Method, "Telegraf sink HTTP method")
+	flags.BoolVar(&sinkTelegrafOptions.HTTP.FollowRedirects, "sink-telegraf-http-follow-redirects", sinkTelegrafOptions.HTTP.FollowRedirects, "Telegraf sink HTTP follow redirects")
+	flags.StringVar(&sinkTelegrafOptions.HTTP.StringMatch, "sink-telegraf-http-string-match", sinkTelegrafOptions.HTTP.StringMatch, "Telegraf sink HTTP string match")
+	flags.IntVar(&sinkTelegrafOptions.HTTP.StatusCode, "sink-telegraf-http-status-code", sinkTelegrafOptions.HTTP.StatusCode, "Telegraf sink HTTP status code")
+	flags.StringVar(&sinkTelegrafOptions.HTTP.Timeout, "sink-telegraf-http-timeout", sinkTelegrafOptions.HTTP.Timeout, "Telegraf sink HTTP timeout")
+	flags.StringSliceVar(&sinkTelegrafOptions.HTTP.Tags, "sink-telegraf-http-tags", sinkTelegrafOptions.HTTP.Tags, "Telegraf sink HTTP tags")
+	// Sink Telegraf TCP
+	flags.StringVar(&sinkTelegrafOptions.TCP.Conf, "sink-telegraf-tcp-conf", sinkTelegrafOptions.TCP.Conf, "Telegraf sink TCP conf")
+	flags.StringVar(&sinkTelegrafOptions.TCP.Template, "sink-telegraf-tcp-template", sinkTelegrafOptions.TCP.Template, "Telegraf sink TCP template")
+	flags.StringVar(&sinkTelegrafOptions.TCP.Interval, "sink-telegraf-tcp-interval", sinkTelegrafOptions.TCP.Interval, "TTelegraf sink TCP interval")
+	flags.StringVar(&sinkTelegrafOptions.TCP.Send, "sink-telegraf-tcp-send", sinkTelegrafOptions.TCP.Send, "Telegraf sink TCP send")
+	flags.StringVar(&sinkTelegrafOptions.TCP.Expect, "sink-telegraf-tcp-expect", sinkTelegrafOptions.TCP.Expect, "Telegraf sink TCP expect")
+	flags.StringVar(&sinkTelegrafOptions.TCP.Timeout, "sink-telegraf-tcp-timeout", sinkTelegrafOptions.TCP.Timeout, "Telegraf sink TCP timeout")
+	flags.StringVar(&sinkTelegrafOptions.TCP.ReadTimeout, "sink-telegraf-tcp-read-timeout", sinkTelegrafOptions.TCP.ReadTimeout, "Telegraf sink TCP read timeout")
+	flags.StringSliceVar(&sinkTelegrafOptions.TCP.Tags, "sink-telegraf-tcp-tags", sinkTelegrafOptions.TCP.Tags, "Telegraf sink TCP tags")
 
 	interceptSyscall()
 

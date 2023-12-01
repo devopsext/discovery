@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/devopsext/discovery/common"
-	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	toolsVendors "github.com/devopsext/tools/vendors"
@@ -25,11 +24,7 @@ type HTTPOptions struct {
 	Names       string
 	Exclusion   string
 	NoSSL       string
-
-	TelegrafConf     string
-	TelegrafTemplate string
-	TelegrafChecksum bool
-	TelegrafOptions  telegraf.InputHTTPResponseOptions
+	Path        string
 }
 
 type HTTP struct {
@@ -44,16 +39,16 @@ type HTTP struct {
 	sinks          *common.Sinks
 }
 
-type HTTPSink struct {
+type HTTPSinkObject struct {
 	sinkMap common.SinkMap
 	http    *HTTP
 }
 
-func (hs *HTTPSink) Map() common.SinkMap {
+func (hs *HTTPSinkObject) Map() common.SinkMap {
 	return hs.sinkMap
 }
 
-func (hs *HTTPSink) Options() interface{} {
+func (hs *HTTPSinkObject) Options() interface{} {
 	return hs.http.options
 }
 
@@ -109,8 +104,8 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 	}
 
 	path := ""
-	if !utils.IsEmpty(h.options.TelegrafOptions.Path) {
-		path = h.render(h.pathTemplate, h.options.TelegrafOptions.Path, labels)
+	if !utils.IsEmpty(h.options.Path) {
+		path = h.render(h.pathTemplate, h.options.Path, labels)
 		path = strings.TrimLeft(path, "/")
 		if !utils.IsEmpty(path) {
 			path = fmt.Sprintf("/%s", path)
@@ -237,7 +232,7 @@ func (h *HTTP) Discover() {
 	}
 	h.logger.Debug("%s: HTTP found %d urls according query. Processing...", h.source, len(urls))
 
-	h.sinks.Process(h, &HTTPSink{
+	h.sinks.Process(h, &HTTPSinkObject{
 		sinkMap: common.ConvertLabelsMapToSinkMap(urls),
 		http:    h,
 	})
@@ -268,7 +263,7 @@ func NewHTTP(source string, prometheusOptions common.PrometheusOptions, options 
 	}
 
 	pathOpts := toolsRender.TemplateOptions{
-		Content: options.TelegrafOptions.Path,
+		Content: options.Path,
 		Name:    "http-path",
 	}
 	pathTemplate, err := toolsRender.NewTextTemplate(pathOpts, observability)
@@ -278,12 +273,12 @@ func NewHTTP(source string, prometheusOptions common.PrometheusOptions, options 
 	}
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
-		URL:          prometheusOptions.URL,
-		HttpUsername: prometheusOptions.HttpUsername,
-		HttpPassword: prometheusOptions.HttpPassword,
-		Timeout:      prometheusOptions.Timeout,
-		Insecure:     prometheusOptions.Insecure,
-		Query:        options.Query,
+		URL:      prometheusOptions.URL,
+		User:     prometheusOptions.User,
+		Password: prometheusOptions.Password,
+		Timeout:  prometheusOptions.Timeout,
+		Insecure: prometheusOptions.Insecure,
+		Query:    options.Query,
 	}
 
 	return &HTTP{

@@ -34,13 +34,13 @@ type InputPrometheusHttpAvailability struct {
 type InputPrometheusHttp struct {
 	Name          string                             `toml:"name"`
 	URL           string                             `toml:"url"`
-	HttpUsername  string                             `toml:"http_username"`
-	HttpPassword  string                             `toml:"http_password"`
+	User          string                             `toml:"user,omitempty"`
+	Password      string                             `toml:"password,omitempty"`
 	Version       string                             `toml:"version"`
-	Params        string                             `toml:"params"`
+	Params        string                             `toml:"params,omitempty"`
 	Interval      string                             `toml:"interval"`
 	Timeout       string                             `toml:"timeout"`
-	Duration      string                             `toml:"duration"`
+	Duration      string                             `toml:"duration,omitempty"`
 	Prefix        string                             `toml:"prefix"`
 	File          []*InputPrometheusHttpFile         `toml:"file"`
 	Metric        []*InputPrometheusHttpMetric       `toml:"metric"`
@@ -54,8 +54,8 @@ type InputPrometheusHttp struct {
 type InputPrometheusHttpOptions struct {
 	Interval         string
 	URL              string
-	HttpUsername     string
-	HttpPassword     string
+	User             string
+	Password         string
 	Version          string
 	Params           string
 	Timeout          string
@@ -270,7 +270,7 @@ func (ti *InputPrometheusHttp) buildMetrics(s *common.Service, metrics []*common
 		metric.Name = common.IfDef(m.Name, opts.MetricName).(string)
 		metric.Query = ti.sanitizeQuery(qe)
 		metric.UniqueBy = m.UniqueBy
-  
+
 		tags1 := ti.buildTags(metric.Name, labels, opts.VarFormat, vars)
 		tags2 := ti.buildTags(metric.Name, m.Labels, opts.VarFormat, vars)
 		tags := common.MergeStringMaps(tags1, tags2)

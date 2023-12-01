@@ -70,9 +70,9 @@ type Files map[string]*File
 type Service struct {
 	Metrics []string
 	Configs map[string]*BaseConfig
-	Labels  Labels
-	Vars    map[string]string
-	Files   Files
+	//	Labels  Labels
+	Vars  map[string]string
+	Files Files
 }
 
 type Services map[string]*Service

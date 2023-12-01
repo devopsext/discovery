@@ -232,10 +232,10 @@ func GetPrometheusDiscoveriesByInstances(names string) []PromDiscoveryObject {
 		}
 
 		promDiscoveryObject := PromDiscoveryObject{
-			Name:         name,
-			URL:          url,
-			HttpUsername: username,
-			HttpPassword: password,
+			Name:     name,
+			URL:      url,
+			User:     username,
+			Password: password,
 		}
 
 		promDiscoveryObjects = append(promDiscoveryObjects, promDiscoveryObject)

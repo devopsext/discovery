@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/devopsext/discovery/common"
-	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	toolsVendors "github.com/devopsext/tools/vendors"
@@ -22,15 +21,9 @@ type TCPOptions struct {
 	QueryStep   string
 	Schedule    string
 	Pattern     string
-
-	Names     string
-	Exclusion string
-	NoSSL     string
-
-	TelegrafConf     string
-	TelegrafTemplate string
-	TelegrafChecksum bool
-	TelegrafOptions  telegraf.InputNetResponseOptions
+	Names       string
+	Exclusion   string
+	NoSSL       string
 }
 
 type TCP struct {
@@ -44,16 +37,16 @@ type TCP struct {
 	sinks          *common.Sinks
 }
 
-type TCPSink struct {
+type TCPSinkObject struct {
 	sinkMap common.SinkMap
 	tcp     *TCP
 }
 
-func (ts *TCPSink) Map() common.SinkMap {
+func (ts *TCPSinkObject) Map() common.SinkMap {
 	return ts.sinkMap
 }
 
-func (ts *TCPSink) Options() interface{} {
+func (ts *TCPSinkObject) Options() interface{} {
 	return ts.tcp.options
 }
 
@@ -206,7 +199,7 @@ func (t *TCP) Discover() {
 	}
 	t.logger.Debug("%s: TCP found %d addresses according query. Processing...", t.source, len(addresses))
 
-	t.sinks.Process(t, &TCPSink{
+	t.sinks.Process(t, &TCPSinkObject{
 		sinkMap: common.ConvertLabelsMapToSinkMap(addresses),
 		tcp:     t,
 	})
@@ -238,6 +231,8 @@ func NewTCP(source string, prometheusOptions common.PrometheusOptions, options T
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
 		URL:      prometheusOptions.URL,
+		User:     prometheusOptions.User,
+		Password: prometheusOptions.Password,
 		Timeout:  prometheusOptions.Timeout,
 		Insecure: prometheusOptions.Insecure,
 		Query:    options.Query,

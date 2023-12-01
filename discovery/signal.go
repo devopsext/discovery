@@ -12,7 +12,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/devopsext/discovery/common"
-	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	toolsVendors "github.com/devopsext/tools/vendors"
@@ -21,6 +20,9 @@ import (
 )
 
 type SignalOptions struct {
+	URL          string
+	User         string
+	Password     string
 	Disabled     []string
 	Schedule     string
 	Query        string
@@ -32,39 +34,33 @@ type SignalOptions struct {
 	BaseTemplate string
 	Vars         string
 	Files        string
-
-	TelegrafTags     string
-	TelegrafTemplate string
-	TelegrafChecksum bool
-	TelegrafOptions  telegraf.InputPrometheusHttpOptions
 }
 
 type Signal struct {
-	source           string
-	prometheus       *toolsVendors.Prometheus
-	prometheusOpts   toolsVendors.PrometheusOptions
-	options          SignalOptions
-	logger           sreCommon.Logger
-	observability    *common.Observability
-	serviceTemplate  *toolsRender.TextTemplate
-	fieldTemplate    *toolsRender.TextTemplate
-	telegrafTemplate *toolsRender.TextTemplate
-	varsTemplate     *toolsRender.TextTemplate
-	files            map[string]interface{}
-	disables         map[string]*toolsRender.TextTemplate
-	sinks            *common.Sinks
+	source          string
+	prometheus      *toolsVendors.Prometheus
+	prometheusOpts  toolsVendors.PrometheusOptions
+	options         SignalOptions
+	logger          sreCommon.Logger
+	observability   *common.Observability
+	serviceTemplate *toolsRender.TextTemplate
+	fieldTemplate   *toolsRender.TextTemplate
+	varsTemplate    *toolsRender.TextTemplate
+	files           map[string]interface{}
+	disables        map[string]*toolsRender.TextTemplate
+	sinks           *common.Sinks
 }
 
-type SignalSink struct {
+type SignalSinkObject struct {
 	sinkMap common.SinkMap
 	signal  *Signal
 }
 
-func (ss *SignalSink) Map() common.SinkMap {
+func (ss *SignalSinkObject) Map() common.SinkMap {
 	return ss.sinkMap
 }
 
-func (ss *SignalSink) Options() interface{} {
+func (ss *SignalSinkObject) Options() interface{} {
 	return ss.signal.options
 }
 
@@ -502,7 +498,7 @@ func (s *Signal) Discover() {
 	}
 	s.logger.Debug("%s: Signal found %d services according query. Processing...", s.source, len(services))
 
-	s.sinks.Process(s, &SignalSink{
+	s.sinks.Process(s, &SignalSinkObject{
 		sinkMap: common.ConvertServicesToSinkMap(services),
 		signal:  s,
 	})
@@ -517,13 +513,13 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 		return nil
 	}
 
-	if utils.IsEmpty(options.TelegrafOptions.URL) {
-		options.TelegrafOptions.URL = prometheusOptions.URL
+	if utils.IsEmpty(options.URL) {
+		options.URL = prometheusOptions.URL
 	}
 
-	if !utils.IsEmpty(prometheusOptions.HttpUsername) && !utils.IsEmpty(prometheusOptions.HttpPassword) {
-		options.TelegrafOptions.HttpUsername = prometheusOptions.HttpUsername
-		options.TelegrafOptions.HttpPassword = prometheusOptions.HttpPassword
+	if !utils.IsEmpty(prometheusOptions.User) && !utils.IsEmpty(prometheusOptions.Password) {
+		options.User = prometheusOptions.User
+		options.Password = prometheusOptions.Password
 	}
 
 	if utils.IsEmpty(options.Query) {
@@ -562,12 +558,12 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 	}
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
-		URL:          prometheusOptions.URL,
-		HttpUsername: prometheusOptions.HttpUsername,
-		HttpPassword: prometheusOptions.HttpPassword,
-		Timeout:      prometheusOptions.Timeout,
-		Insecure:     prometheusOptions.Insecure,
-		Query:        options.Query,
+		URL:      prometheusOptions.URL,
+		User:     prometheusOptions.User,
+		Password: prometheusOptions.Password,
+		Timeout:  prometheusOptions.Timeout,
+		Insecure: prometheusOptions.Insecure,
+		Query:    options.Query,
 	}
 
 	return &Signal{

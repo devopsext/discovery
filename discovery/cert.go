@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/devopsext/discovery/common"
-	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	toolsVendors "github.com/devopsext/tools/vendors"
@@ -24,11 +23,6 @@ type CertOptions struct {
 	Pattern     string
 	Names       string
 	Exclusion   string
-
-	TelegrafConf     string
-	TelegrafTemplate string
-	TelegrafChecksum bool
-	TelegrafOptions  telegraf.InputX509CertOptions
 }
 
 type Cert struct {
@@ -42,16 +36,16 @@ type Cert struct {
 	sinks          *common.Sinks
 }
 
-type CertSink struct {
+type CertSinkObject struct {
 	sinkMap common.SinkMap
 	cert    *Cert
 }
 
-func (cs *CertSink) Map() common.SinkMap {
+func (cs *CertSinkObject) Map() common.SinkMap {
 	return cs.sinkMap
 }
 
-func (cs *CertSink) Options() interface{} {
+func (cs *CertSinkObject) Options() interface{} {
 	return cs.cert.options
 }
 
@@ -222,7 +216,7 @@ func (c *Cert) Discover() {
 	}
 	c.logger.Debug("%s: cert found %d urls according query. Processing...", c.source, len(urls))
 
-	c.sinks.Process(c, &CertSink{
+	c.sinks.Process(c, &CertSinkObject{
 		sinkMap: common.ConvertLabelsMapToSinkMap(urls),
 		cert:    c,
 	})
@@ -254,6 +248,8 @@ func NewCert(source string, prometheusOptions common.PrometheusOptions, options 
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
 		URL:      prometheusOptions.URL,
+		User:     prometheusOptions.User,
+		Password: prometheusOptions.Password,
 		Timeout:  prometheusOptions.Timeout,
 		Insecure: prometheusOptions.Insecure,
 		Query:    options.Query,

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/devopsext/discovery/common"
-	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	toolsVendors "github.com/devopsext/tools/vendors"
@@ -24,11 +23,6 @@ type DNSOptions struct {
 	Pattern     string
 	Names       string
 	Exclusion   string
-
-	TelegrafConf     string
-	TelegrafTemplate string
-	TelegrafChecksum bool
-	TelegrafOptions  telegraf.InputDNSQueryOptions
 }
 
 type DNS struct {
@@ -42,16 +36,16 @@ type DNS struct {
 	sinks               *common.Sinks
 }
 
-type DNSSink struct {
+type DNSSinkObject struct {
 	sinkMap common.SinkMap
 	dns     *DNS
 }
 
-func (ds *DNSSink) Map() common.SinkMap {
+func (ds *DNSSinkObject) Map() common.SinkMap {
 	return ds.sinkMap
 }
 
-func (ds *DNSSink) Options() interface{} {
+func (ds *DNSSinkObject) Options() interface{} {
 	return ds.dns.options
 }
 
@@ -200,7 +194,7 @@ func (d *DNS) Discover() {
 	}
 	d.logger.Debug("%s: DNS found %d domains according query. Processing...", d.source, len(domains))
 
-	d.sinks.Process(d, &DNSSink{
+	d.sinks.Process(d, &DNSSinkObject{
 		sinkMap: common.ConvertLabelsMapToSinkMap(domains),
 		dns:     d,
 	})
@@ -232,6 +226,8 @@ func NewDNS(source string, prometheusOptions common.PrometheusOptions, options D
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
 		URL:      prometheusOptions.URL,
+		User:     prometheusOptions.User,
+		Password: prometheusOptions.Password,
 		Timeout:  prometheusOptions.Timeout,
 		Insecure: prometheusOptions.Insecure,
 		Query:    options.Query,
