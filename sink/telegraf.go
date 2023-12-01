@@ -65,9 +65,9 @@ func (t *Telegraf) Pass() []string {
 }
 
 // .telegraf/prefix-{{.namespace}}-discovery-{{.service}}-{{.container_name}}{{.container}}.conf
-func (t *Telegraf) processSignal(d common.Discovery, so common.SinkObject) error {
+func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so interface{}) error {
 
-	opts, ok := so.Options().(discovery.SignalOptions)
+	opts, ok := so.(discovery.SignalOptions)
 	if !ok {
 		return errors.New("no options")
 	}
@@ -84,7 +84,7 @@ func (t *Telegraf) processSignal(d common.Discovery, so common.SinkObject) error
 		t.options.Signal.Password = opts.Password
 	}
 
-	m := common.ConvertSyncMapToServices(so.Map())
+	m := common.ConvertSyncMapToServices(sm)
 	source := d.Source()
 
 	for k, s1 := range m {
@@ -107,12 +107,12 @@ func (t *Telegraf) processSignal(d common.Discovery, so common.SinkObject) error
 	return nil
 }
 
-func (t *Telegraf) processCert(d common.Discovery, so common.SinkObject) error {
+func (t *Telegraf) processCert(d common.Discovery, sm common.SinkMap) error {
 
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
-	m := common.ConvertSyncMapToLabelsMap(so.Map())
+	m := common.ConvertSyncMapToLabelsMap(sm)
 	bs, err := telegrafConfig.GenerateInputX509CertBytes(t.options.Cert.InputX509CertOptions, m)
 	if err != nil {
 		return err
@@ -121,12 +121,12 @@ func (t *Telegraf) processCert(d common.Discovery, so common.SinkObject) error {
 	return nil
 }
 
-func (t *Telegraf) processDNS(d common.Discovery, so common.SinkObject) error {
+func (t *Telegraf) processDNS(d common.Discovery, sm common.SinkMap) error {
 
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
-	m := common.ConvertSyncMapToLabelsMap(so.Map())
+	m := common.ConvertSyncMapToLabelsMap(sm)
 	bs, err := telegrafConfig.GenerateInputDNSQueryBytes(t.options.DNS.InputDNSQueryOptions, m)
 	if err != nil {
 		return err
@@ -135,12 +135,12 @@ func (t *Telegraf) processDNS(d common.Discovery, so common.SinkObject) error {
 	return nil
 }
 
-func (t *Telegraf) processHTTP(d common.Discovery, so common.SinkObject) error {
+func (t *Telegraf) processHTTP(d common.Discovery, sm common.SinkMap) error {
 
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
-	m := common.ConvertSyncMapToLabelsMap(so.Map())
+	m := common.ConvertSyncMapToLabelsMap(sm)
 	bs, err := telegrafConfig.GenerateInputHTTPResponseBytes(t.options.HTTP.InputHTTPResponseOptions, m)
 	if err != nil {
 		return err
@@ -149,12 +149,12 @@ func (t *Telegraf) processHTTP(d common.Discovery, so common.SinkObject) error {
 	return nil
 }
 
-func (t *Telegraf) processTCP(d common.Discovery, so common.SinkObject) error {
+func (t *Telegraf) processTCP(d common.Discovery, sm common.SinkMap) error {
 
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
-	m := common.ConvertSyncMapToLabelsMap(so.Map())
+	m := common.ConvertSyncMapToLabelsMap(sm)
 	bs, err := telegrafConfig.GenerateInputNETResponseBytes(t.options.TCP.InputNetResponseOptions, m, "tcp")
 	if err != nil {
 		return err
@@ -172,15 +172,15 @@ func (t *Telegraf) Process(d common.Discovery, so common.SinkObject) {
 
 	switch dname {
 	case "Signal":
-		err = t.processSignal(d, so)
+		err = t.processSignal(d, m, so.Options())
 	case "Cert":
-		err = t.processCert(d, so)
+		err = t.processCert(d, m)
 	case "DNS":
-		err = t.processDNS(d, so)
+		err = t.processDNS(d, m)
 	case "HTTP":
-		err = t.processHTTP(d, so)
+		err = t.processHTTP(d, m)
 	case "TCP":
-		err = t.processTCP(d, so)
+		err = t.processTCP(d, m)
 	default:
 		t.logger.Debug("Telegraf has no support for %s", dname)
 		return

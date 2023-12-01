@@ -55,17 +55,17 @@ var stdoutOptions = sreProvider.StdoutOptions{
 var prometheusMetricsOptions = sreProvider.PrometheusOptions{
 	URL:    envGet("PROMETHEUS_METRICS_URL", "/metrics").(string),
 	Listen: envGet("PROMETHEUS_METRICS_LISTEN", ":8080").(string),
-	Prefix: envGet("PROMETHEUS_METRICS_PREFIX", "events").(string),
+	Prefix: envGet("PROMETHEUS_METRICS_PREFIX", "").(string),
 }
 
-var discoveryPrometheusOptions = common.PrometheusOptions{
+var dPrometheusOptions = common.PrometheusOptions{
 	Names:    envStringExpand("PROMETHEUS_NAMES", ""),
 	URL:      envStringExpand("PROMETHEUS_URL", ""),
 	Timeout:  envGet("PROMETHEUS_TIMEOUT", 30).(int),
 	Insecure: envGet("PROMETHEUS_INSECURE", false).(bool),
 }
 
-var discoverySignalOptions = discovery.SignalOptions{
+var dSignalOptions = discovery.SignalOptions{
 	URL:          envGet("SIGNAL_URL", "").(string),
 	User:         envGet("SIGNAL_USER", "").(string),
 	Password:     envGet("SIGNAL_PASSWORD", "").(string),
@@ -82,7 +82,7 @@ var discoverySignalOptions = discovery.SignalOptions{
 	BaseTemplate: envStringExpand("SIGNAL_BASE_TEMPLATE", ""),
 }
 
-var discoveryDNSOptions = discovery.DNSOptions{
+var dDNSOptions = discovery.DNSOptions{
 	Schedule:    envGet("DNS_SCHEDULE", "").(string),
 	Query:       envFileContentExpand("DNS_QUERY", ""),
 	QueryPeriod: envGet("DNS_QUERY_PERIOD", "").(string),
@@ -92,7 +92,7 @@ var discoveryDNSOptions = discovery.DNSOptions{
 	Exclusion:   envGet("DNS_EXCLUSION", "").(string),
 }
 
-var discoveryHTTPOptions = discovery.HTTPOptions{
+var dHTTPOptions = discovery.HTTPOptions{
 	Schedule:    envGet("HTTP_SCHEDULE", "").(string),
 	Query:       envFileContentExpand("HTTP_QUERY", ""),
 	QueryPeriod: envGet("HTTP_QUERY_PERIOD", "").(string),
@@ -104,7 +104,7 @@ var discoveryHTTPOptions = discovery.HTTPOptions{
 	Path:        envFileContentExpand("HTTP_PATH", ""),
 }
 
-var discoveryTCPOptions = discovery.TCPOptions{
+var dTCPOptions = discovery.TCPOptions{
 	Schedule:    envGet("TCP_SCHEDULE", "").(string),
 	Query:       envFileContentExpand("TCP_QUERY", ""),
 	QueryPeriod: envGet("TCP_QUERY_PERIOD", "").(string),
@@ -114,7 +114,7 @@ var discoveryTCPOptions = discovery.TCPOptions{
 	Exclusion:   envGet("TCP_EXCLUSION", "").(string),
 }
 
-var discoveryCertOptions = discovery.CertOptions{
+var dCertOptions = discovery.CertOptions{
 	Schedule:    envGet("CERT_SCHEDULE", "").(string),
 	Query:       envFileContentExpand("CERT_QUERY", ""),
 	QueryPeriod: envGet("CERT_QUERY_PERIOD", "").(string),
@@ -124,7 +124,7 @@ var discoveryCertOptions = discovery.CertOptions{
 	Exclusion:   envGet("CERT_EXCLUSION", "").(string),
 }
 
-var discoveryObserviumOptions = discovery.ObserviumOptions{
+var dObserviumOptions = discovery.ObserviumOptions{
 	Schedule: envGet("OBSERVIUM_SCHEDULE", "").(string),
 	ObserviumOptions: vendors.ObserviumOptions{
 		Timeout:  envGet("OBSERVIUM_TIMEOUT", 5).(int),
@@ -136,7 +136,7 @@ var discoveryObserviumOptions = discovery.ObserviumOptions{
 	},
 }
 
-var discoveryPubSubOptions = discovery.PubSubOptions{
+var dPubSubOptions = discovery.PubSubOptions{
 	Enabled:                 envGet("PUBSUB_ENABLED", false).(bool),
 	Credentials:             envGet("PUBSUB_CREDENTIALS", "").(string),
 	ProjectID:               envGet("PUBSUB_PROJECT_ID", "").(string),
@@ -236,6 +236,10 @@ var sinkTelegrafOptions = sink.TelegrafOptions{
 			Tags:        strings.Split(envStringExpand("SINK_TELEGRAF_TCP_TAGS", ""), ","),
 		},
 	},
+}
+
+var sinkObservabilityOptions = sink.ObservabilityOptions{
+	Pass: strings.Split(envStringExpand("SINK_OBSERVABILITY_PASS", ""), ","),
 }
 
 func getOnlyEnv(key string) string {
@@ -373,22 +377,23 @@ func Execute() {
 			sinks.Add(sink.NewJson(sinkJsonOptions, obs))
 			sinks.Add(sink.NewYaml(sinkYamlOptions, obs))
 			sinks.Add(sink.NewTelegraf(sinkTelegrafOptions, obs))
+			sinks.Add(sink.NewObservability(sinkObservabilityOptions, obs))
 
 			// define scheduler
 			scheduler := gocron.NewScheduler(time.UTC)
 			wg := &sync.WaitGroup{}
 
 			// run prometheus discoveries for each prometheus name for URLs and run related discoveries
-			promDiscoveryObjects := common.GetPrometheusDiscoveriesByInstances(discoveryPrometheusOptions.Names)
+			promDiscoveryObjects := common.GetPrometheusDiscoveriesByInstances(dPrometheusOptions.Names)
 			for _, prom := range promDiscoveryObjects {
 
 				opts := common.PrometheusOptions{}
-				copier.CopyWithOption(&opts, &discoveryPrometheusOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+				copier.CopyWithOption(&opts, &dPrometheusOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 
 				m := make(map[string]string)
 				m["name"] = prom.Name
 				m["url"] = prom.URL
-				opts.URL = common.Render(discoveryPrometheusOptions.URL, m, obs)
+				opts.URL = common.Render(dPrometheusOptions.URL, m, obs)
 				opts.User = prom.User
 				opts.Password = prom.Password
 
@@ -396,20 +401,20 @@ func Execute() {
 					logger.Debug("Prometheus discovery is not found")
 					continue
 				}
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoverySignalOptions.Schedule, prom.Name, prom.URL, discovery.NewSignal(prom.Name, opts, discoverySignalOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryDNSOptions.Schedule, prom.Name, prom.URL, discovery.NewDNS(prom.Name, opts, discoveryDNSOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryHTTPOptions.Schedule, prom.Name, prom.URL, discovery.NewHTTP(prom.Name, opts, discoveryHTTPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryTCPOptions.Schedule, prom.Name, prom.URL, discovery.NewTCP(prom.Name, opts, discoveryTCPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryCertOptions.Schedule, prom.Name, prom.URL, discovery.NewCert(prom.Name, opts, discoveryCertOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dSignalOptions.Schedule, prom.Name, prom.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dDNSOptions.Schedule, prom.Name, prom.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dHTTPOptions.Schedule, prom.Name, prom.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dTCPOptions.Schedule, prom.Name, prom.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dCertOptions.Schedule, prom.Name, prom.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
 			}
 			// run simple discoveries
-			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, discoveryObserviumOptions.Schedule, discovery.NewObservium(discoveryObserviumOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
 
 			scheduler.StartAsync()
 
 			// run supportive discoveries without scheduler
 			if !rootOptions.RunOnce {
-				runStandAloneDiscovery(wg, discovery.NewPubSub(discoveryPubSubOptions, obs, sinks), logger)
+				runStandAloneDiscovery(wg, discovery.NewPubSub(dPubSubOptions, obs, sinks), logger)
 			}
 			wg.Wait()
 
@@ -437,82 +442,82 @@ func Execute() {
 	flags.StringVar(&prometheusMetricsOptions.Listen, "prometheus-metrics-listen", prometheusMetricsOptions.Listen, "Prometheus metrics listen")
 	flags.StringVar(&prometheusMetricsOptions.Prefix, "prometheus-metrics-prefix", prometheusMetricsOptions.Prefix, "Prometheus metrics prefix")
 
-	flags.StringVar(&discoveryPrometheusOptions.Names, "prometheus-names", discoveryPrometheusOptions.Names, "Prometheus discovery names")
-	flags.StringVar(&discoveryPrometheusOptions.URL, "prometheus-url", discoveryPrometheusOptions.URL, "Prometheus discovery URL")
-	flags.IntVar(&discoveryPrometheusOptions.Timeout, "prometheus-timeout", discoveryPrometheusOptions.Timeout, "Prometheus discovery timeout in seconds")
-	flags.BoolVar(&discoveryPrometheusOptions.Insecure, "prometheus-insecure", discoveryPrometheusOptions.Insecure, "Prometheus discovery insecure")
+	flags.StringVar(&dPrometheusOptions.Names, "prometheus-names", dPrometheusOptions.Names, "Prometheus discovery names")
+	flags.StringVar(&dPrometheusOptions.URL, "prometheus-url", dPrometheusOptions.URL, "Prometheus discovery URL")
+	flags.IntVar(&dPrometheusOptions.Timeout, "prometheus-timeout", dPrometheusOptions.Timeout, "Prometheus discovery timeout in seconds")
+	flags.BoolVar(&dPrometheusOptions.Insecure, "prometheus-insecure", dPrometheusOptions.Insecure, "Prometheus discovery insecure")
 
 	// Signal
-	flags.StringVar(&discoverySignalOptions.URL, "signal-url", discoverySignalOptions.URL, "Signal discovery url")
-	flags.StringVar(&discoverySignalOptions.User, "signal-user", discoverySignalOptions.User, "Signal discovery user")
-	flags.StringVar(&discoverySignalOptions.Password, "signal-password", discoverySignalOptions.Password, "Signal discovery password")
-	flags.StringVar(&discoverySignalOptions.Schedule, "signal-schedule", discoverySignalOptions.Schedule, "Signal discovery schedule")
-	flags.StringVar(&discoverySignalOptions.Query, "signal-query", discoverySignalOptions.Query, "Signal discovery query")
-	flags.StringVar(&discoverySignalOptions.QueryPeriod, "signal-query-period", discoverySignalOptions.QueryPeriod, "Signal discovery query period")
-	flags.StringVar(&discoverySignalOptions.QueryStep, "signal-query-step", discoverySignalOptions.QueryStep, "Signal discovery query step")
-	flags.StringVar(&discoverySignalOptions.Service, "signal-service", discoverySignalOptions.Service, "Signal discovery service label")
-	flags.StringVar(&discoverySignalOptions.Field, "signal-field", discoverySignalOptions.Field, "Signal discovery field label")
-	flags.StringVar(&discoverySignalOptions.Metric, "signal-metric", discoverySignalOptions.Metric, "Signal discovery metric label")
-	flags.StringVar(&discoverySignalOptions.Files, "signal-files", discoverySignalOptions.Files, "Signal discovery files")
-	flags.StringSliceVar(&discoverySignalOptions.Disabled, "signal-disabled", discoverySignalOptions.Disabled, "Signal discovery disabled services")
-	flags.StringVar(&discoverySignalOptions.BaseTemplate, "signal-base-template", discoverySignalOptions.BaseTemplate, "Signal discovery base template")
-	flags.StringVar(&discoverySignalOptions.Vars, "signal-vars", discoverySignalOptions.Vars, "Signal discovery vars")
+	flags.StringVar(&dSignalOptions.URL, "signal-url", dSignalOptions.URL, "Signal discovery url")
+	flags.StringVar(&dSignalOptions.User, "signal-user", dSignalOptions.User, "Signal discovery user")
+	flags.StringVar(&dSignalOptions.Password, "signal-password", dSignalOptions.Password, "Signal discovery password")
+	flags.StringVar(&dSignalOptions.Schedule, "signal-schedule", dSignalOptions.Schedule, "Signal discovery schedule")
+	flags.StringVar(&dSignalOptions.Query, "signal-query", dSignalOptions.Query, "Signal discovery query")
+	flags.StringVar(&dSignalOptions.QueryPeriod, "signal-query-period", dSignalOptions.QueryPeriod, "Signal discovery query period")
+	flags.StringVar(&dSignalOptions.QueryStep, "signal-query-step", dSignalOptions.QueryStep, "Signal discovery query step")
+	flags.StringVar(&dSignalOptions.Service, "signal-service", dSignalOptions.Service, "Signal discovery service label")
+	flags.StringVar(&dSignalOptions.Field, "signal-field", dSignalOptions.Field, "Signal discovery field label")
+	flags.StringVar(&dSignalOptions.Metric, "signal-metric", dSignalOptions.Metric, "Signal discovery metric label")
+	flags.StringVar(&dSignalOptions.Files, "signal-files", dSignalOptions.Files, "Signal discovery files")
+	flags.StringSliceVar(&dSignalOptions.Disabled, "signal-disabled", dSignalOptions.Disabled, "Signal discovery disabled services")
+	flags.StringVar(&dSignalOptions.BaseTemplate, "signal-base-template", dSignalOptions.BaseTemplate, "Signal discovery base template")
+	flags.StringVar(&dSignalOptions.Vars, "signal-vars", dSignalOptions.Vars, "Signal discovery vars")
 
 	// DNS
-	flags.StringVar(&discoveryDNSOptions.Schedule, "dns-schedule", discoveryDNSOptions.Schedule, "DNS discovery schedule")
-	flags.StringVar(&discoveryDNSOptions.Query, "dns-query", discoveryDNSOptions.Query, "DNS discovery query")
-	flags.StringVar(&discoveryDNSOptions.QueryPeriod, "dns-query-period", discoveryDNSOptions.QueryPeriod, "DNS discovery query period")
-	flags.StringVar(&discoveryDNSOptions.QueryStep, "dns-query-step", discoveryDNSOptions.QueryStep, "DNS discovery query step")
-	flags.StringVar(&discoveryDNSOptions.Pattern, "dns-pattern", discoveryDNSOptions.Pattern, "DNS discovery domain pattern")
-	flags.StringVar(&discoveryDNSOptions.Names, "dns-names", discoveryDNSOptions.Names, "DNS discovery domain names")
-	flags.StringVar(&discoveryDNSOptions.Exclusion, "dns-exclusion", discoveryDNSOptions.Exclusion, "DNS discovery domain exclusion")
+	flags.StringVar(&dDNSOptions.Schedule, "dns-schedule", dDNSOptions.Schedule, "DNS discovery schedule")
+	flags.StringVar(&dDNSOptions.Query, "dns-query", dDNSOptions.Query, "DNS discovery query")
+	flags.StringVar(&dDNSOptions.QueryPeriod, "dns-query-period", dDNSOptions.QueryPeriod, "DNS discovery query period")
+	flags.StringVar(&dDNSOptions.QueryStep, "dns-query-step", dDNSOptions.QueryStep, "DNS discovery query step")
+	flags.StringVar(&dDNSOptions.Pattern, "dns-pattern", dDNSOptions.Pattern, "DNS discovery domain pattern")
+	flags.StringVar(&dDNSOptions.Names, "dns-names", dDNSOptions.Names, "DNS discovery domain names")
+	flags.StringVar(&dDNSOptions.Exclusion, "dns-exclusion", dDNSOptions.Exclusion, "DNS discovery domain exclusion")
 
 	// HTTP
-	flags.StringVar(&discoveryHTTPOptions.Schedule, "http-schedule", discoveryHTTPOptions.Schedule, "HTTP discovery schedule")
-	flags.StringVar(&discoveryHTTPOptions.Query, "http-query", discoveryHTTPOptions.Query, "HTTP discovery query")
-	flags.StringVar(&discoveryHTTPOptions.QueryPeriod, "http-query-period", discoveryHTTPOptions.QueryPeriod, "HTTP discovery query period")
-	flags.StringVar(&discoveryHTTPOptions.QueryStep, "http-query-step", discoveryHTTPOptions.QueryStep, "HTTP discovery query step")
-	flags.StringVar(&discoveryHTTPOptions.Pattern, "http-pattern", discoveryHTTPOptions.Pattern, "HTTP discovery pattern")
-	flags.StringVar(&discoveryHTTPOptions.Names, "http-names", discoveryHTTPOptions.Names, "HTTP discovery names")
-	flags.StringVar(&discoveryHTTPOptions.Exclusion, "http-exclusion", discoveryHTTPOptions.Exclusion, "HTTP discovery exclusion")
-	flags.StringVar(&discoveryHTTPOptions.NoSSL, "http-no-ssl", discoveryHTTPOptions.NoSSL, "HTTP no SSL pattern")
+	flags.StringVar(&dHTTPOptions.Schedule, "http-schedule", dHTTPOptions.Schedule, "HTTP discovery schedule")
+	flags.StringVar(&dHTTPOptions.Query, "http-query", dHTTPOptions.Query, "HTTP discovery query")
+	flags.StringVar(&dHTTPOptions.QueryPeriod, "http-query-period", dHTTPOptions.QueryPeriod, "HTTP discovery query period")
+	flags.StringVar(&dHTTPOptions.QueryStep, "http-query-step", dHTTPOptions.QueryStep, "HTTP discovery query step")
+	flags.StringVar(&dHTTPOptions.Pattern, "http-pattern", dHTTPOptions.Pattern, "HTTP discovery pattern")
+	flags.StringVar(&dHTTPOptions.Names, "http-names", dHTTPOptions.Names, "HTTP discovery names")
+	flags.StringVar(&dHTTPOptions.Exclusion, "http-exclusion", dHTTPOptions.Exclusion, "HTTP discovery exclusion")
+	flags.StringVar(&dHTTPOptions.NoSSL, "http-no-ssl", dHTTPOptions.NoSSL, "HTTP no SSL pattern")
 
 	// TCP
-	flags.StringVar(&discoveryTCPOptions.Schedule, "tcp-schedule", discoveryTCPOptions.Schedule, "TCP discovery schedule")
-	flags.StringVar(&discoveryTCPOptions.Query, "tcp-query", discoveryTCPOptions.Query, "TCP discovery query")
-	flags.StringVar(&discoveryTCPOptions.QueryPeriod, "tcp-query-period", discoveryTCPOptions.QueryPeriod, "TCP discovery query period")
-	flags.StringVar(&discoveryTCPOptions.QueryStep, "tcp-query-step", discoveryTCPOptions.QueryStep, "TCP discovery query step")
-	flags.StringVar(&discoveryTCPOptions.Pattern, "tcp-pattern", discoveryTCPOptions.Pattern, "TCP discovery pattern")
-	flags.StringVar(&discoveryTCPOptions.Names, "tcp-names", discoveryTCPOptions.Names, "TCP discovery names")
-	flags.StringVar(&discoveryTCPOptions.Exclusion, "tcp-exclusion", discoveryTCPOptions.Exclusion, "TCP discovery exclusion")
+	flags.StringVar(&dTCPOptions.Schedule, "tcp-schedule", dTCPOptions.Schedule, "TCP discovery schedule")
+	flags.StringVar(&dTCPOptions.Query, "tcp-query", dTCPOptions.Query, "TCP discovery query")
+	flags.StringVar(&dTCPOptions.QueryPeriod, "tcp-query-period", dTCPOptions.QueryPeriod, "TCP discovery query period")
+	flags.StringVar(&dTCPOptions.QueryStep, "tcp-query-step", dTCPOptions.QueryStep, "TCP discovery query step")
+	flags.StringVar(&dTCPOptions.Pattern, "tcp-pattern", dTCPOptions.Pattern, "TCP discovery pattern")
+	flags.StringVar(&dTCPOptions.Names, "tcp-names", dTCPOptions.Names, "TCP discovery names")
+	flags.StringVar(&dTCPOptions.Exclusion, "tcp-exclusion", dTCPOptions.Exclusion, "TCP discovery exclusion")
 
 	// CERT
-	flags.StringVar(&discoveryCertOptions.Schedule, "cert-schedule", discoveryCertOptions.Schedule, "Cert discovery schedule")
-	flags.StringVar(&discoveryCertOptions.Query, "cert-query", discoveryCertOptions.Query, "Cert discovery query")
-	flags.StringVar(&discoveryCertOptions.QueryPeriod, "cert-query-period", discoveryCertOptions.QueryPeriod, "Cert discovery query period")
-	flags.StringVar(&discoveryCertOptions.QueryStep, "cert-query-step", discoveryCertOptions.QueryStep, "Cert discovery query step")
-	flags.StringVar(&discoveryCertOptions.Pattern, "cert-pattern", discoveryCertOptions.Pattern, "Cert discovery pattern")
-	flags.StringVar(&discoveryCertOptions.Names, "cert-names", discoveryCertOptions.Names, "Cert discovery names")
-	flags.StringVar(&discoveryCertOptions.Exclusion, "cert-exclusion", discoveryCertOptions.Exclusion, "Cert discovery exclusion")
+	flags.StringVar(&dCertOptions.Schedule, "cert-schedule", dCertOptions.Schedule, "Cert discovery schedule")
+	flags.StringVar(&dCertOptions.Query, "cert-query", dCertOptions.Query, "Cert discovery query")
+	flags.StringVar(&dCertOptions.QueryPeriod, "cert-query-period", dCertOptions.QueryPeriod, "Cert discovery query period")
+	flags.StringVar(&dCertOptions.QueryStep, "cert-query-step", dCertOptions.QueryStep, "Cert discovery query step")
+	flags.StringVar(&dCertOptions.Pattern, "cert-pattern", dCertOptions.Pattern, "Cert discovery pattern")
+	flags.StringVar(&dCertOptions.Names, "cert-names", dCertOptions.Names, "Cert discovery names")
+	flags.StringVar(&dCertOptions.Exclusion, "cert-exclusion", dCertOptions.Exclusion, "Cert discovery exclusion")
 
 	// Observium
-	flags.StringVar(&discoveryObserviumOptions.Schedule, "observium-schedule", discoveryObserviumOptions.Schedule, "Observium discovery schedule")
-	flags.IntVar(&discoveryObserviumOptions.Timeout, "observium-timeout", discoveryObserviumOptions.Timeout, "Observium discovery timeout")
-	flags.BoolVar(&discoveryObserviumOptions.Insecure, "observium-insecure", discoveryObserviumOptions.Insecure, "Observium discovery insecure")
-	flags.StringVar(&discoveryObserviumOptions.URL, "observium-url", discoveryObserviumOptions.URL, "Observium discovery URL")
-	flags.StringVar(&discoveryObserviumOptions.User, "observium-user", discoveryObserviumOptions.User, "Observium discovery user")
-	flags.StringVar(&discoveryObserviumOptions.Password, "observium-password", discoveryObserviumOptions.Password, "Observium discovery password")
-	flags.StringVar(&discoveryObserviumOptions.Token, "observium-token", discoveryObserviumOptions.Token, "Observium discovery token")
+	flags.StringVar(&dObserviumOptions.Schedule, "observium-schedule", dObserviumOptions.Schedule, "Observium discovery schedule")
+	flags.IntVar(&dObserviumOptions.Timeout, "observium-timeout", dObserviumOptions.Timeout, "Observium discovery timeout")
+	flags.BoolVar(&dObserviumOptions.Insecure, "observium-insecure", dObserviumOptions.Insecure, "Observium discovery insecure")
+	flags.StringVar(&dObserviumOptions.URL, "observium-url", dObserviumOptions.URL, "Observium discovery URL")
+	flags.StringVar(&dObserviumOptions.User, "observium-user", dObserviumOptions.User, "Observium discovery user")
+	flags.StringVar(&dObserviumOptions.Password, "observium-password", dObserviumOptions.Password, "Observium discovery password")
+	flags.StringVar(&dObserviumOptions.Token, "observium-token", dObserviumOptions.Token, "Observium discovery token")
 
 	// PubSub
-	flags.BoolVar(&discoveryPubSubOptions.Enabled, "pubsub-enabled", discoveryPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")
-	flags.StringVar(&discoveryPubSubOptions.Credentials, "pubsub-credentials", discoveryPubSubOptions.Credentials, "Credentials for PubSub")
-	flags.StringVar(&discoveryPubSubOptions.ProjectID, "pubsub-project-id", discoveryPubSubOptions.ProjectID, "PubSub project ID")
-	flags.StringVar(&discoveryPubSubOptions.TopicID, "pubsub-topic-id", discoveryPubSubOptions.TopicID, "PubSub topic ID")
-	flags.StringVar(&discoveryPubSubOptions.SubscriptionName, "pubsub-subscription-name", discoveryPubSubOptions.SubscriptionName, "PubSub subscription name")
-	flags.IntVar(&discoveryPubSubOptions.SubscriptionAckDeadline, "pubsub-subscription-ack-deadline", discoveryPubSubOptions.SubscriptionAckDeadline, "PubSub subscription ack deadline duration seconds")
-	flags.IntVar(&discoveryPubSubOptions.SubscriptionRetention, "pubsub-subscription-retention", discoveryPubSubOptions.SubscriptionRetention, "PubSub subscription retention duration seconds")
-	flags.StringVar(&discoveryPubSubOptions.Dir, "pubsub-dir", discoveryPubSubOptions.Dir, "Pubsub directory")
+	flags.BoolVar(&dPubSubOptions.Enabled, "pubsub-enabled", dPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")
+	flags.StringVar(&dPubSubOptions.Credentials, "pubsub-credentials", dPubSubOptions.Credentials, "Credentials for PubSub")
+	flags.StringVar(&dPubSubOptions.ProjectID, "pubsub-project-id", dPubSubOptions.ProjectID, "PubSub project ID")
+	flags.StringVar(&dPubSubOptions.TopicID, "pubsub-topic-id", dPubSubOptions.TopicID, "PubSub topic ID")
+	flags.StringVar(&dPubSubOptions.SubscriptionName, "pubsub-subscription-name", dPubSubOptions.SubscriptionName, "PubSub subscription name")
+	flags.IntVar(&dPubSubOptions.SubscriptionAckDeadline, "pubsub-subscription-ack-deadline", dPubSubOptions.SubscriptionAckDeadline, "PubSub subscription ack deadline duration seconds")
+	flags.IntVar(&dPubSubOptions.SubscriptionRetention, "pubsub-subscription-retention", dPubSubOptions.SubscriptionRetention, "PubSub subscription retention duration seconds")
+	flags.StringVar(&dPubSubOptions.Dir, "pubsub-dir", dPubSubOptions.Dir, "Pubsub directory")
 
 	// Sink Json
 	flags.StringVar(&sinkJsonOptions.Dir, "sink-json-dir", sinkJsonOptions.Dir, "Sink json directory")
@@ -588,6 +593,9 @@ func Execute() {
 	flags.StringVar(&sinkTelegrafOptions.TCP.Timeout, "sink-telegraf-tcp-timeout", sinkTelegrafOptions.TCP.Timeout, "Telegraf sink TCP timeout")
 	flags.StringVar(&sinkTelegrafOptions.TCP.ReadTimeout, "sink-telegraf-tcp-read-timeout", sinkTelegrafOptions.TCP.ReadTimeout, "Telegraf sink TCP read timeout")
 	flags.StringSliceVar(&sinkTelegrafOptions.TCP.Tags, "sink-telegraf-tcp-tags", sinkTelegrafOptions.TCP.Tags, "Telegraf sink TCP tags")
+
+	// Sink Observability
+	flags.StringSliceVar(&sinkObservabilityOptions.Pass, "sink-observability-pass", sinkObservabilityOptions.Pass, "Observability sink pass through")
 
 	interceptSyscall()
 

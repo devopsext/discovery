@@ -5,7 +5,7 @@ go 1.21
 require (
 	cloud.google.com/go/pubsub v1.3.1
 	github.com/BurntSushi/toml v0.3.1
-	github.com/devopsext/sre v0.1.6
+	github.com/devopsext/sre v0.2.2
 	github.com/devopsext/tools v0.9.16
 	github.com/devopsext/utils v0.2.1
 	github.com/go-co-op/gocron v1.18.0
