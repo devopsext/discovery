@@ -100,7 +100,7 @@ func (t *TCP) appendAddress(name string, addresses map[string]common.Labels, lab
 func (t *TCP) findAddresses(vectors []*common.PrometheusResponseDataVector) common.LabelsMap {
 
 	ret := make(common.LabelsMap)
-	gid := utils.GetRoutineID()
+	gid := utils.GoRoutineID()
 
 	l := len(vectors)
 	t.logger.Debug("[%d] %s: found %d series", gid, t.source, l)

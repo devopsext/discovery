@@ -129,7 +129,7 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 func (h *HTTP) findURLs(vectors []*common.PrometheusResponseDataVector) common.LabelsMap {
 
 	ret := make(common.LabelsMap)
-	gid := utils.GetRoutineID()
+	gid := utils.GoRoutineID()
 
 	l := len(vectors)
 	h.logger.Debug("[%d] %s: found %d series", gid, h.source, l)

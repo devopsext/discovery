@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"reflect"
 	"strings"
 	"time"
 
@@ -239,7 +238,10 @@ var sinkTelegrafOptions = sink.TelegrafOptions{
 }
 
 var sinkObservabilityOptions = sink.ObservabilityOptions{
-	Pass: strings.Split(envStringExpand("SINK_OBSERVABILITY_PASS", ""), ","),
+	DiscoveryName: envGet("SINK_OBSERVABILITY_DISCOVERY_NAME", "discovery").(string),
+	TotalName:     envGet("SINK_OBSERVABILITY_TOTAL_NAME", "discovered").(string),
+	Providers:     strings.Split(envStringExpand("SINK_OBSERVABILITY_PROVIDERS", ""), ","),
+	Labels:        strings.Split(envStringExpand("SINK_OBSERVABILITY_LABELS", ""), ","),
 }
 
 func getOnlyEnv(key string) string {
@@ -291,7 +293,7 @@ func runSchedule(s *gocron.Scheduler, schedule string, jobFun interface{}) {
 
 func runStandAloneDiscovery(wg *sync.WaitGroup, discovery common.Discovery, logger *sreCommon.Logs) {
 
-	if reflect.ValueOf(discovery).IsNil() {
+	if utils.IsEmpty(discovery) {
 		return
 	}
 	wg.Add(1)
@@ -304,7 +306,7 @@ func runStandAloneDiscovery(wg *sync.WaitGroup, discovery common.Discovery, logg
 
 func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.Scheduler, schedule string, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
 
-	if reflect.ValueOf(discovery).IsNil() {
+	if utils.IsEmpty(discovery) {
 		return
 	}
 	// run once and return if there is flag
@@ -325,7 +327,7 @@ func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.
 
 func runSimpleDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.Scheduler, schedule string, discovery common.Discovery, logger *sreCommon.Logs) {
 
-	if reflect.ValueOf(discovery).IsNil() {
+	if utils.IsEmpty(discovery) {
 		return
 	}
 	// run once and return if there is flag
@@ -595,7 +597,10 @@ func Execute() {
 	flags.StringSliceVar(&sinkTelegrafOptions.TCP.Tags, "sink-telegraf-tcp-tags", sinkTelegrafOptions.TCP.Tags, "Telegraf sink TCP tags")
 
 	// Sink Observability
-	flags.StringSliceVar(&sinkObservabilityOptions.Pass, "sink-observability-pass", sinkObservabilityOptions.Pass, "Observability sink pass through")
+	flags.StringVar(&sinkObservabilityOptions.DiscoveryName, "sink-observability-discovery-name", sinkObservabilityOptions.DiscoveryName, "Observability sink discovery name")
+	flags.StringVar(&sinkObservabilityOptions.TotalName, "sink-observability-total-name", sinkObservabilityOptions.TotalName, "Observability sink total name")
+	flags.StringSliceVar(&sinkObservabilityOptions.Providers, "sink-observability-providers", sinkObservabilityOptions.Providers, "Observability sink providers through")
+	flags.StringSliceVar(&sinkObservabilityOptions.Labels, "sink-observability-labels", sinkObservabilityOptions.Labels, "Observability sink labels through")
 
 	interceptSyscall()
 

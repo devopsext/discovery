@@ -27,6 +27,7 @@ type Sinks struct {
 
 type HostSink struct {
 	IP     string
+	Host   string
 	Vendor string
 }
 
@@ -37,6 +38,7 @@ func AppendHostSink(m SinkMap, name string, hs HostSink) {
 	}
 	labels := make(Labels)
 	labels["ip"] = hs.IP
+	labels["host"] = hs.Host
 	labels["vendor"] = hs.Vendor
 	m[name] = labels
 }

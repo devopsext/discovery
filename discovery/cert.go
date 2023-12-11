@@ -117,7 +117,7 @@ func (c *Cert) appendAddress(name string, urls common.LabelsMap, labels map[stri
 func (c *Cert) findURLs(vectors []*common.PrometheusResponseDataVector) common.LabelsMap {
 
 	ret := make(common.LabelsMap)
-	gid := utils.GetRoutineID()
+	gid := utils.GoRoutineID()
 
 	l := len(vectors)
 	c.logger.Debug("[%d] %s: found %d series", gid, c.source, l)

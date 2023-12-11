@@ -29,6 +29,21 @@ func ReadFiles(pattern string) ([]string, error) {
 	return ret, err
 }
 
+func FilterStringMap(m map[string]string, keys []string) map[string]string {
+
+	r := make(map[string]string)
+	for k, v := range m {
+		if len(keys) == 0 {
+			r[k] = v
+			continue
+		}
+		if utils.Contains(keys, k) {
+			r[k] = v
+		}
+	}
+	return r
+}
+
 func MergeStringMaps(maps ...map[string]string) map[string]string {
 
 	r := make(map[string]string)

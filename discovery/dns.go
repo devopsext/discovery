@@ -95,7 +95,7 @@ func (d *DNS) appendDomain(name string, domains map[string]common.Labels, labels
 func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) common.LabelsMap {
 
 	ret := make(common.LabelsMap)
-	gid := utils.GetRoutineID()
+	gid := utils.GoRoutineID()
 
 	l := len(vectors)
 	d.logger.Debug("[%d] %s: found %d series", gid, d.source, l)

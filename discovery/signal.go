@@ -316,7 +316,7 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 
 	configs := s.readBaseConfigs()
 	matched := make(map[string]*common.Service)
-	gid := utils.GetRoutineID()
+	gid := utils.GoRoutineID()
 
 	if utils.IsEmpty(s.options.Metric) {
 		s.logger.Debug("[%d] %s: metric name is empty", gid, s.source)

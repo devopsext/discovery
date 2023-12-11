@@ -9,6 +9,19 @@ import (
 	"github.com/devopsext/utils"
 )
 
+type ObserviumDevice struct {
+	Name   string `json:"sysName"`
+	Host   string `json:"hostname"`
+	IP     string `json:"ip"`
+	Vendor string `json:"vendor"`
+}
+
+type ObserviumDeviceResponse struct {
+	Status  string                     `json:"status"`
+	Count   int                        `json:"count"`
+	Devices map[string]ObserviumDevice `json:"devices"`
+}
+
 type ObserviumOptions struct {
 	toolsVendors.ObserviumOptions
 	Schedule string
@@ -43,14 +56,15 @@ func (o *Observium) Source() string {
 	return ""
 }
 
-func (o *Observium) makeDevicesSinkMap(devices map[string]common.ObserviumDevice) common.SinkMap {
+func (o *Observium) makeDevicesSinkMap(devices map[string]ObserviumDevice) common.SinkMap {
 
 	r := make(common.SinkMap)
 
 	for _, v := range devices {
 
-		common.AppendHostSink(r, v.Host, common.HostSink{
+		common.AppendHostSink(r, v.Name, common.HostSink{
 			IP:     v.IP,
+			Host:   v.Host,
 			Vendor: v.Vendor,
 		})
 	}
@@ -67,7 +81,7 @@ func (o *Observium) Discover() {
 		return
 	}
 
-	var res common.ObserviumDeviceResponse
+	var res ObserviumDeviceResponse
 	if err := json.Unmarshal(data, &res); err != nil {
 		o.logger.Error(err)
 		return

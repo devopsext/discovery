@@ -2,20 +2,24 @@ package sink
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
+	"github.com/devopsext/utils"
 )
 
 type ObservabilityOptions struct {
-	Pass []string
+	DiscoveryName string
+	TotalName     string
+	Providers     []string
+	Labels        []string
 }
 
 type Observability struct {
 	options       ObservabilityOptions
 	logger        sreCommon.Logger
 	meter         sreCommon.Meter
-	requests      sreCommon.Gauge
 	observability *common.Observability
 }
 
@@ -24,7 +28,23 @@ func (o *Observability) Name() string {
 }
 
 func (o *Observability) Pass() []string {
-	return o.options.Pass
+	return o.options.Providers
+}
+
+func (o *Observability) getDiscoveryName() string {
+
+	if !utils.IsEmpty(o.options.DiscoveryName) {
+		return o.options.DiscoveryName
+	}
+	return strings.ToLower(o.Name())
+}
+
+func (o *Observability) getTotalName() string {
+
+	if !utils.IsEmpty(o.options.TotalName) {
+		return o.options.TotalName
+	}
+	return strings.ToLower(fmt.Sprintf("%s_total", o.Name()))
 }
 
 func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
@@ -34,18 +54,44 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 
 	o.logger.Debug("Observability has to process %d objects from %s...", len(m), dname)
 
-	lm := common.ConvertSyncMapToLabelsMap(m)
+	var lm common.LabelsMap
+
+	switch dname {
+	case "Signal":
+		ms := common.ConvertSyncMapToServices(m)
+		if len(ms) == 0 {
+			break
+		}
+		lm = make(map[string]common.Labels)
+		for k1, s1 := range ms {
+			lm[k1] = s1.Vars
+		}
+	default:
+		lm = common.ConvertSyncMapToLabelsMap(m)
+	}
+
 	if len(lm) == 0 {
 		o.logger.Debug("Observability has no support for %s", dname)
 		return
 	}
 
-	for k, _ := range lm {
+	labels := make(sreCommon.Labels)
+	labels["provider"] = dname
+	c := o.meter.Counter(o.getTotalName(), "Discovered total", labels)
 
-		desc := fmt.Sprintf("Discovery from %s", dname)
-		g := o.meter.Gauge("discovery", desc, []string{"name", "type"})
-		g.Set(1, k, dname)
+	dn := o.getDiscoveryName()
+
+	for k, v := range lm {
+
+		labels := make(sreCommon.Labels)
+		labels["name"] = k
+		labels["provider"] = dname
+		labels = common.MergeStringMaps(labels, common.FilterStringMap(v, o.options.Labels))
+		g := o.meter.Gauge(dn, "Discovery existence", labels)
+		g.Set(1)
 	}
+	c.Add(len(lm))
+
 }
 
 func NewObservability(options ObservabilityOptions, observability *common.Observability) *Observability {
@@ -53,7 +99,8 @@ func NewObservability(options ObservabilityOptions, observability *common.Observ
 	logger := observability.Logs()
 	meter := observability.Metrics()
 
-	options.Pass = common.RemoveEmptyStrings(options.Pass)
+	options.Providers = common.RemoveEmptyStrings(options.Providers)
+	options.Labels = common.RemoveEmptyStrings(options.Labels)
 
 	return &Observability{
 		options:       options,
