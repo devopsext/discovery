@@ -364,7 +364,11 @@ func Execute() {
 				m := make(map[string]string)
 				m["name"] = prom.Name
 				m["url"] = prom.URL
-				opts.URL = common.Render(discoveryPrometheusOptions.URL, m, observability)
+				if strings.HasPrefix(strings.ToLower(prom.URL), "https://") {
+					opts.URL = prom.URL
+				} else {
+					opts.URL = common.Render(discoveryPrometheusOptions.URL, m, observability)
+				}
 				opts.HttpUsername = prom.HttpUsername
 				opts.HttpPassword = prom.HttpPassword
 
