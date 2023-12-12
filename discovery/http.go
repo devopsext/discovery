@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/devopsext/discovery/common"
-	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	toolsVendors "github.com/devopsext/tools/vendors"
@@ -25,15 +24,11 @@ type HTTPOptions struct {
 	Names       string
 	Exclusion   string
 	NoSSL       string
-
-	TelegrafConf     string
-	TelegrafTemplate string
-	TelegrafChecksum bool
-	TelegrafOptions  telegraf.InputHTTPResponseOptions
+	Path        string
 }
 
 type HTTP struct {
-	name           string
+	source         string
 	prometheus     *toolsVendors.Prometheus
 	prometheusOpts toolsVendors.PrometheusOptions
 	options        HTTPOptions
@@ -41,6 +36,28 @@ type HTTP struct {
 	observability  *common.Observability
 	namesTemplate  *toolsRender.TextTemplate
 	pathTemplate   *toolsRender.TextTemplate
+	sinks          *common.Sinks
+}
+
+type HTTPSinkObject struct {
+	sinkMap common.SinkMap
+	http    *HTTP
+}
+
+func (hs *HTTPSinkObject) Map() common.SinkMap {
+	return hs.sinkMap
+}
+
+func (hs *HTTPSinkObject) Options() interface{} {
+	return hs.http.options
+}
+
+func (h *HTTP) Name() string {
+	return "HTTP"
+}
+
+func (h *HTTP) Source() string {
+	return h.source
 }
 
 func (h *HTTP) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
@@ -51,20 +68,6 @@ func (h *HTTP) render(tpl *toolsRender.TextTemplate, def string, obj interface{}
 		return def
 	}
 	return s1
-}
-
-// .telegraf/HTTP-discovery.conf
-func (h *HTTP) createTelegrafConfigs(names map[string]common.Labels) {
-
-	telegrafConfig := &telegraf.Config{
-		Observability: h.observability,
-	}
-	bs, err := telegrafConfig.GenerateInputHTTPResponseBytes(h.options.TelegrafOptions, names)
-	if err != nil {
-		h.logger.Error("%s: HTTP query error: %s", h.name, err)
-		return
-	}
-	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(h.name, h.options.TelegrafTemplate, h.options.TelegrafConf, h.options.TelegrafChecksum, bs, h.logger)
 }
 
 func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[string]string, rExclusion, rNoSSL *regexp.Regexp) {
@@ -101,8 +104,8 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 	}
 
 	path := ""
-	if !utils.IsEmpty(h.options.TelegrafOptions.Path) {
-		path = h.render(h.pathTemplate, h.options.TelegrafOptions.Path, labels)
+	if !utils.IsEmpty(h.options.Path) {
+		path = h.render(h.pathTemplate, h.options.Path, labels)
 		path = strings.TrimLeft(path, "/")
 		if !utils.IsEmpty(path) {
 			path = fmt.Sprintf("/%s", path)
@@ -123,13 +126,13 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 	urls[name] = labels
 }
 
-func (h *HTTP) findURLs(vectors []*common.PrometheusResponseDataVector) map[string]common.Labels {
+func (h *HTTP) findURLs(vectors []*common.PrometheusResponseDataVector) common.LabelsMap {
 
-	ret := make(map[string]common.Labels)
-	gid := utils.GetRoutineID()
+	ret := make(common.LabelsMap)
+	gid := utils.GoRoutineID()
 
 	l := len(vectors)
-	h.logger.Debug("[%d] %s: found %d series", gid, h.name, l)
+	h.logger.Debug("[%d] %s: found %d series", gid, h.source, l)
 	if len(vectors) == 0 {
 		return ret
 	}
@@ -147,14 +150,14 @@ func (h *HTTP) findURLs(vectors []*common.PrometheusResponseDataVector) map[stri
 	for _, v := range vectors {
 
 		if len(v.Labels) < 1 {
-			h.logger.Debug("[%d] %s: No labels, min requirements (1): %v", gid, h.name, v.Labels)
+			h.logger.Debug("[%d] %s: No labels, min requirements (1): %v", gid, h.source, v.Labels)
 			continue
 		}
 
 		name := ""
 		ident := h.render(h.namesTemplate, h.options.Names, v.Labels)
 		if utils.IsEmpty(ident) {
-			h.logger.Debug("[%d] %s: No name found in labels, but: %v", gid, h.name, v.Labels)
+			h.logger.Debug("[%d] %s: No name found in labels, but: %v", gid, h.source, v.Labels)
 			continue
 		}
 		if ident == h.options.Names {
@@ -182,7 +185,7 @@ func (h *HTTP) findURLs(vectors []*common.PrometheusResponseDataVector) map[stri
 
 func (h *HTTP) Discover() {
 
-	h.logger.Debug("%s: HTTP discovery by query: %s", h.name, h.options.Query)
+	h.logger.Debug("%s: HTTP discovery by query: %s", h.source, h.options.Query)
 	if !utils.IsEmpty(h.options.QueryPeriod) {
 		// https://Signal.io/docs/Signal/latest/querying/api/#range-queries
 		t := time.Now().UTC()
@@ -192,7 +195,7 @@ func (h *HTTP) Discover() {
 		if utils.IsEmpty(h.prometheusOpts.Step) {
 			h.prometheusOpts.Step = "15s"
 		}
-		h.logger.Debug("%s: HTTP discovery range: %s <-> %s", h.name, h.prometheusOpts.From, h.prometheusOpts.To)
+		h.logger.Debug("%s: HTTP discovery range: %s <-> %s", h.source, h.prometheusOpts.From, h.prometheusOpts.To)
 	}
 
 	data, err := h.prometheus.CustomGet(h.prometheusOpts)
@@ -213,35 +216,39 @@ func (h *HTTP) Discover() {
 	}
 
 	if (res.Data == nil) || (len(res.Data.Result) == 0) {
-		h.logger.Error("%s: HTTP empty data on response", h.name)
+		h.logger.Error("%s: HTTP empty data on response", h.source)
 		return
 	}
 
 	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-		h.logger.Error("%s: HTTP only vector and matrix are allowed", h.name)
+		h.logger.Error("%s: HTTP only vector and matrix are allowed", h.source)
 		return
 	}
 
 	urls := h.findURLs(res.Data.Result)
 	if len(urls) == 0 {
-		h.logger.Debug("%s: HTTP not found any urls according query", h.name)
+		h.logger.Debug("%s: HTTP not found any urls according query", h.source)
 		return
 	}
-	h.logger.Debug("%s: HTTP found %d urls according query", h.name, len(urls))
-	h.createTelegrafConfigs(urls)
+	h.logger.Debug("%s: HTTP found %d urls according query. Processing...", h.source, len(urls))
+
+	h.sinks.Process(h, &HTTPSinkObject{
+		sinkMap: common.ConvertLabelsMapToSinkMap(urls),
+		http:    h,
+	})
 }
 
-func NewHTTP(name string, prometheusOptions common.PrometheusOptions, options HTTPOptions, observability *common.Observability) *HTTP {
+func NewHTTP(source string, prometheusOptions common.PrometheusOptions, options HTTPOptions, observability *common.Observability, sinks *common.Sinks) *HTTP {
 
 	logger := observability.Logs()
 
 	if utils.IsEmpty(prometheusOptions.URL) {
-		logger.Debug("%s: HTTP no prometheus URL. Skipped", name)
+		logger.Debug("%s: HTTP no prometheus URL. Skipped", source)
 		return nil
 	}
 
 	if utils.IsEmpty(options.Query) {
-		logger.Debug("%s: HTTP not query. Skipped", name)
+		logger.Debug("%s: HTTP not query. Skipped", source)
 		return nil
 	}
 
@@ -256,7 +263,7 @@ func NewHTTP(name string, prometheusOptions common.PrometheusOptions, options HT
 	}
 
 	pathOpts := toolsRender.TemplateOptions{
-		Content: options.TelegrafOptions.Path,
+		Content: options.Path,
 		Name:    "http-path",
 	}
 	pathTemplate, err := toolsRender.NewTextTemplate(pathOpts, observability)
@@ -266,16 +273,16 @@ func NewHTTP(name string, prometheusOptions common.PrometheusOptions, options HT
 	}
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
-		URL:          prometheusOptions.URL,
-		HttpUsername: prometheusOptions.HttpUsername,
-		HttpPassword: prometheusOptions.HttpPassword,
-		Timeout:      prometheusOptions.Timeout,
-		Insecure:     prometheusOptions.Insecure,
-		Query:        options.Query,
+		URL:      prometheusOptions.URL,
+		User:     prometheusOptions.User,
+		Password: prometheusOptions.Password,
+		Timeout:  prometheusOptions.Timeout,
+		Insecure: prometheusOptions.Insecure,
+		Query:    options.Query,
 	}
 
 	return &HTTP{
-		name:           name,
+		source:         source,
 		prometheus:     toolsVendors.NewPrometheus(prometheusOpts),
 		prometheusOpts: prometheusOpts,
 		options:        options,
@@ -283,5 +290,6 @@ func NewHTTP(name string, prometheusOptions common.PrometheusOptions, options HT
 		observability:  observability,
 		namesTemplate:  namesTemplate,
 		pathTemplate:   pathTemplate,
+		sinks:          sinks,
 	}
 }

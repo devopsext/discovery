@@ -29,6 +29,21 @@ func ReadFiles(pattern string) ([]string, error) {
 	return ret, err
 }
 
+func FilterStringMap(m map[string]string, keys []string) map[string]string {
+
+	r := make(map[string]string)
+	for k, v := range m {
+		if len(keys) == 0 {
+			r[k] = v
+			continue
+		}
+		if utils.Contains(keys, k) {
+			r[k] = v
+		}
+	}
+	return r
+}
+
 func MergeStringMaps(maps ...map[string]string) map[string]string {
 
 	r := make(map[string]string)
@@ -232,13 +247,69 @@ func GetPrometheusDiscoveriesByInstances(names string) []PromDiscoveryObject {
 		}
 
 		promDiscoveryObject := PromDiscoveryObject{
-			Name:         name,
-			URL:          url,
-			HttpUsername: username,
-			HttpPassword: password,
+			Name:     name,
+			URL:      url,
+			User:     username,
+			Password: password,
 		}
 
 		promDiscoveryObjects = append(promDiscoveryObjects, promDiscoveryObject)
 	}
 	return promDiscoveryObjects
+}
+
+func RemoveEmptyStrings(items []string) []string {
+
+	r := []string{}
+
+	for _, v := range items {
+		if utils.IsEmpty(v) {
+			continue
+		}
+		r = append(r, strings.TrimSpace(v))
+	}
+
+	return r
+}
+
+func ConvertLabelsMapToSinkMap(m LabelsMap) SinkMap {
+
+	r := make(SinkMap)
+	for k, v := range m {
+		r[k] = v
+	}
+	return r
+}
+
+func ConvertSyncMapToLabelsMap(m SinkMap) LabelsMap {
+
+	r := make(LabelsMap)
+	for k, v := range m {
+		s, ok := v.(Labels)
+		if ok {
+			r[k] = s
+		}
+	}
+	return r
+}
+
+func ConvertServicesToSinkMap(m Services) SinkMap {
+
+	r := make(SinkMap)
+	for k, v := range m {
+		r[k] = v
+	}
+	return r
+}
+
+func ConvertSyncMapToServices(m SinkMap) Services {
+
+	r := make(Services)
+	for k, v := range m {
+		s, ok := v.(*Service)
+		if ok {
+			r[k] = s
+		}
+	}
+	return r
 }

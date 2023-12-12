@@ -1,78 +1,112 @@
 package discovery
 
 import (
+	"encoding/json"
+
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
+	toolsVendors "github.com/devopsext/tools/vendors"
 	"github.com/devopsext/utils"
 )
 
+type ObserviumDevice struct {
+	Name   string `json:"sysName"`
+	Host   string `json:"hostname"`
+	IP     string `json:"ip"`
+	Vendor string `json:"vendor"`
+}
+
+type ObserviumDeviceResponse struct {
+	Status  string                     `json:"status"`
+	Count   int                        `json:"count"`
+	Devices map[string]ObserviumDevice `json:"devices"`
+}
+
 type ObserviumOptions struct {
-	URL      string
+	toolsVendors.ObserviumOptions
 	Schedule string
 }
 
 type Observium struct {
+	client        *toolsVendors.Observium
 	options       ObserviumOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
+	sinks         *common.Sinks
+}
+
+type ObserviumSinkObject struct {
+	sinkMap   common.SinkMap
+	observium *Observium
+}
+
+func (os *ObserviumSinkObject) Map() common.SinkMap {
+	return os.sinkMap
+}
+
+func (os *ObserviumSinkObject) Options() interface{} {
+	return os.observium.options
+}
+
+func (o *Observium) Name() string {
+	return "Observium"
+}
+
+func (o *Observium) Source() string {
+	return ""
+}
+
+func (o *Observium) makeDevicesSinkMap(devices map[string]ObserviumDevice) common.SinkMap {
+
+	r := make(common.SinkMap)
+
+	for _, v := range devices {
+
+		common.AppendHostSink(r, v.Name, common.HostSink{
+			IP:     v.IP,
+			Host:   v.Host,
+			Vendor: v.Vendor,
+		})
+	}
+	return r
 }
 
 func (o *Observium) Discover() {
 
 	o.logger.Debug("Observium discovery by URL: %s", o.options.URL)
 
-	/*
-		if !utils.IsEmpty(t.options.QueryPeriod) {
-			// https://Signal.io/docs/Signal/latest/querying/api/#range-queries
-			tm := time.Now().UTC()
-			t.prometheusOpts.From = common.ParsePeriodFromNow(t.options.QueryPeriod, tm)
-			t.prometheusOpts.To = strconv.Itoa(int(tm.Unix()))
-			t.prometheusOpts.Step = t.options.QueryStep
-			if utils.IsEmpty(t.prometheusOpts.Step) {
-				t.prometheusOpts.Step = "15s"
-			}
-			t.logger.Debug("%s: TCP discovery range: %s <-> %s", t.name, t.prometheusOpts.From, t.prometheusOpts.To)
-		}
+	data, err := o.client.CustomGetDevices(o.options.ObserviumOptions)
+	if err != nil {
+		o.logger.Error(err)
+		return
+	}
 
+	var res ObserviumDeviceResponse
+	if err := json.Unmarshal(data, &res); err != nil {
+		o.logger.Error(err)
+		return
+	}
 
-		data, err := t.prometheus.CustomGet(t.prometheusOpts)
-		if err != nil {
-			t.logger.Error(err)
-			return
-		}
+	if res.Status != "ok" {
+		o.logger.Error(res.Status)
+		return
+	}
 
-		var res common.PrometheusResponse
-		if err := json.Unmarshal(data, &res); err != nil {
-			t.logger.Error(err)
-			return
-		}
+	l := len(res.Devices)
+	if l == 0 {
+		o.logger.Debug("Observium has no devices")
+	}
 
-		if res.Status != "success" {
-			t.logger.Error(res.Status)
-			return
-		}
+	devices := o.makeDevicesSinkMap(res.Devices)
+	o.logger.Debug("Observium found %d devices. Processing...", len(devices))
 
-		if (res.Data == nil) || (len(res.Data.Result) == 0) {
-			t.logger.Error("%s: TCP empty data on response", t.name)
-			return
-		}
-
-		if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-			t.logger.Error("%s: TCP only vector and matrix are allowed", t.name)
-			return
-		}
-
-		addresses := t.findAddresses(res.Data.Result)
-		if len(addresses) == 0 {
-			t.logger.Debug("%s: TCP not found any addresses according query", t.name)
-			return
-		}
-		t.logger.Debug("%s: TCP found %d addresses according query", t.name, len(addresses))
-		t.createTelegrafConfigs(addresses)
-	*/
+	o.sinks.Process(o, &ObserviumSinkObject{
+		sinkMap:   devices,
+		observium: o,
+	})
 }
 
-func NewObservium(options ObserviumOptions, observability *common.Observability) *Observium {
+func NewObservium(options ObserviumOptions, observability *common.Observability, sinks *common.Sinks) *Observium {
 
 	logger := observability.Logs()
 
@@ -82,8 +116,10 @@ func NewObservium(options ObserviumOptions, observability *common.Observability)
 	}
 
 	return &Observium{
+		client:        toolsVendors.NewObservium(options.ObserviumOptions),
 		options:       options,
 		logger:        logger,
 		observability: observability,
+		sinks:         sinks,
 	}
 }

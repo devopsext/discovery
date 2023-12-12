@@ -7,6 +7,9 @@ import (
 	"github.com/devopsext/utils"
 )
 
+type Labels map[string]string
+type LabelsMap map[string]Labels
+
 type BaseQuality struct {
 	Range  string `yaml:"range"`
 	Every  string `yaml:"every"`
@@ -15,41 +18,41 @@ type BaseQuality struct {
 }
 
 type BaseMetric struct {
-	Disabled bool              `yaml:"disabled"`
-	Query    string            `yaml:"query"`
-	Name     string            `yaml:"name"`
-	UniqueBy []string          `yaml:"unique_by"`
-	Labels   map[string]string `yaml:"labels"`
+	Disabled bool     `yaml:"disabled"`
+	Query    string   `yaml:"query"`
+	Name     string   `yaml:"name"`
+	UniqueBy []string `yaml:"unique_by"`
+	Labels   Labels   `yaml:"labels"`
 }
 
 type BaseAvailability struct {
 	Disabled bool                     `yaml:"disabled"`
 	Queries  []*BaseAvailabilityQuery `yaml:"queries"`
 	GroupBy  []string                 `yaml:"group_by"`
-	Labels   map[string]string        `yaml:"labels"`
+	Labels   Labels                   `yaml:"labels"`
 }
 
 type BaseAvailabilityQuery struct {
-	Query     string            `yaml:"query"`
-	Suffix    string            `yaml:"suffix"`
-	Weight    interface{}       `yaml:"weight"`
-	Labels    map[string]string `yaml:"labels"`
-	UseCRD    string            `yaml:"crd"`
-	Composite string            `yaml:"composite"`
-	Source    string            `yaml:"source"`
-	Timeout   string            `yaml:"timeout"`
+	Query     string      `yaml:"query"`
+	Suffix    string      `yaml:"suffix"`
+	Weight    interface{} `yaml:"weight"`
+	Labels    Labels      `yaml:"labels"`
+	UseCRD    string      `yaml:"crd"`
+	Composite string      `yaml:"composite"`
+	Source    string      `yaml:"source"`
+	Timeout   string      `yaml:"timeout"`
 }
 
 type BaseCondition struct {
-	Metric string            `yaml:"metric"`
-	Labels map[string]string `yaml:"labels"`
+	Metric string `yaml:"metric"`
+	Labels Labels `yaml:"labels"`
 }
 
 type BaseConfig struct {
 	Disabled     bool              `yaml:"disabled"`
-	Prefix       string `yaml:"prefix"`
+	Prefix       string            `yaml:"prefix"`
 	Vars         map[string]string `yaml:"vars"`
-	Labels       map[string]string `yaml:"labels"`
+	Labels       Labels            `yaml:"labels"`
 	Conditions   []*BaseCondition  `yaml:"if"`
 	Qualities    []*BaseQuality    `yaml:"quality"`
 	Metrics      []*BaseMetric     `yaml:"metrics"`
@@ -62,17 +65,19 @@ type File struct {
 	Obj  interface{}
 }
 
+type Files map[string]*File
+
 type Service struct {
 	Metrics []string
 	Configs map[string]*BaseConfig
-	Labels  map[string]string
-	Vars    map[string]string
-	Files   map[string]*File
+	//	Labels  Labels
+	Vars  map[string]string
+	Files Files
 }
 
-type Labels map[string]string
+type Services map[string]*Service
 
-func (bc *BaseConfig) LabelsExist(c *BaseCondition, labels map[string]string) bool {
+func (bc *BaseConfig) LabelsExist(c *BaseCondition, labels Labels) bool {
 
 	if labels == nil {
 		return true
@@ -118,7 +123,7 @@ func (bc *BaseConfig) Contains(pattern string) bool {
 	return false
 }
 
-func (bc *BaseConfig) MetricExists(query string, labels map[string]string) bool {
+func (bc *BaseConfig) MetricExists(query string, labels Labels) bool {
 
 	if len(bc.Conditions) > 0 {
 

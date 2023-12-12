@@ -12,7 +12,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/devopsext/discovery/common"
-	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	toolsVendors "github.com/devopsext/tools/vendors"
@@ -21,6 +20,9 @@ import (
 )
 
 type SignalOptions struct {
+	URL          string
+	User         string
+	Password     string
 	Disabled     []string
 	Schedule     string
 	Query        string
@@ -32,26 +34,42 @@ type SignalOptions struct {
 	BaseTemplate string
 	Vars         string
 	Files        string
-
-	TelegrafTags     string
-	TelegrafTemplate string
-	TelegrafChecksum bool
-	TelegrafOptions  telegraf.InputPrometheusHttpOptions
 }
 
 type Signal struct {
-	name             string
-	prometheus       *toolsVendors.Prometheus
-	prometheusOpts   toolsVendors.PrometheusOptions
-	options          SignalOptions
-	logger           sreCommon.Logger
-	observability    *common.Observability
-	serviceTemplate  *toolsRender.TextTemplate
-	fieldTemplate    *toolsRender.TextTemplate
-	telegrafTemplate *toolsRender.TextTemplate
-	varsTemplate     *toolsRender.TextTemplate
-	files            map[string]interface{}
-	disables         map[string]*toolsRender.TextTemplate
+	source          string
+	prometheus      *toolsVendors.Prometheus
+	prometheusOpts  toolsVendors.PrometheusOptions
+	options         SignalOptions
+	logger          sreCommon.Logger
+	observability   *common.Observability
+	serviceTemplate *toolsRender.TextTemplate
+	fieldTemplate   *toolsRender.TextTemplate
+	varsTemplate    *toolsRender.TextTemplate
+	files           map[string]interface{}
+	disables        map[string]*toolsRender.TextTemplate
+	sinks           *common.Sinks
+}
+
+type SignalSinkObject struct {
+	sinkMap common.SinkMap
+	signal  *Signal
+}
+
+func (ss *SignalSinkObject) Map() common.SinkMap {
+	return ss.sinkMap
+}
+
+func (ss *SignalSinkObject) Options() interface{} {
+	return ss.signal.options
+}
+
+func (s *Signal) Name() string {
+	return "Signal"
+}
+
+func (s *Signal) Source() string {
+	return s.source
 }
 
 func (s *Signal) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
@@ -76,13 +94,13 @@ func (s *Signal) readBaseConfigs() map[string]*common.BaseConfig {
 	}
 
 	if len(files) == 0 {
-		s.logger.Error("%s: No base templates by pattern: %s", s.name, s.options.BaseTemplate)
+		s.logger.Error("%s: No base templates by pattern: %s", s.source, s.options.BaseTemplate)
 		return configs
 	}
 
 	for _, v := range files {
 
-		s.logger.Debug("%s: Processing base config: %s...", s.name, v)
+		s.logger.Debug("%s: Processing base config: %s...", s.source, v)
 		content, err := os.ReadFile(v)
 		if err != nil {
 			s.logger.Error(err)
@@ -96,34 +114,13 @@ func (s *Signal) readBaseConfigs() map[string]*common.BaseConfig {
 			continue
 		}
 		if config.Disabled {
-			s.logger.Debug("%s: Base config is disabled: %s", s.name, v)
+			s.logger.Debug("%s: Base config is disabled: %s", s.source, v)
 			continue
 		}
 		configs[v] = config
-		s.logger.Debug("%s: Base config is loaded: %s", s.name, v)
+		s.logger.Debug("%s: Base config is loaded: %s", s.source, v)
 	}
 	return configs
-}
-
-// .telegraf/prefix-{{.namespace}}-discovery-{{.service}}-{{.container_name}}{{.container}}.conf
-func (s *Signal) createTelegrafConfigs(services map[string]*common.Service) {
-
-	for k, s1 := range services {
-
-		path := s.render(s.telegrafTemplate, s.options.TelegrafTemplate, s1.Vars)
-		s.logger.Debug("%s: Processing service: %s for path: %s", s.name, k, path)
-		s.logger.Debug("%s: Found metrics: %v", s.name, s1.Metrics)
-
-		telegrafConfig := &telegraf.Config{
-			Observability: s.observability,
-		}
-		bytes, err := telegrafConfig.GenerateInputPrometheusHttpBytes(s1, s.options.TelegrafTags, s.options.TelegrafOptions, path)
-		if err != nil {
-			s.logger.Error("%s: Service %s error: %s", s.name, k, err)
-			continue
-		}
-		telegrafConfig.CreateIfCheckSumIsDifferent(s.name, path, s.options.TelegrafChecksum, bytes, s.logger)
-	}
 }
 
 func (s *Signal) readJson(bytes []byte) (interface{}, error) {
@@ -319,22 +316,22 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 
 	configs := s.readBaseConfigs()
 	matched := make(map[string]*common.Service)
-	gid := utils.GetRoutineID()
+	gid := utils.GoRoutineID()
 
 	if utils.IsEmpty(s.options.Metric) {
-		s.logger.Debug("[%d] %s: metric name is empty", gid, s.name)
+		s.logger.Debug("[%d] %s: metric name is empty", gid, s.source)
 		return matched
 	}
 	name := s.options.Metric
 
 	l := len(vectors)
-	s.logger.Debug("[%d] %s: found %d series", gid, s.name, l)
+	s.logger.Debug("[%d] %s: found %d series", gid, s.source, l)
 	if len(vectors) == 0 {
 		return matched
 	}
 
 	vectors = s.filterVectors(name, configs, vectors)
-	s.logger.Debug("[%d] %s: %d series filtered to %d", gid, s.name, l, len(vectors))
+	s.logger.Debug("[%d] %s: %d series filtered to %d", gid, s.source, l, len(vectors))
 
 	when := time.Now()
 	max := len(vectors) / 100
@@ -342,11 +339,11 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 	for i, v := range vectors {
 
 		if max > 0 && i%max == 0 && i > 0 {
-			s.logger.Debug("[%d] %s: %d out of %d [%s]", gid, s.name, i, len(vectors), time.Since(when))
+			s.logger.Debug("[%d] %s: %d out of %d [%s]", gid, s.source, i, len(vectors), time.Since(when))
 		}
 
 		if len(v.Labels) < 2 {
-			s.logger.Debug("[%d] %s: No labels, min requirements (2): %v", gid, s.name, v.Labels)
+			s.logger.Debug("[%d] %s: No labels, min requirements (2): %v", gid, s.source, v.Labels)
 			continue
 		}
 
@@ -360,7 +357,7 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 			files[k] = v.Obj
 		}
 		m["files"] = files
-		m["source"] = s.name
+		m["source"] = s.source
 
 		vars := s.render(s.varsTemplate, s.options.Vars, m)
 		serviceVars := utils.MapGetKeyValues(vars)
@@ -397,7 +394,7 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 		metric := mergedVars[name]
 
 		if utils.IsEmpty(service) || utils.IsEmpty(metric) {
-			s.logger.Debug("[%d] %s: No service, field or metric found in labels, but: %v", gid, s.name, mergedVars)
+			s.logger.Debug("[%d] %s: No service, field or metric found in labels, but: %v", gid, s.source, mergedVars)
 			continue
 		}
 
@@ -408,7 +405,7 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 		disabled := s.expandDisabled(fls, mergedVars)
 		dis, _ := s.checkDisabled(disabled, service)
 		if dis {
-			//s.logger.Trace("%s: %s disabled by pattern: %s", s.name, fieldAndService, pattern)
+			//s.logger.Trace("%s: %s disabled by pattern: %s", s.source, fieldAndService, pattern)
 			continue
 		}
 
@@ -425,7 +422,7 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 
 			ds := matched[fieldAndService]
 			if ds == nil {
-				s.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, s.name, fieldAndService, mergedVars, time.Since(when))
+				s.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, s.source, fieldAndService, mergedVars, time.Since(when))
 				ds = &common.Service{
 					Configs: make(map[string]*common.BaseConfig),
 					Vars:    make(map[string]string),
@@ -453,7 +450,7 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 
 func (s *Signal) Discover() {
 
-	s.logger.Debug("%s: Signal discovery by query: %s", s.name, s.options.Query)
+	s.logger.Debug("%s: Signal discovery by query: %s", s.source, s.options.Query)
 
 	if !utils.IsEmpty(s.options.QueryPeriod) {
 		// https://Signal.io/docs/Signal/latest/querying/api/#range-queries
@@ -464,7 +461,7 @@ func (s *Signal) Discover() {
 		if utils.IsEmpty(s.prometheusOpts.Step) {
 			s.prometheusOpts.Step = "15s"
 		}
-		s.logger.Debug("%s: Signal discovery range: %s <-> %s", s.name, s.prometheusOpts.From, s.prometheusOpts.To)
+		s.logger.Debug("%s: Signal discovery range: %s <-> %s", s.source, s.prometheusOpts.From, s.prometheusOpts.To)
 	}
 
 	data, err := s.prometheus.CustomGet(s.prometheusOpts)
@@ -485,44 +482,48 @@ func (s *Signal) Discover() {
 	}
 
 	if (res.Data == nil) || (len(res.Data.Result) == 0) {
-		s.logger.Error("%s: Signal empty data on response", s.name)
+		s.logger.Error("%s: Signal empty data on response", s.source)
 		return
 	}
 
 	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-		s.logger.Error("%s: Signal only vector and matrix are allowed", s.name)
+		s.logger.Error("%s: Signal only vector and matrix are allowed", s.source)
 		return
 	}
 
 	services := s.findServices(res.Data.Result)
 	if len(services) == 0 {
-		s.logger.Debug("%s: Signal not found any services according query", s.name)
+		s.logger.Debug("%s: Signal not found any services according query", s.source)
 		return
 	}
-	s.logger.Debug("%s: Signal found %d services according query", s.name, len(services))
-	s.createTelegrafConfigs(services)
+	s.logger.Debug("%s: Signal found %d services according query. Processing...", s.source, len(services))
+
+	s.sinks.Process(s, &SignalSinkObject{
+		sinkMap: common.ConvertServicesToSinkMap(services),
+		signal:  s,
+	})
 }
 
-func NewSignal(name string, prometheusOptions common.PrometheusOptions, options SignalOptions, observability *common.Observability) *Signal {
+func NewSignal(source string, prometheusOptions common.PrometheusOptions, options SignalOptions, observability *common.Observability, sinks *common.Sinks) *Signal {
 
 	logger := observability.Logs()
 
 	if utils.IsEmpty(prometheusOptions.URL) {
-		logger.Debug("%s: Signal no prometheus URL. Skipped", name)
+		logger.Debug("%s: Signal no prometheus URL. Skipped", source)
 		return nil
 	}
 
-	if utils.IsEmpty(options.TelegrafOptions.URL) {
-		options.TelegrafOptions.URL = prometheusOptions.URL
+	if utils.IsEmpty(options.URL) {
+		options.URL = prometheusOptions.URL
 	}
 
-	if !utils.IsEmpty(prometheusOptions.HttpUsername) && !utils.IsEmpty(prometheusOptions.HttpPassword) {
-		options.TelegrafOptions.HttpUsername = prometheusOptions.HttpUsername
-		options.TelegrafOptions.HttpPassword = prometheusOptions.HttpPassword
+	if !utils.IsEmpty(prometheusOptions.User) && !utils.IsEmpty(prometheusOptions.Password) {
+		options.User = prometheusOptions.User
+		options.Password = prometheusOptions.Password
 	}
 
 	if utils.IsEmpty(options.Query) {
-		logger.Debug("%s: Signal no signal query. Skipped", name)
+		logger.Debug("%s: Signal no signal query. Skipped", source)
 		return nil
 	}
 
@@ -556,37 +557,27 @@ func NewSignal(name string, prometheusOptions common.PrometheusOptions, options 
 		return nil
 	}
 
-	telegrafOpts := toolsRender.TemplateOptions{
-		Content: options.TelegrafTemplate,
-		Name:    "signal-telegraf",
-	}
-	telegrafTemplate, err := toolsRender.NewTextTemplate(telegrafOpts, observability)
-	if err != nil {
-		logger.Error(err)
-		return nil
-	}
-
 	prometheusOpts := toolsVendors.PrometheusOptions{
-		URL:          prometheusOptions.URL,
-		HttpUsername: prometheusOptions.HttpUsername,
-		HttpPassword: prometheusOptions.HttpPassword,
-		Timeout:      prometheusOptions.Timeout,
-		Insecure:     prometheusOptions.Insecure,
-		Query:        options.Query,
+		URL:      prometheusOptions.URL,
+		User:     prometheusOptions.User,
+		Password: prometheusOptions.Password,
+		Timeout:  prometheusOptions.Timeout,
+		Insecure: prometheusOptions.Insecure,
+		Query:    options.Query,
 	}
 
 	return &Signal{
-		name:             name,
-		prometheus:       toolsVendors.NewPrometheus(prometheusOpts),
-		prometheusOpts:   prometheusOpts,
-		options:          options,
-		logger:           logger,
-		observability:    observability,
-		serviceTemplate:  serviceTemplate,
-		fieldTemplate:    fieldTemplate,
-		telegrafTemplate: telegrafTemplate,
-		varsTemplate:     varsTemplate,
-		files:            make(map[string]interface{}),
-		disables:         make(map[string]*toolsRender.TextTemplate),
+		source:          source,
+		prometheus:      toolsVendors.NewPrometheus(prometheusOpts),
+		prometheusOpts:  prometheusOpts,
+		options:         options,
+		logger:          logger,
+		observability:   observability,
+		serviceTemplate: serviceTemplate,
+		fieldTemplate:   fieldTemplate,
+		varsTemplate:    varsTemplate,
+		files:           make(map[string]interface{}),
+		disables:        make(map[string]*toolsRender.TextTemplate),
+		sinks:           sinks,
 	}
 }

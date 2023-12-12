@@ -9,6 +9,7 @@ __debug_bin
 .templates/
 .telegraf/
 .cmdb/
+.temp/
 
 info.txt
 signal.telegraf.quality.query

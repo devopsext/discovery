@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/devopsext/discovery/common"
-	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	toolsVendors "github.com/devopsext/tools/vendors"
@@ -24,21 +23,38 @@ type DNSOptions struct {
 	Pattern     string
 	Names       string
 	Exclusion   string
-
-	TelegrafConf     string
-	TelegrafTemplate string
-	TelegrafChecksum bool
-	TelegrafOptions  telegraf.InputDNSQueryOptions
 }
 
 type DNS struct {
-	name                string
+	source              string
 	prometheus          *toolsVendors.Prometheus
 	prometheusOpts      toolsVendors.PrometheusOptions
 	options             DNSOptions
 	logger              sreCommon.Logger
 	observability       *common.Observability
 	domainNamesTemplate *toolsRender.TextTemplate
+	sinks               *common.Sinks
+}
+
+type DNSSinkObject struct {
+	sinkMap common.SinkMap
+	dns     *DNS
+}
+
+func (ds *DNSSinkObject) Map() common.SinkMap {
+	return ds.sinkMap
+}
+
+func (ds *DNSSinkObject) Options() interface{} {
+	return ds.dns.options
+}
+
+func (d *DNS) Name() string {
+	return "DNS"
+}
+
+func (d *DNS) Source() string {
+	return d.source
 }
 
 func (d *DNS) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
@@ -49,20 +65,6 @@ func (d *DNS) render(tpl *toolsRender.TextTemplate, def string, obj interface{})
 		return def
 	}
 	return s1
-}
-
-// .telegraf/dns-discovery.conf
-func (d *DNS) createTelegrafConfigs(domains map[string]common.Labels) {
-
-	telegrafConfig := &telegraf.Config{
-		Observability: d.observability,
-	}
-	bs, err := telegrafConfig.GenerateInputDNSQueryBytes(d.options.TelegrafOptions, domains)
-	if err != nil {
-		d.logger.Error("%s: DNS query error: %s", d.name, err)
-		return
-	}
-	telegrafConfig.CreateWithTemplateIfCheckSumIsDifferent(d.name, d.options.TelegrafTemplate, d.options.TelegrafConf, d.options.TelegrafChecksum, bs, d.logger)
 }
 
 func (d *DNS) appendDomain(name string, domains map[string]common.Labels, labels map[string]string, rExclusion *regexp.Regexp) {
@@ -90,13 +92,13 @@ func (d *DNS) appendDomain(name string, domains map[string]common.Labels, labels
 	domains[ipOrHost] = labels
 }
 
-func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) map[string]common.Labels {
+func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) common.LabelsMap {
 
-	ret := make(map[string]common.Labels)
-	gid := utils.GetRoutineID()
+	ret := make(common.LabelsMap)
+	gid := utils.GoRoutineID()
 
 	l := len(vectors)
-	d.logger.Debug("[%d] %s: found %d series", gid, d.name, l)
+	d.logger.Debug("[%d] %s: found %d series", gid, d.source, l)
 	if len(vectors) == 0 {
 		return ret
 	}
@@ -110,14 +112,14 @@ func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) map[st
 	for _, v := range vectors {
 
 		if len(v.Labels) < 1 {
-			d.logger.Debug("[%d] %s: No labels, min requirements (1): %v", gid, d.name, v.Labels)
+			d.logger.Debug("[%d] %s: No labels, min requirements (1): %v", gid, d.source, v.Labels)
 			continue
 		}
 
 		domain := ""
 		ident := d.render(d.domainNamesTemplate, d.options.Names, v.Labels)
 		if utils.IsEmpty(ident) {
-			d.logger.Debug("[%d] %s: No doman found in labels, but: %v", gid, d.name, v.Labels)
+			d.logger.Debug("[%d] %s: No doman found in labels, but: %v", gid, d.source, v.Labels)
 			continue
 		}
 		if ident == d.options.Names {
@@ -145,7 +147,7 @@ func (d *DNS) findDomains(vectors []*common.PrometheusResponseDataVector) map[st
 
 func (d *DNS) Discover() {
 
-	d.logger.Debug("%s: DNS discovery by query: %s", d.name, d.options.Query)
+	d.logger.Debug("%s: DNS discovery by query: %s", d.source, d.options.Query)
 	if !utils.IsEmpty(d.options.QueryPeriod) {
 		// https://Signal.io/docs/Signal/latest/querying/api/#range-queries
 		t := time.Now().UTC()
@@ -155,7 +157,7 @@ func (d *DNS) Discover() {
 		if utils.IsEmpty(d.prometheusOpts.Step) {
 			d.prometheusOpts.Step = "15s"
 		}
-		d.logger.Debug("%s: DNS discovery range: %s <-> %s", d.name, d.prometheusOpts.From, d.prometheusOpts.To)
+		d.logger.Debug("%s: DNS discovery range: %s <-> %s", d.source, d.prometheusOpts.From, d.prometheusOpts.To)
 	}
 
 	data, err := d.prometheus.CustomGet(d.prometheusOpts)
@@ -176,35 +178,39 @@ func (d *DNS) Discover() {
 	}
 
 	if (res.Data == nil) || (len(res.Data.Result) == 0) {
-		d.logger.Error("%s: DNS empty data on response", d.name)
+		d.logger.Error("%s: DNS empty data on response", d.source)
 		return
 	}
 
 	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-		d.logger.Error("%s: DNS only vector and matrix are allowed", d.name)
+		d.logger.Error("%s: DNS only vector and matrix are allowed", d.source)
 		return
 	}
 
 	domains := d.findDomains(res.Data.Result)
 	if len(domains) == 0 {
-		d.logger.Debug("%s: DNS not found any domains according query", d.name)
+		d.logger.Debug("%s: DNS not found any domains according query", d.source)
 		return
 	}
-	d.logger.Debug("%s: DNS found %d domains according query", d.name, len(domains))
-	d.createTelegrafConfigs(domains)
+	d.logger.Debug("%s: DNS found %d domains according query. Processing...", d.source, len(domains))
+
+	d.sinks.Process(d, &DNSSinkObject{
+		sinkMap: common.ConvertLabelsMapToSinkMap(domains),
+		dns:     d,
+	})
 }
 
-func NewDNS(name string, prometheusOptions common.PrometheusOptions, options DNSOptions, observability *common.Observability) *DNS {
+func NewDNS(source string, prometheusOptions common.PrometheusOptions, options DNSOptions, observability *common.Observability, sinks *common.Sinks) *DNS {
 
 	logger := observability.Logs()
 
 	if utils.IsEmpty(prometheusOptions.URL) {
-		logger.Debug("%s: DNS no prometheus URL. Skipped", name)
+		logger.Debug("%s: DNS no prometheus URL. Skipped", source)
 		return nil
 	}
 
 	if utils.IsEmpty(options.Query) {
-		logger.Debug("%s: DNS no query. Skipped", name)
+		logger.Debug("%s: DNS no query. Skipped", source)
 		return nil
 	}
 
@@ -220,18 +226,21 @@ func NewDNS(name string, prometheusOptions common.PrometheusOptions, options DNS
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
 		URL:      prometheusOptions.URL,
+		User:     prometheusOptions.User,
+		Password: prometheusOptions.Password,
 		Timeout:  prometheusOptions.Timeout,
 		Insecure: prometheusOptions.Insecure,
 		Query:    options.Query,
 	}
 
 	return &DNS{
-		name:                name,
+		source:              source,
 		prometheus:          toolsVendors.NewPrometheus(prometheusOpts),
 		prometheusOpts:      prometheusOpts,
 		options:             options,
 		logger:              logger,
 		observability:       observability,
 		domainNamesTemplate: domainNamesTemplate,
+		sinks:               sinks,
 	}
 }
