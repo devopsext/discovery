@@ -41,13 +41,13 @@ type TelegrafTCPOptions struct {
 }
 
 type TelegrafOptions struct {
-	Pass     []string
-	Signal   TelegrafSignalOptions
-	Cert     TelegrafCertOptions
-	DNS      TelegrafDNSOptions
-	HTTP     TelegrafHTTPOptions
-	TCP      TelegrafTCPOptions
-	Checksum bool
+	Providers []string
+	Signal    TelegrafSignalOptions
+	Cert      TelegrafCertOptions
+	DNS       TelegrafDNSOptions
+	HTTP      TelegrafHTTPOptions
+	TCP       TelegrafTCPOptions
+	Checksum  bool
 }
 
 type Telegraf struct {
@@ -60,8 +60,8 @@ func (t *Telegraf) Name() string {
 	return "Telegraf"
 }
 
-func (t *Telegraf) Pass() []string {
-	return t.options.Pass
+func (t *Telegraf) Providers() []string {
+	return t.options.Providers
 }
 
 // .telegraf/prefix-{{.namespace}}-discovery-{{.service}}-{{.container_name}}{{.container}}.conf
@@ -195,7 +195,7 @@ func (t *Telegraf) Process(d common.Discovery, so common.SinkObject) {
 func NewTelegraf(options TelegrafOptions, observability *common.Observability) *Telegraf {
 
 	logger := observability.Logs()
-	options.Pass = common.RemoveEmptyStrings(options.Pass)
+	options.Providers = common.RemoveEmptyStrings(options.Providers)
 
 	return &Telegraf{
 		options:       options,

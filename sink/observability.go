@@ -27,7 +27,7 @@ func (o *Observability) Name() string {
 	return "Observability"
 }
 
-func (o *Observability) Pass() []string {
+func (o *Observability) Providers() []string {
 	return o.options.Providers
 }
 

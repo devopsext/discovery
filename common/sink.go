@@ -17,7 +17,7 @@ type SinkObject interface {
 type Sink interface {
 	Process(d Discovery, so SinkObject)
 	Name() string
-	Pass() []string
+	Providers() []string
 }
 
 type Sinks struct {
@@ -55,9 +55,9 @@ func (ss *Sinks) Process(d Discovery, so SinkObject) {
 			continue
 		}
 
-		pass := s.Pass()
-		if !utils.IsEmpty(pass) && !utils.Contains(pass, d.Name()) {
-			ss.logger.Debug("%s has no %s in pass %s. Skipped", s.Name(), d.Name(), pass)
+		providers := s.Providers()
+		if !utils.IsEmpty(providers) && !utils.Contains(providers, d.Name()) {
+			ss.logger.Debug("%s has no %s in pass %s. Skipped", s.Name(), d.Name(), providers)
 			continue
 		}
 		s.Process(d, so)

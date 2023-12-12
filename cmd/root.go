@@ -155,8 +155,8 @@ var sinkYamlOptions = sink.YamlOptions{
 }
 
 var sinkTelegrafOptions = sink.TelegrafOptions{
-	Pass:     strings.Split(envStringExpand("SINK_TELEGRAF_PASS", ""), ","),
-	Checksum: envGet("SINK_TELEGRAF_CHECKSUM", false).(bool),
+	Providers: strings.Split(envStringExpand("SINK_TELEGRAF_PROVIDERS", ""), ","),
+	Checksum:  envGet("SINK_TELEGRAF_CHECKSUM", false).(bool),
 	Signal: sink.TelegrafSignalOptions{
 		Template: envFileContentExpand("SINK_TELEGRAF_SIGNAL_TEMPLATE", ""),
 		Tags:     envFileContentExpand("SINK_TELEGRAF_SIGNAL_TAGS", ""),
@@ -532,7 +532,7 @@ func Execute() {
 	flags.StringVar(&sinkYamlOptions.Dir, "sink-yaml-dir", sinkYamlOptions.Dir, "Sink yaml directory")
 
 	// Sink Telegraf general
-	flags.StringSliceVar(&sinkTelegrafOptions.Pass, "sink-telegraf-pass", sinkTelegrafOptions.Pass, "Telegraf sink pass through")
+	flags.StringSliceVar(&sinkTelegrafOptions.Providers, "sink-telegraf-providers", sinkTelegrafOptions.Providers, "Telegraf sink providers through")
 	flags.BoolVar(&sinkTelegrafOptions.Checksum, "sink-telegraf-checksum", sinkTelegrafOptions.Checksum, "Telegraf sink checksum")
 	// Sink Telegraf Signal
 	flags.StringVar(&sinkTelegrafOptions.Signal.Template, "sink-telegraf-signal-template", sinkTelegrafOptions.Signal.Template, "Telegraf sink Signal template")

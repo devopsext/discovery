@@ -20,7 +20,7 @@ func (y *Yaml) Name() string {
 	return "Yaml"
 }
 
-func (y *Yaml) Pass() []string {
+func (y *Yaml) Providers() []string {
 	return []string{}
 }
 

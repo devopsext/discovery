@@ -20,7 +20,7 @@ func (j *Json) Name() string {
 	return "Json"
 }
 
-func (j *Json) Pass() []string {
+func (j *Json) Providers() []string {
 	return []string{}
 }
 
