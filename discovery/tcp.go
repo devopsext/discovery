@@ -246,5 +246,6 @@ func NewTCP(source string, prometheusOptions common.PrometheusOptions, options T
 		logger:         logger,
 		observability:  observability,
 		namesTemplate:  namesTemplate,
+		sinks:          sinks,
 	}
 }
