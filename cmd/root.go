@@ -135,6 +135,18 @@ var dObserviumOptions = discovery.ObserviumOptions{
 	},
 }
 
+var dZabbixOptions = discovery.ZabbixOptions{
+	Schedule: envGet("ZABBIX_SCHEDULE", "").(string),
+	ZabbixOptions: vendors.ZabbixOptions{
+		Timeout:  envGet("ZABBIX_TIMEOUT", 5).(int),
+		Insecure: envGet("ZABBIX_INSECURE", false).(bool),
+		URL:      envGet("ZABBIX_URL", "").(string),
+		User:     envGet("ZABBIX_USER", "").(string),
+		Password: envGet("ZABBIX_PASSWORD", "").(string),
+		Auth:     envGet("ZABBIX_TOKEN", "").(string),
+	},
+}
+
 var dPubSubOptions = discovery.PubSubOptions{
 	Enabled:                 envGet("PUBSUB_ENABLED", false).(bool),
 	Credentials:             envGet("PUBSUB_CREDENTIALS", "").(string),
@@ -415,6 +427,7 @@ func Execute() {
 			}
 			// run simple discoveries
 			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
 
 			scheduler.StartAsync()
 
@@ -514,6 +527,15 @@ func Execute() {
 	flags.StringVar(&dObserviumOptions.User, "observium-user", dObserviumOptions.User, "Observium discovery user")
 	flags.StringVar(&dObserviumOptions.Password, "observium-password", dObserviumOptions.Password, "Observium discovery password")
 	flags.StringVar(&dObserviumOptions.Token, "observium-token", dObserviumOptions.Token, "Observium discovery token")
+
+	// Zabbix
+	flags.StringVar(&dZabbixOptions.Schedule, "zabbix-schedule", dZabbixOptions.Schedule, "Zabbix discovery schedule")
+	flags.IntVar(&dZabbixOptions.Timeout, "zabbix-timeout", dZabbixOptions.Timeout, "Zabbix discovery timeout")
+	flags.BoolVar(&dZabbixOptions.Insecure, "zabbix-insecure", dZabbixOptions.Insecure, "Zabbix discovery insecure")
+	flags.StringVar(&dZabbixOptions.URL, "zabbix-url", dZabbixOptions.URL, "Zabbix discovery URL")
+	flags.StringVar(&dZabbixOptions.User, "zabbix-user", dZabbixOptions.User, "Zabbix discovery user")
+	flags.StringVar(&dZabbixOptions.Password, "zabbix-password", dZabbixOptions.Password, "Zabbix discovery password")
+	flags.StringVar(&dZabbixOptions.Auth, "zabbix-token", dZabbixOptions.Auth, "Zabbix discovery token")
 
 	// PubSub
 	flags.BoolVar(&dPubSubOptions.Enabled, "pubsub-enabled", dPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")

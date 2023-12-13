@@ -29,6 +29,7 @@ type HostSink struct {
 	IP     string
 	Host   string
 	Vendor string
+	OS     string
 }
 
 func AppendHostSink(m SinkMap, name string, hs HostSink) {
@@ -39,7 +40,12 @@ func AppendHostSink(m SinkMap, name string, hs HostSink) {
 	labels := make(Labels)
 	labels["ip"] = hs.IP
 	labels["host"] = hs.Host
-	labels["vendor"] = hs.Vendor
+	if !utils.IsEmpty(hs.Vendor) {
+		labels["vendor"] = hs.Vendor
+	}
+	if !utils.IsEmpty(hs.OS) {
+		labels["os"] = hs.OS
+	}
 	m[name] = labels
 }
 
