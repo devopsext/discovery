@@ -513,18 +513,20 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 		return nil
 	}
 
+	if utils.IsEmpty(options.Query) {
+		logger.Debug("%s: Signal no signal query. Skipped", source)
+		return nil
+	}
+
+	// this is needed to build Telegraf config with URL
 	if utils.IsEmpty(options.URL) {
 		options.URL = prometheusOptions.URL
 	}
 
+	// this is needed to build Telegraf config with user & password
 	if !utils.IsEmpty(prometheusOptions.User) && !utils.IsEmpty(prometheusOptions.Password) {
 		options.User = prometheusOptions.User
 		options.Password = prometheusOptions.Password
-	}
-
-	if utils.IsEmpty(options.Query) {
-		logger.Debug("%s: Signal no signal query. Skipped", source)
-		return nil
 	}
 
 	varsOpts := toolsRender.TemplateOptions{

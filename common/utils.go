@@ -4,12 +4,14 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	"github.com/devopsext/utils"
 )
@@ -220,36 +222,63 @@ func ParsePeriodFromNow(period string, t time.Time) string {
 	return strconv.Itoa(int(from.Unix()))
 }
 
-func GetPrometheusDiscoveriesByInstances(names string) []PromDiscoveryObject {
-	nameItems := strings.Split(names, ",")
+func parseURL(s string, defSchema string) (*url.URL, error) {
+
+	schema := defSchema
+	rest := s
+
+	arr := strings.Split(s, "://")
+
+	if len(arr) == 2 {
+		s1 := strings.TrimSpace(arr[0])
+		if !utils.IsEmpty(s1) {
+			schema = s1
+		}
+		rest = strings.TrimSpace(arr[1])
+	}
+
+	u, err := url.Parse(fmt.Sprintf("%s://%s", schema, rest))
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+// prometheus=prometheus.service.svc:9090, victoria=https://user:pass@victoria.some.where, source2=http://prometheus.location
+func GetPrometheusDiscoveriesByInstances(names string, logger sreCommon.Logger) []PromDiscoveryObject {
+
+	nameItems := RemoveEmptyStrings(strings.Split(names, ","))
 	var promDiscoveryObjects []PromDiscoveryObject
 
 	for index, item := range nameItems {
-		var name, data, usernamePassword, url, username, password string
+
+		var name, nurl string
 		parts := strings.SplitN(item, "=", 2)
 		if len(parts) == 2 {
-			name, data = strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+			name = strings.TrimSpace(parts[0])
+			nurl = strings.TrimSpace(parts[1])
 		} else {
-			name, data = fmt.Sprintf("unknown%d", index), strings.TrimSpace(parts[0])
+			name = fmt.Sprintf("unknown%d", index)
+			nurl = strings.TrimSpace(parts[0])
 		}
 
-		dataParts := strings.SplitN(data, "@", 2)
-		if len(dataParts) == 2 {
-			usernamePassword, url = strings.TrimSpace(dataParts[0]), strings.TrimSpace(dataParts[1])
-		} else {
-			url = strings.TrimSpace(dataParts[0])
+		u, err := parseURL(nurl, "http")
+		if err != nil {
+			logger.Error(err)
 		}
 
-		usernamePasswordParts := strings.SplitN(usernamePassword, ":", 2)
-		if len(usernamePasswordParts) == 2 {
-			username = strings.TrimSpace(usernamePasswordParts[0])
-			password = strings.TrimSpace(usernamePasswordParts[1])
+		user := ""
+		password := ""
+		if u.User != nil {
+			user = u.User.Username()
+			password, _ = u.User.Password()
+			u.User = nil // remove user
 		}
 
 		promDiscoveryObject := PromDiscoveryObject{
 			Name:     name,
-			URL:      url,
-			User:     username,
+			URL:      u.String(),
+			User:     user,
 			Password: password,
 		}
 

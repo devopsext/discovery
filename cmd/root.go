@@ -398,32 +398,35 @@ func Execute() {
 			wg := &sync.WaitGroup{}
 
 			// run prometheus discoveries for each prometheus name for URLs and run related discoveries
-			promDiscoveryObjects := common.GetPrometheusDiscoveriesByInstances(dPrometheusOptions.Names)
+			promDiscoveryObjects := common.GetPrometheusDiscoveriesByInstances(dPrometheusOptions.Names, obs.Logs())
 			for _, prom := range promDiscoveryObjects {
 
+				// create opts based on global prometheus options
 				opts := common.PrometheusOptions{}
 				copier.CopyWithOption(&opts, &dPrometheusOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 
+				// render prometheus URL
 				m := make(map[string]string)
 				m["name"] = prom.Name
 				m["url"] = prom.URL
-				if strings.HasPrefix(strings.ToLower(prom.URL), "https://") {
-					opts.URL = prom.URL
-				} else {
-					opts.URL = common.Render(dPrometheusOptions.URL, m, obs)
-				}
-				opts.User = prom.User
-				opts.Password = prom.Password
+				m["user"] = prom.User
+				m["password"] = prom.Password
+				opts.URL = common.Render(dPrometheusOptions.URL, m, obs)
 
 				if utils.IsEmpty(opts.URL) || utils.IsEmpty(prom.Name) {
 					logger.Debug("Prometheus discovery is not found")
 					continue
 				}
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dSignalOptions.Schedule, prom.Name, prom.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dDNSOptions.Schedule, prom.Name, prom.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dHTTPOptions.Schedule, prom.Name, prom.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dTCPOptions.Schedule, prom.Name, prom.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dCertOptions.Schedule, prom.Name, prom.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
+				// fill additional fields
+				opts.Names = prom.Name
+				opts.User = prom.User
+				opts.Password = prom.Password
+
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
 			}
 			// run simple discoveries
 			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
