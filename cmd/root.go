@@ -147,6 +147,15 @@ var dZabbixOptions = discovery.ZabbixOptions{
 	},
 }
 
+var dK8sOptions = discovery.K8sOptions{
+	Schedule:       envGet("K8S_SCHEDULE", "10m").(string),
+	ClusterName:    envGet("K8S_CLUSTER", "undefined").(string),
+	NsInclude:      common.RemoveEmptyStrings(strings.Split(envGet("K8S_NS_INCLUDE", "").(string), ",")),
+	NsExclude:      common.RemoveEmptyStrings(strings.Split(envGet("K8S_NS_EXCLUDE", "").(string), ",")),
+	AppLabel:       envGet("K8S_APP_LABEL", "sc/application").(string),
+	ComponentLabel: envGet("K8S_COMPONENT_LABEL", "sc/component").(string),
+}
+
 var dPubSubOptions = discovery.PubSubOptions{
 	Enabled:                 envGet("PUBSUB_ENABLED", false).(bool),
 	Credentials:             envGet("PUBSUB_CREDENTIALS", "").(string),
@@ -284,7 +293,7 @@ func envFileContentExpand(s string, def string) string {
 
 func interceptSyscall() {
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
 		<-c
@@ -431,6 +440,7 @@ func Execute() {
 			// run simple discoveries
 			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
 			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, sinks), logger)
 
 			scheduler.StartAsync()
 
