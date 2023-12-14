@@ -7,7 +7,7 @@ import (
 	"github.com/devopsext/discovery/discovery"
 	telegraf "github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
-	"github.com/devopsext/utils"
+	"github.com/jinzhu/copier"
 )
 
 type TelegrafSignalOptions struct {
@@ -72,18 +72,6 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		return errors.New("no options")
 	}
 
-	if utils.IsEmpty(t.options.Signal.URL) {
-		t.options.Signal.URL = opts.URL
-	}
-
-	if utils.IsEmpty(t.options.Signal.User) {
-		t.options.Signal.User = opts.User
-	}
-
-	if utils.IsEmpty(t.options.Signal.Password) {
-		t.options.Signal.Password = opts.Password
-	}
-
 	m := common.ConvertSyncMapToServices(sm)
 	source := d.Source()
 
@@ -96,7 +84,14 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		telegrafConfig := &telegraf.Config{
 			Observability: t.observability,
 		}
-		bytes, err := telegrafConfig.GenerateInputPrometheusHttpBytes(s1, t.options.Signal.Tags, t.options.Signal.InputPrometheusHttpOptions, path)
+
+		inputOpts := telegraf.InputPrometheusHttpOptions{}
+		copier.CopyWithOption(&inputOpts, &t.options.Signal.InputPrometheusHttpOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+		inputOpts.URL = opts.URL
+		inputOpts.User = opts.User
+		inputOpts.Password = opts.Password
+
+		bytes, err := telegrafConfig.GenerateInputPrometheusHttpBytes(s1, t.options.Signal.Tags, inputOpts, path)
 		if err != nil {
 			t.logger.Error("%s: Service %s error: %s", source, k, err)
 			continue
