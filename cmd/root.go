@@ -65,9 +65,6 @@ var dPrometheusOptions = common.PrometheusOptions{
 }
 
 var dSignalOptions = discovery.SignalOptions{
-	URL:          envGet("SIGNAL_URL", "").(string),
-	User:         envGet("SIGNAL_USER", "").(string),
-	Password:     envGet("SIGNAL_PASSWORD", "").(string),
 	Disabled:     strings.Split(envStringExpand("SIGNAL_DISABLED", ""), ","),
 	Schedule:     envGet("SIGNAL_SCHEDULE", "").(string),
 	Query:        envFileContentExpand("SIGNAL_QUERY", ""),
@@ -183,7 +180,6 @@ var sinkTelegrafOptions = sink.TelegrafOptions{
 		Tags:     envFileContentExpand("SINK_TELEGRAF_SIGNAL_TAGS", ""),
 		InputPrometheusHttpOptions: telegraf.InputPrometheusHttpOptions{
 			Interval:         envGet("SINK_TELEGRAF_SIGNAL_INTERVAL", "10s").(string),
-			URL:              envStringExpand("SINK_TELEGRAF_SIGNAL_URL", ""),
 			Version:          envGet("SINK_TELEGRAF_SIGNAL_VERSION", "v1").(string),
 			Params:           envGet("SINK_TELEGRAF_SIGNAL_PARAMS", "").(string),
 			Duration:         envGet("SINK_TELEGRAF_SIGNAL_DURATION", "").(string),
@@ -480,9 +476,6 @@ func Execute() {
 	flags.BoolVar(&dPrometheusOptions.Insecure, "prometheus-insecure", dPrometheusOptions.Insecure, "Prometheus discovery insecure")
 
 	// Signal
-	flags.StringVar(&dSignalOptions.URL, "signal-url", dSignalOptions.URL, "Signal discovery url")
-	flags.StringVar(&dSignalOptions.User, "signal-user", dSignalOptions.User, "Signal discovery user")
-	flags.StringVar(&dSignalOptions.Password, "signal-password", dSignalOptions.Password, "Signal discovery password")
 	flags.StringVar(&dSignalOptions.Schedule, "signal-schedule", dSignalOptions.Schedule, "Signal discovery schedule")
 	flags.StringVar(&dSignalOptions.Query, "signal-query", dSignalOptions.Query, "Signal discovery query")
 	flags.StringVar(&dSignalOptions.QueryPeriod, "signal-query-period", dSignalOptions.QueryPeriod, "Signal discovery query period")
@@ -572,9 +565,6 @@ func Execute() {
 	// Sink Telegraf Signal
 	flags.StringVar(&sinkTelegrafOptions.Signal.Template, "sink-telegraf-signal-template", sinkTelegrafOptions.Signal.Template, "Telegraf sink Signal template")
 	flags.StringVar(&sinkTelegrafOptions.Signal.Tags, "sink-telegraf-signal-tags", sinkTelegrafOptions.Signal.Tags, "Telegraf sink Signal tags")
-	flags.StringVar(&sinkTelegrafOptions.Signal.URL, "sink-telegraf-signal-url", sinkTelegrafOptions.Signal.URL, "Telegraf sink Signal URL")
-	flags.StringVar(&sinkTelegrafOptions.Signal.User, "sink-telegraf-signal-user", sinkTelegrafOptions.Signal.User, "Telegraf sink Signal user")
-	flags.StringVar(&sinkTelegrafOptions.Signal.Password, "sink-telegraf-signal-password", sinkTelegrafOptions.Signal.Password, "Telegraf sink Signal password")
 	flags.StringVar(&sinkTelegrafOptions.Signal.Version, "sink-telegraf-signal-version", sinkTelegrafOptions.Signal.Version, "Telegraf sink Signal version")
 	flags.StringVar(&sinkTelegrafOptions.Signal.Params, "sink-telegraf-signal-params", sinkTelegrafOptions.Signal.Params, "Telegraf sink Signal params")
 	flags.StringVar(&sinkTelegrafOptions.Signal.Interval, "ssink-telegraf-signal-interval", sinkTelegrafOptions.Signal.Interval, "Telegraf sink Signal interval")
