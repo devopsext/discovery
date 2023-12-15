@@ -136,7 +136,7 @@ func (o *Zabbix) Discover() {
 
 	o.logger.Debug("Zabbix discovery by URL: %s", o.options.URL)
 
-	opts := toolsVendors.ZabbixHostGetOptions{
+	opts := toolsVendors.ZabbixHostOptions{
 		Fields:     []string{"name", "host"},
 		Inventory:  []string{"os", "vendor"},
 		Interfaces: []string{"ip", "dns"},

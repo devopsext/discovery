@@ -144,6 +144,18 @@ var dZabbixOptions = discovery.ZabbixOptions{
 	},
 }
 
+var dVCenterOptions = discovery.VCenterOptions{
+	Schedule: envGet("VCENTER_SCHEDULE", "").(string),
+	VCenterOptions: vendors.VCenterOptions{
+		Timeout:  envGet("VCENTER_TIMEOUT", 5).(int),
+		Insecure: envGet("VCENTER_INSECURE", false).(bool),
+		URL:      envGet("VCENTER_URL", "").(string),
+		User:     envGet("VCENTER_USER", "").(string),
+		Password: envGet("VCENTER_PASSWORD", "").(string),
+		Session:  envGet("VCENTER_SESSION", "").(string),
+	},
+}
+
 var dPubSubOptions = discovery.PubSubOptions{
 	Enabled:                 envGet("PUBSUB_ENABLED", false).(bool),
 	Credentials:             envGet("PUBSUB_CREDENTIALS", "").(string),
@@ -295,7 +307,7 @@ func runSchedule(s *gocron.Scheduler, schedule string, jobFun interface{}) {
 	if len(arr) == 1 {
 		s.Every(schedule).WaitForSchedule().Do(jobFun)
 	} else {
-		s.Cron(schedule).Do(jobFun)
+		s.Cron(schedule).WaitForSchedule().Do(jobFun)
 	}
 }
 
@@ -427,6 +439,7 @@ func Execute() {
 			// run simple discoveries
 			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
 			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dVCenterOptions.Schedule, discovery.NewVCenter(dVCenterOptions, obs, sinks), logger)
 
 			scheduler.StartAsync()
 
@@ -532,6 +545,15 @@ func Execute() {
 	flags.StringVar(&dZabbixOptions.User, "zabbix-user", dZabbixOptions.User, "Zabbix discovery user")
 	flags.StringVar(&dZabbixOptions.Password, "zabbix-password", dZabbixOptions.Password, "Zabbix discovery password")
 	flags.StringVar(&dZabbixOptions.Auth, "zabbix-token", dZabbixOptions.Auth, "Zabbix discovery token")
+
+	// VCenter
+	flags.StringVar(&dVCenterOptions.Schedule, "vcenter-schedule", dVCenterOptions.Schedule, "VCenter discovery schedule")
+	flags.IntVar(&dVCenterOptions.Timeout, "vcenter-timeout", dVCenterOptions.Timeout, "VCenter discovery timeout")
+	flags.BoolVar(&dVCenterOptions.Insecure, "vcenter-insecure", dVCenterOptions.Insecure, "VCenter discovery insecure")
+	flags.StringVar(&dVCenterOptions.URL, "vcenter-url", dVCenterOptions.URL, "VCenter discovery URL")
+	flags.StringVar(&dVCenterOptions.User, "vcenter-user", dVCenterOptions.User, "VCenter discovery user")
+	flags.StringVar(&dVCenterOptions.Password, "vcenter-password", dVCenterOptions.Password, "VCenter discovery password")
+	flags.StringVar(&dVCenterOptions.Session, "vcenter-session", dVCenterOptions.Session, "VCenter discovery session")
 
 	// PubSub
 	flags.BoolVar(&dPubSubOptions.Enabled, "pubsub-enabled", dPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")

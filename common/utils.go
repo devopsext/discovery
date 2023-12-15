@@ -90,7 +90,8 @@ func FileMD5(path string) []byte {
 }
 
 func IfDef(v, def interface{}) interface{} {
-	if v == nil {
+
+	if utils.IsEmpty(v) {
 		return def
 	}
 	switch v.(type) {

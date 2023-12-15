@@ -38,11 +38,16 @@ func AppendHostSink(m SinkMap, name string, hs HostSink) {
 		return
 	}
 	labels := make(Labels)
-	labels["ip"] = hs.IP
 	labels["host"] = hs.Host
+
+	if !utils.IsEmpty(hs.IP) {
+		labels["ip"] = hs.IP
+	}
+
 	if !utils.IsEmpty(hs.Vendor) {
 		labels["vendor"] = hs.Vendor
 	}
+
 	if !utils.IsEmpty(hs.OS) {
 		labels["os"] = hs.OS
 	}

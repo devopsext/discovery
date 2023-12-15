@@ -83,8 +83,8 @@ github.com/devopsext/dd-trace-go v1.31.2 h1:JRueUyJ+t/zQc0Jd2dlbe+40r2k9q2wdMQQc
 github.com/devopsext/dd-trace-go v1.31.2/go.mod h1:wRKMf/tRASHwH/UOfPQ3IQmVFhTz2/1a1/mpXoIjF54=
 github.com/devopsext/sre v0.3.0 h1:m1T+Rx9+0Lk1w+0W0aZayTfKtKXyHLGtJ7SeJOeF2rk=
 github.com/devopsext/sre v0.3.0/go.mod h1:zdrlM37q0S568DdJAZRI3jNh3r9sE8eM3OG6ETjcnig=
-github.com/devopsext/tools v0.10.0 h1:WOat2v2xY0CJh0PiayvcqKUD0T2wHRDgbpoeTMvp/sk=
-github.com/devopsext/tools v0.10.0/go.mod h1:xAwfs4lKq8Gd1xbfMZNJqTGHSJWVt7VJF8qfIH3w9Yw=
+github.com/devopsext/tools v0.10.3 h1:oqiYuiKoRBONckaVDKr1mpYaDbhOq2i9Nxu6cBIp4Co=
+github.com/devopsext/tools v0.10.3/go.mod h1:xAwfs4lKq8Gd1xbfMZNJqTGHSJWVt7VJF8qfIH3w9Yw=
 github.com/devopsext/utils v0.2.3 h1:KTqcmHHB1HXJQW/TlA7MBkkyRm0G18bg9TjkOLMe5x8=
 github.com/devopsext/utils v0.2.3/go.mod h1:xX0rmYwJpchRBmjTkxY3k0JV6brbWRghF7EsJkwPwHY=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
