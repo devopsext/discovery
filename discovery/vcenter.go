@@ -195,7 +195,7 @@ func (vc *VCenter) setVMs(opts toolsVendors.VCenterOptions, host, name string, v
 
 		identity, err := vc.getVMGuestidentity(opts, v.VM)
 		if err != nil {
-			vc.logger.Error(err)
+			vc.logger.Error("VCenter vm %s guest identity error: %s", v.Name, err)
 			continue
 		}
 		v.identity = identity
@@ -208,7 +208,7 @@ func (vc *VCenter) setHosts(opts toolsVendors.VCenterOptions, cluster, name stri
 
 		vms, err := vc.getVMs(opts, cluster, h.Host)
 		if err != nil {
-			vc.logger.Error(err)
+			vc.logger.Error("VCenter host %s vms error: %s", h.Name, err)
 			continue
 		}
 		h.vms = vms
@@ -228,7 +228,7 @@ func (vc *VCenter) setClusters(opts toolsVendors.VCenterOptions, clusters []*VCe
 
 		hosts, err := vc.getHosts(opts, c.Cluster)
 		if err != nil {
-			vc.logger.Error(err)
+			vc.logger.Error("VCenter cluster %s hosts error: %s", c.Name, err)
 			continue
 		}
 		c.hosts = hosts
