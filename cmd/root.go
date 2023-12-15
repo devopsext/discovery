@@ -42,7 +42,7 @@ var rootOptions = RootOptions{
 	Logs:          strings.Split(envGet("LOGS", "stdout").(string), ","),
 	Metrics:       strings.Split(envGet("METRICS", "prometheus").(string), ","),
 	RunOnce:       envGet("RUN_ONCE", false).(bool),
-	SchedulerWait: envGet("SCHEDULER_WAIT", false).(bool),
+	SchedulerWait: envGet("SCHEDULER_WAIT", true).(bool),
 }
 
 var stdoutOptions = sreProvider.StdoutOptions{
@@ -550,6 +550,15 @@ func Execute() {
 	flags.StringVar(&dZabbixOptions.User, "zabbix-user", dZabbixOptions.User, "Zabbix discovery user")
 	flags.StringVar(&dZabbixOptions.Password, "zabbix-password", dZabbixOptions.Password, "Zabbix discovery password")
 	flags.StringVar(&dZabbixOptions.Auth, "zabbix-token", dZabbixOptions.Auth, "Zabbix discovery token")
+
+	// K8s
+	flags.StringVar(&dK8sOptions.Schedule, "k8s-schedule", dK8sOptions.Schedule, "K8s discovery schedule")
+	flags.StringVar(&dK8sOptions.ClusterName, "k8s-cluster", dK8sOptions.ClusterName, "K8s discovery cluster name")
+	flags.StringSliceVar(&dK8sOptions.NsInclude, "k8s-ns-include", dK8sOptions.NsInclude, "K8s discovery namespaces include")
+	flags.StringSliceVar(&dK8sOptions.NsExclude, "k8s-ns-exclude", dK8sOptions.NsExclude, "K8s discovery namespaces exclude")
+	flags.StringVar(&dK8sOptions.AppLabel, "k8s-app-label", dK8sOptions.AppLabel, "K8s discovery app label")
+	flags.StringVar(&dK8sOptions.ComponentLabel, "k8s-component-label", dK8sOptions.ComponentLabel, "K8s discovery component label")
+	flags.StringVar(&dK8sOptions.InstanceLabel, "k8s-instance-label", dK8sOptions.InstanceLabel, "K8s discovery instance label")
 
 	// PubSub
 	flags.BoolVar(&dPubSubOptions.Enabled, "pubsub-enabled", dPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")
