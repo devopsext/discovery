@@ -32,15 +32,17 @@ var stdout *sreProvider.Stdout
 var mainWG sync.WaitGroup
 
 type RootOptions struct {
-	Logs    []string
-	Metrics []string
-	RunOnce bool
+	Logs          []string
+	Metrics       []string
+	RunOnce       bool
+	SchedulerWait bool
 }
 
 var rootOptions = RootOptions{
-	Logs:    strings.Split(envGet("LOGS", "stdout").(string), ","),
-	Metrics: strings.Split(envGet("METRICS", "prometheus").(string), ","),
-	RunOnce: envGet("RUN_ONCE", false).(bool),
+	Logs:          strings.Split(envGet("LOGS", "stdout").(string), ","),
+	Metrics:       strings.Split(envGet("METRICS", "prometheus").(string), ","),
+	RunOnce:       envGet("RUN_ONCE", false).(bool),
+	SchedulerWait: envGet("SCHEDULER_WAIT", false).(bool),
 }
 
 var stdoutOptions = sreProvider.StdoutOptions{
@@ -299,14 +301,19 @@ func interceptSyscall() {
 	}()
 }
 
-func runSchedule(s *gocron.Scheduler, schedule string, jobFun interface{}) {
+func runSchedule(s *gocron.Scheduler, schedule string, wait bool, jobFun interface{}) {
 
-	arr := strings.Split(schedule, " ")
-	if len(arr) == 1 {
-		s.Every(schedule).WaitForSchedule().Do(jobFun)
+	var ss *gocron.Scheduler
+	if len(strings.Split(schedule, " ")) == 1 {
+		ss = s.Every(schedule)
 	} else {
-		s.Cron(schedule).Do(jobFun)
+		ss = s.Cron(schedule)
 	}
+	if wait {
+		ss = ss.WaitForSchedule()
+	}
+
+	ss.Do(jobFun)
 }
 
 func runStandAloneDiscovery(wg *sync.WaitGroup, discovery common.Discovery, logger *sreCommon.Logs) {
@@ -322,7 +329,7 @@ func runStandAloneDiscovery(wg *sync.WaitGroup, discovery common.Discovery, logg
 	logger.Debug("%s: discovery enabled on event", discovery.Name())
 }
 
-func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.Scheduler, schedule string, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
+func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce, wait bool, scheduler *gocron.Scheduler, schedule string, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
 
 	if utils.IsEmpty(discovery) {
 		return
@@ -338,12 +345,12 @@ func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.
 	}
 	// run on schedule if there is one defined
 	if !utils.IsEmpty(schedule) {
-		runSchedule(scheduler, schedule, discovery.Discover)
+		runSchedule(scheduler, schedule, wait, discovery.Discover)
 		logger.Debug("%s: %s discovery enabled on schedule: %s", discovery.Name(), value, schedule)
 	}
 }
 
-func runSimpleDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.Scheduler, schedule string, discovery common.Discovery, logger *sreCommon.Logs) {
+func runSimpleDiscovery(wg *sync.WaitGroup, runOnce, wait bool, scheduler *gocron.Scheduler, schedule string, discovery common.Discovery, logger *sreCommon.Logs) {
 
 	if utils.IsEmpty(discovery) {
 		return
@@ -359,7 +366,7 @@ func runSimpleDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.Sche
 	}
 	// run on schedule if there is one defined
 	if !utils.IsEmpty(schedule) {
-		runSchedule(scheduler, schedule, discovery.Discover)
+		runSchedule(scheduler, schedule, wait, discovery.Discover)
 		logger.Debug("%s: discovery enabled on schedule: %s", discovery.Name(), schedule)
 	}
 }
@@ -428,16 +435,16 @@ func Execute() {
 				opts.User = prom.User
 				opts.Password = prom.Password
 
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
 			}
 			// run simple discoveries
-			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
-			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
-			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, sinks), logger)
 
 			scheduler.StartAsync()
 
