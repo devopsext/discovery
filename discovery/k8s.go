@@ -18,6 +18,7 @@ type K8sOptions struct {
 	NsExclude      []string
 	AppLabel       string
 	ComponentLabel string
+	InstanceLabel  string
 }
 
 type K8s struct {
@@ -70,7 +71,7 @@ func (k *K8s) podsToSinkMap(pods []v1.Pod) common.SinkMap {
 			continue
 		}
 
-		r[pod.Name] = common.Labels{
+		r[common.IfDef(pod.Labels[k.options.InstanceLabel], pod.Name).(string)] = common.Labels{
 			"application": common.IfDef(pod.Labels[k.options.AppLabel], "unknown").(string),
 			"component":   common.IfDef(pod.Labels[k.options.ComponentLabel], "unknown").(string),
 			"namespace":   pod.Namespace,
