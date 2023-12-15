@@ -32,15 +32,17 @@ var stdout *sreProvider.Stdout
 var mainWG sync.WaitGroup
 
 type RootOptions struct {
-	Logs    []string
-	Metrics []string
-	RunOnce bool
+	Logs          []string
+	Metrics       []string
+	RunOnce       bool
+	SchedulerWait bool
 }
 
 var rootOptions = RootOptions{
-	Logs:    strings.Split(envGet("LOGS", "stdout").(string), ","),
-	Metrics: strings.Split(envGet("METRICS", "prometheus").(string), ","),
-	RunOnce: envGet("RUN_ONCE", false).(bool),
+	Logs:          strings.Split(envGet("LOGS", "stdout").(string), ","),
+	Metrics:       strings.Split(envGet("METRICS", "prometheus").(string), ","),
+	RunOnce:       envGet("RUN_ONCE", false).(bool),
+	SchedulerWait: envGet("SCHEDULER_WAIT", true).(bool),
 }
 
 var stdoutOptions = sreProvider.StdoutOptions{
@@ -142,6 +144,16 @@ var dZabbixOptions = discovery.ZabbixOptions{
 		Password: envGet("ZABBIX_PASSWORD", "").(string),
 		Auth:     envGet("ZABBIX_TOKEN", "").(string),
 	},
+}
+
+var dK8sOptions = discovery.K8sOptions{
+	Schedule:       envGet("K8S_SCHEDULE", "").(string), // K8s discovery disabled if empty
+	ClusterName:    envGet("K8S_CLUSTER", "undefined").(string),
+	NsInclude:      common.RemoveEmptyStrings(strings.Split(envGet("K8S_NS_INCLUDE", "").(string), ",")),
+	NsExclude:      common.RemoveEmptyStrings(strings.Split(envGet("K8S_NS_EXCLUDE", "").(string), ",")),
+	AppLabel:       envGet("K8S_APP_LABEL", "app.kubernetes.io/name").(string),
+	ComponentLabel: envGet("K8S_COMPONENT_LABEL", "app.kubernetes.io/component").(string),
+	InstanceLabel:  envGet("K8S_INSTANCE_LABEL", "app.kubernetes.io/instance").(string),
 }
 
 var dPubSubOptions = discovery.PubSubOptions{
@@ -280,7 +292,7 @@ func envFileContentExpand(s string, def string) string {
 
 func interceptSyscall() {
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
 		<-c
@@ -289,14 +301,19 @@ func interceptSyscall() {
 	}()
 }
 
-func runSchedule(s *gocron.Scheduler, schedule string, jobFun interface{}) {
+func runSchedule(s *gocron.Scheduler, schedule string, wait bool, jobFun interface{}) {
 
-	arr := strings.Split(schedule, " ")
-	if len(arr) == 1 {
-		s.Every(schedule).WaitForSchedule().Do(jobFun)
+	var ss *gocron.Scheduler
+	if len(strings.Split(schedule, " ")) == 1 {
+		ss = s.Every(schedule)
 	} else {
-		s.Cron(schedule).Do(jobFun)
+		ss = s.Cron(schedule)
 	}
+	if wait {
+		ss = ss.WaitForSchedule()
+	}
+
+	ss.Do(jobFun)
 }
 
 func runStandAloneDiscovery(wg *sync.WaitGroup, discovery common.Discovery, logger *sreCommon.Logs) {
@@ -312,7 +329,7 @@ func runStandAloneDiscovery(wg *sync.WaitGroup, discovery common.Discovery, logg
 	logger.Debug("%s: discovery enabled on event", discovery.Name())
 }
 
-func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.Scheduler, schedule string, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
+func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce, wait bool, scheduler *gocron.Scheduler, schedule string, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
 
 	if utils.IsEmpty(discovery) {
 		return
@@ -328,12 +345,12 @@ func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.
 	}
 	// run on schedule if there is one defined
 	if !utils.IsEmpty(schedule) {
-		runSchedule(scheduler, schedule, discovery.Discover)
+		runSchedule(scheduler, schedule, wait, discovery.Discover)
 		logger.Debug("%s: %s discovery enabled on schedule: %s", discovery.Name(), value, schedule)
 	}
 }
 
-func runSimpleDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.Scheduler, schedule string, discovery common.Discovery, logger *sreCommon.Logs) {
+func runSimpleDiscovery(wg *sync.WaitGroup, runOnce, wait bool, scheduler *gocron.Scheduler, schedule string, discovery common.Discovery, logger *sreCommon.Logs) {
 
 	if utils.IsEmpty(discovery) {
 		return
@@ -349,7 +366,7 @@ func runSimpleDiscovery(wg *sync.WaitGroup, runOnce bool, scheduler *gocron.Sche
 	}
 	// run on schedule if there is one defined
 	if !utils.IsEmpty(schedule) {
-		runSchedule(scheduler, schedule, discovery.Discover)
+		runSchedule(scheduler, schedule, wait, discovery.Discover)
 		logger.Debug("%s: discovery enabled on schedule: %s", discovery.Name(), schedule)
 	}
 }
@@ -418,15 +435,16 @@ func Execute() {
 				opts.User = prom.User
 				opts.Password = prom.Password
 
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
 			}
 			// run simple discoveries
-			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
-			runSimpleDiscovery(wg, rootOptions.RunOnce, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, sinks), logger)
 
 			scheduler.StartAsync()
 
@@ -532,6 +550,15 @@ func Execute() {
 	flags.StringVar(&dZabbixOptions.User, "zabbix-user", dZabbixOptions.User, "Zabbix discovery user")
 	flags.StringVar(&dZabbixOptions.Password, "zabbix-password", dZabbixOptions.Password, "Zabbix discovery password")
 	flags.StringVar(&dZabbixOptions.Auth, "zabbix-token", dZabbixOptions.Auth, "Zabbix discovery token")
+
+	// K8s
+	flags.StringVar(&dK8sOptions.Schedule, "k8s-schedule", dK8sOptions.Schedule, "K8s discovery schedule")
+	flags.StringVar(&dK8sOptions.ClusterName, "k8s-cluster", dK8sOptions.ClusterName, "K8s discovery cluster name")
+	flags.StringSliceVar(&dK8sOptions.NsInclude, "k8s-ns-include", dK8sOptions.NsInclude, "K8s discovery namespaces include")
+	flags.StringSliceVar(&dK8sOptions.NsExclude, "k8s-ns-exclude", dK8sOptions.NsExclude, "K8s discovery namespaces exclude")
+	flags.StringVar(&dK8sOptions.AppLabel, "k8s-app-label", dK8sOptions.AppLabel, "K8s discovery app label")
+	flags.StringVar(&dK8sOptions.ComponentLabel, "k8s-component-label", dK8sOptions.ComponentLabel, "K8s discovery component label")
+	flags.StringVar(&dK8sOptions.InstanceLabel, "k8s-instance-label", dK8sOptions.InstanceLabel, "K8s discovery instance label")
 
 	// PubSub
 	flags.BoolVar(&dPubSubOptions.Enabled, "pubsub-enabled", dPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")
