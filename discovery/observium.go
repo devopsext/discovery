@@ -64,7 +64,7 @@ func (o *Observium) makeDevicesSinkMap(devices map[string]ObserviumDevice) commo
 
 		common.AppendHostSink(r, v.Name, common.HostSink{
 			IP:     v.IP,
-			Host:   v.Host,
+			Server: v.Host,
 			Vendor: v.Vendor,
 		})
 	}

@@ -178,10 +178,12 @@ func (vc *VCenter) makeSinkMap(clusters []*VCenterCluster) common.SinkMap {
 				}
 
 				common.AppendHostSink(r, v.Name, common.HostSink{
-					IP:     ip,
-					Host:   host,
-					OS:     os,
-					Vendor: "vSphere",
+					IP:      ip,
+					Host:    host,
+					OS:      os,
+					Vendor:  "vSphere",
+					Cluster: c.Name,
+					Server:  h.Host,
 				})
 			}
 		}

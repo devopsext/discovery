@@ -26,10 +26,12 @@ type Sinks struct {
 }
 
 type HostSink struct {
-	IP     string
-	Host   string
-	Vendor string
-	OS     string
+	IP      string
+	Host    string
+	Vendor  string
+	OS      string
+	Cluster string
+	Server  string
 }
 
 func AppendHostSink(m SinkMap, name string, hs HostSink) {
@@ -50,6 +52,14 @@ func AppendHostSink(m SinkMap, name string, hs HostSink) {
 
 	if !utils.IsEmpty(hs.OS) {
 		labels["os"] = hs.OS
+	}
+
+	if !utils.IsEmpty(hs.Cluster) {
+		labels["cluster"] = hs.Cluster
+	}
+
+	if !utils.IsEmpty(hs.Cluster) {
+		labels["server"] = hs.Server
 	}
 	m[name] = labels
 }
