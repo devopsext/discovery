@@ -343,3 +343,29 @@ func ConvertSyncMapToServices(m SinkMap) Services {
 	}
 	return r
 }
+
+func MergeLabels(labels ...Labels) Labels {
+
+	r := make(Labels)
+	for _, l := range labels {
+		for k, v := range l {
+			if _, ok := r[k]; !ok {
+				r[k] = v
+			}
+		}
+	}
+	return r
+}
+
+func StringSliceToMap(lines []string) map[string]string {
+	l := make(map[string]string)
+	for _, line := range lines {
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			l[parts[0]] = parts[1]
+		} else {
+			l[parts[0]] = ""
+		}
+	}
+	return l
+}

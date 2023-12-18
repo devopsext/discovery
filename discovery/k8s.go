@@ -20,6 +20,7 @@ type K8sOptions struct {
 	AppLabel       string
 	ComponentLabel string
 	InstanceLabel  string
+	CommonLabels   map[string]string
 }
 
 type K8s struct {
@@ -72,13 +73,13 @@ func (k *K8s) podsToSinkMap(pods []v1.Pod) common.SinkMap {
 			continue
 		}
 
-		r[common.IfDef(pod.Labels[k.options.InstanceLabel], pod.Name).(string)] = common.Labels{
+		r[common.IfDef(pod.Labels[k.options.InstanceLabel], pod.Name).(string)] = common.MergeLabels(common.Labels{
 			"application": common.IfDef(pod.Labels[k.options.AppLabel], "unknown").(string),
 			"component":   common.IfDef(pod.Labels[k.options.ComponentLabel], "unknown").(string),
 			"namespace":   pod.Namespace,
 			"cluster":     k.options.ClusterName,
 			"host":        pod.Spec.NodeName,
-		}
+		}, k.options.CommonLabels)
 	}
 
 	return r

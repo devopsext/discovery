@@ -166,6 +166,7 @@ var dK8sOptions = discovery.K8sOptions{
 	AppLabel:       envGet("K8S_APP_LABEL", "app.kubernetes.io/name").(string),
 	ComponentLabel: envGet("K8S_COMPONENT_LABEL", "app.kubernetes.io/component").(string),
 	InstanceLabel:  envGet("K8S_INSTANCE_LABEL", "app.kubernetes.io/instance").(string),
+	CommonLabels:   common.StringSliceToMap(common.RemoveEmptyStrings(strings.Split(envGet("K8S_COMMON_LABELS", "").(string), ","))),
 }
 
 var dPubSubOptions = discovery.PubSubOptions{
@@ -581,6 +582,7 @@ func Execute() {
 	flags.StringVar(&dK8sOptions.AppLabel, "k8s-app-label", dK8sOptions.AppLabel, "K8s discovery app label")
 	flags.StringVar(&dK8sOptions.ComponentLabel, "k8s-component-label", dK8sOptions.ComponentLabel, "K8s discovery component label")
 	flags.StringVar(&dK8sOptions.InstanceLabel, "k8s-instance-label", dK8sOptions.InstanceLabel, "K8s discovery instance label")
+	flags.StringToStringVarP(&dK8sOptions.CommonLabels, "k8s-common-labels", "", dK8sOptions.CommonLabels, "K8s discovery common labels")
 
 	// PubSub
 	flags.BoolVar(&dPubSubOptions.Enabled, "pubsub-enabled", dPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")
