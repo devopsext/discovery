@@ -183,7 +183,7 @@ func (vc *VCenter) makeSinkMap(clusters []*VCenterCluster) common.SinkMap {
 					OS:      os,
 					Vendor:  "vSphere",
 					Cluster: c.Name,
-					Server:  h.Host,
+					Server:  h.Name,
 				})
 			}
 		}
