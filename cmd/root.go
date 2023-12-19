@@ -180,6 +180,11 @@ var dPubSubOptions = discovery.PubSubOptions{
 	Dir:                     envGet("PUBSUB_DIR", "").(string),
 }
 
+var dDumbOptions = discovery.DumbOptions{
+	Enabled:  envGet("DUMB_ENABLED", false).(bool),
+	Schedule: envGet("DUMB_SCHEDULE", "10s").(string),
+}
+
 var sinkJsonOptions = sink.JsonOptions{
 	Dir: envGet("SINK_JSON_DIR", "").(string),
 }
@@ -459,6 +464,7 @@ func Execute() {
 			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
 			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, sinks), logger)
 			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dVCenterOptions.Schedule, discovery.NewVCenter(dVCenterOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, sinks), logger)
 
 			scheduler.StartAsync()
 
