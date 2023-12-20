@@ -40,7 +40,9 @@ func AppendHostSink(m SinkMap, name string, hs HostSink) {
 		return
 	}
 	labels := make(Labels)
-	labels["host"] = hs.Host
+	if !utils.IsEmpty(hs.Host) {
+		labels["host"] = hs.Host
+	}
 
 	if !utils.IsEmpty(hs.IP) {
 		labels["ip"] = hs.IP
@@ -58,7 +60,7 @@ func AppendHostSink(m SinkMap, name string, hs HostSink) {
 		labels["cluster"] = hs.Cluster
 	}
 
-	if !utils.IsEmpty(hs.Cluster) {
+	if !utils.IsEmpty(hs.Server) {
 		labels["server"] = hs.Server
 	}
 	m[name] = labels
