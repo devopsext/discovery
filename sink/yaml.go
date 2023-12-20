@@ -1,9 +1,12 @@
 package sink
 
 import (
+	"encoding/json"
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
+	"os"
+	"path/filepath"
 )
 
 type YamlOptions struct {
@@ -28,7 +31,23 @@ func (y *Yaml) Process(d common.Discovery, so common.SinkObject) {
 
 	m := so.Map()
 	y.logger.Debug("Yaml has to process %d objects from %s...", len(m), d.Name())
-
+	data, err := json.Marshal(m)
+	if err != nil {
+		y.logger.Error("Yaml Sink: %v", err)
+		return
+	}
+	f, err := os.Create(filepath.Join(y.options.Dir, d.Name()+".yaml"))
+	if err != nil {
+		y.logger.Error("Yaml Sink: %v", err)
+		return
+	}
+	defer func(f *os.File) {
+		err := f.Close()
+		if err != nil {
+			y.logger.Error("Yaml Sink: %v", err)
+		}
+	}(f)
+	_, err = f.Write(data)
 }
 
 func NewYaml(options YamlOptions, observability *common.Observability) *Yaml {

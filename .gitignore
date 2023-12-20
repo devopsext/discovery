@@ -11,6 +11,7 @@ __debug_bin
 .cmdb/
 .temp/
 .idea/
+output/
 
 info.txt
 signal.telegraf.quality.query
