@@ -1,16 +1,17 @@
 package sink
 
 import (
-	"encoding/json"
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
+	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 )
 
 type YamlOptions struct {
-	Dir string
+	Dir       string
+	Providers []string
 }
 
 type Yaml struct {
@@ -24,14 +25,14 @@ func (y *Yaml) Name() string {
 }
 
 func (y *Yaml) Providers() []string {
-	return []string{}
+	return y.options.Providers
 }
 
 func (y *Yaml) Process(d common.Discovery, so common.SinkObject) {
 
 	m := so.Map()
 	y.logger.Debug("Yaml has to process %d objects from %s...", len(m), d.Name())
-	data, err := json.Marshal(m)
+	data, err := yaml.Marshal(m)
 	if err != nil {
 		y.logger.Error("Yaml Sink: %v", err)
 		return
@@ -48,6 +49,9 @@ func (y *Yaml) Process(d common.Discovery, so common.SinkObject) {
 		}
 	}(f)
 	_, err = f.Write(data)
+	if err != nil {
+		y.logger.Error("Yaml Sink: %v", err)
+	}
 }
 
 func NewYaml(options YamlOptions, observability *common.Observability) *Yaml {
@@ -58,6 +62,8 @@ func NewYaml(options YamlOptions, observability *common.Observability) *Yaml {
 		logger.Debug("Yaml has no directory. Skipped")
 		return nil
 	}
+
+	options.Providers = common.RemoveEmptyStrings(options.Providers)
 
 	return &Yaml{
 		options:       options,

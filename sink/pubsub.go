@@ -15,6 +15,7 @@ type PubSubOptions struct {
 	Credentials string
 	ProjectID   string
 	TopicID     string
+	Providers   []string
 }
 
 type PubSub struct {
@@ -56,7 +57,7 @@ func (ps *PubSub) Name() string {
 }
 
 func (ps *PubSub) Providers() []string {
-	return []string{}
+	return ps.options.Providers
 }
 
 func (ps *PubSub) Close() {

@@ -186,11 +186,13 @@ var dDumbOptions = discovery.DumbOptions{
 }
 
 var sinkJsonOptions = sink.JsonOptions{
-	Dir: envGet("SINK_JSON_DIR", "").(string),
+	Dir:       envGet("SINK_JSON_DIR", "").(string),
+	Providers: strings.Split(envStringExpand("SINK_JSON_PROVIDERS", ""), ","),
 }
 
 var sinkYamlOptions = sink.YamlOptions{
-	Dir: envGet("SINK_YAML_DIR", "").(string),
+	Dir:       envGet("SINK_YAML_DIR", "").(string),
+	Providers: strings.Split(envStringExpand("SINK_YAML_PROVIDERS", ""), ","),
 }
 
 var sinkTelegrafOptions = sink.TelegrafOptions{
@@ -287,6 +289,7 @@ var sinkPubSubOptions = sink.PubSubOptions{
 	Credentials: envGet("SINK_PUBSUB_CREDENTIALS", "").(string),
 	ProjectID:   envGet("SINK_PUBSUB_PROJECT", "").(string),
 	TopicID:     envGet("SINK_PUBSUB_TOPIC", "").(string),
+	Providers:   strings.Split(envStringExpand("SINK_PUBSUB_PROVIDERS", ""), ","),
 }
 
 func getOnlyEnv(key string) string {
