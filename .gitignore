@@ -12,6 +12,7 @@ __debug_bin
 .temp/
 .idea/
 output/
+private/
 
 info.txt
 signal.telegraf.quality.query

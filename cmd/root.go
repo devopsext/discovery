@@ -282,6 +282,13 @@ var sinkObservabilityOptions = sink.ObservabilityOptions{
 	Labels:        strings.Split(envStringExpand("SINK_OBSERVABILITY_LABELS", ""), ","),
 }
 
+var sinkPubSubOptions = sink.PubSubOptions{
+	Enabled:     envGet("SINK_PUBSUB_ENABLED", false).(bool),
+	Credentials: envGet("SINK_PUBSUB_CREDENTIALS", "").(string),
+	ProjectID:   envGet("SINK_PUBSUB_PROJECT", "").(string),
+	TopicID:     envGet("SINK_PUBSUB_TOPIC", "").(string),
+}
+
 func getOnlyEnv(key string) string {
 	value, ok := os.LookupEnv(key)
 	if ok {
@@ -423,6 +430,7 @@ func Execute() {
 			sinks.Add(sink.NewYaml(sinkYamlOptions, obs))
 			sinks.Add(sink.NewTelegraf(sinkTelegrafOptions, obs))
 			sinks.Add(sink.NewObservability(sinkObservabilityOptions, obs))
+			sinks.Add(sink.NewPubSub(sinkPubSubOptions, obs))
 
 			// define scheduler
 			scheduler := gocron.NewScheduler(time.UTC)
