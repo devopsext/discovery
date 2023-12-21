@@ -78,7 +78,8 @@ func (k *K8s) podsToSinkMap(pods []v1.Pod) common.SinkMap {
 			"component":   common.IfDef(pod.Labels[k.options.ComponentLabel], "unknown").(string),
 			"namespace":   pod.Namespace,
 			"cluster":     k.options.ClusterName,
-			"host":        pod.Spec.NodeName,
+			"node":        pod.Spec.NodeName,
+			"ip":          pod.Status.PodIP,
 		}, k.options.CommonLabels)
 	}
 
