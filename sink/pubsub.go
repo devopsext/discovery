@@ -32,11 +32,64 @@ type PubSubPublishObject struct {
 	Data   interface{} `json:"data"`
 }
 
+type SCUpdateObject struct {
+	Application string `json:"application"`
+	Component   string `json:"component"`
+	Instance    string `json:"instance"`
+	Cluster     string `json:"cluster"`
+	Environment string `json:"environment"`
+	Kind        string `json:"type"`
+	Resource    string `json:"resource"`
+}
+
+type SCUpdateObjects []SCUpdateObject
+
+type SCUpdateObjectMap map[string]SCUpdateObject
+
+func sinkMapToSCUpdateObjects(sinkMap common.SinkMap) *SCUpdateObjects {
+
+	if sinkMap == nil {
+		return nil
+	}
+
+	om := make(SCUpdateObjectMap)
+	res := make(SCUpdateObjects, 0)
+
+	lm := common.ConvertSyncMapToLabelsMap(sinkMap)
+
+	for k, v := range lm {
+		if v == nil {
+			continue
+		}
+		if _, found := om[k]; !found {
+			om[k] = SCUpdateObject{
+				Application: v["application"],
+				Component:   v["component"],
+				Instance:    k,
+				Cluster:     v["cluster"],
+				Environment: v["environment"],
+				Kind:        v["kind"],
+				Resource:    v["node"],
+			}
+		} else {
+			t := om[k]
+			t.Resource = t.Resource + "," + v["node"]
+			om[k] = t
+		}
+	}
+
+	for _, object := range om {
+		res = append(res, object)
+	}
+
+	return &res
+}
+
 func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
 	data, err := json.Marshal(PubSubPublishObject{
 		Source: d.Name(),
-		Type:   "yaml",
-		Data:   so.Map(),
+		Type:   "json",
+		Data:   sinkMapToSCUpdateObjects(so.Map()),
 	})
 	if err != nil {
 		ps.logger.Error("PubSub Sink: %v", err)

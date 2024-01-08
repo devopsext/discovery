@@ -128,7 +128,7 @@ func (ps *PubSub) pullMsgs(client *pubsub.Client, ctx context.Context, subID str
 			atomic.AddInt32(&received, 1)
 			msg.Ack()
 		} else {
-			ps.logger.Error("PubSub: сouldn't process the message from pubsub with id: %s. Error: %w", msg.ID, err)
+			ps.logger.Error("PubSub: couldn't process the message from pubsub with id: %s. Error: %w", msg.ID, err)
 		}
 	})
 	if err != nil {
