@@ -52,6 +52,10 @@ func (hs *HTTPSinkObject) Options() interface{} {
 	return hs.http.options
 }
 
+func (hs *HTTPSinkObject) Slice() []interface{} {
+	return common.ConvertLabelMapToSlice(common.ConvertSyncMapToLabelsMap(hs.sinkMap))
+}
+
 func (h *HTTP) Name() string {
 	return "HTTP"
 }

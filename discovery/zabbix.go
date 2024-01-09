@@ -48,6 +48,10 @@ func (os *ZabbixSinkObject) Map() common.SinkMap {
 	return os.sinkMap
 }
 
+func (os *ZabbixSinkObject) Slice() []interface{} {
+	return common.ConvertLabelMapToSlice(common.ConvertSyncMapToLabelsMap(os.sinkMap))
+}
+
 func (os *ZabbixSinkObject) Options() interface{} {
 	return os.Zabbix.options
 }

@@ -49,6 +49,10 @@ func (cs *CertSinkObject) Options() interface{} {
 	return cs.cert.options
 }
 
+func (cs *CertSinkObject) Slice() []interface{} {
+	return common.ConvertLabelMapToSlice(common.ConvertSyncMapToLabelsMap(cs.sinkMap))
+}
+
 func (c *Cert) Name() string {
 	return "Cert"
 }

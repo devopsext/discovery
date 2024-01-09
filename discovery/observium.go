@@ -44,6 +44,10 @@ func (os *ObserviumSinkObject) Map() common.SinkMap {
 	return os.sinkMap
 }
 
+func (os *ObserviumSinkObject) Slice() []interface{} {
+	return common.ConvertLabelMapToSlice(common.ConvertSyncMapToLabelsMap(os.sinkMap))
+}
+
 func (os *ObserviumSinkObject) Options() interface{} {
 	return os.observium.options
 }

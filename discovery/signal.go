@@ -60,6 +60,10 @@ func (ss *SignalSinkObject) Map() common.SinkMap {
 	return ss.sinkMap
 }
 
+func (ss *SignalSinkObject) Slice() []interface{} {
+	return common.ConvertLabelMapToSlice(common.ConvertSyncMapToLabelsMap(ss.sinkMap))
+}
+
 func (ss *SignalSinkObject) Options() interface{} {
 	return ss.signal.options
 }

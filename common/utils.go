@@ -369,3 +369,12 @@ func StringSliceToMap(lines []string) map[string]string {
 	}
 	return l
 }
+
+func ConvertLabelMapToSlice(labelsMap LabelsMap) []interface{} {
+	r := make([]interface{}, 0)
+	for k, v := range labelsMap {
+		v["key"] = k
+		r = append(r, v)
+	}
+	return r
+}

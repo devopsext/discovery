@@ -27,6 +27,10 @@ func (d *DumbSinkObject) Map() common.SinkMap {
 	return common.ConvertLabelsMapToSinkMap(d.dumb.options.LabelsMap)
 }
 
+func (d *DumbSinkObject) Slice() []interface{} {
+	return common.ConvertLabelMapToSlice(d.dumb.options.LabelsMap)
+}
+
 func (d *DumbSinkObject) Options() interface{} {
 	return d.dumb.options
 }

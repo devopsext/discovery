@@ -37,12 +37,16 @@ type K8sSinkObject struct {
 	k8s     *K8s
 }
 
-func (k *K8sSinkObject) Map() common.SinkMap {
-	return k.sinkMap
+func (kso *K8sSinkObject) Map() common.SinkMap {
+	return kso.sinkMap
 }
 
-func (k *K8sSinkObject) Options() interface{} {
-	return k.k8s.options
+func (kso *K8sSinkObject) Options() interface{} {
+	return kso.k8s.options
+}
+
+func (kso *K8sSinkObject) Slice() []interface{} {
+	return common.ConvertLabelMapToSlice(common.ConvertSyncMapToLabelsMap(kso.sinkMap))
 }
 
 func (k *K8s) Discover() {
@@ -101,7 +105,8 @@ func (k *K8s) podsToSinkMap(pods []v1.Pod) common.SinkMap {
 			"node":        pod.Spec.NodeName,
 			"ip":          pod.Status.PodIP,
 			"environment": k.options.Environment,
-			"kind":        "container",
+			"type":        "container",
+			"kind":        "workload",
 		}, k.options.CommonLabels)
 	}
 
