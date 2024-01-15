@@ -163,10 +163,12 @@ var dK8sOptions = discovery.K8sOptions{
 	ClusterName:    envGet("K8S_CLUSTER", "undefined").(string),
 	NsInclude:      common.RemoveEmptyStrings(strings.Split(envGet("K8S_NS_INCLUDE", "").(string), ",")),
 	NsExclude:      common.RemoveEmptyStrings(strings.Split(envGet("K8S_NS_EXCLUDE", "").(string), ",")),
-	AppLabel:       envGet("K8S_APP_LABEL", "app.kubernetes.io/name").(string),
-	ComponentLabel: envGet("K8S_COMPONENT_LABEL", "app.kubernetes.io/component").(string),
-	InstanceLabel:  envGet("K8S_INSTANCE_LABEL", "app.kubernetes.io/instance").(string),
+	AppLabel:       envGet("K8S_APP_LABEL", "application").(string),
+	ComponentLabel: envGet("K8S_COMPONENT_LABEL", "component").(string),
+	InstanceLabel:  envGet("K8S_INSTANCE_LABEL", "instance").(string),
 	CommonLabels:   common.StringSliceToMap(common.RemoveEmptyStrings(strings.Split(envGet("K8S_COMMON_LABELS", "").(string), ","))),
+	SkipUnknown:    envGet("K8S_SKIP_UNKNOWN", true).(bool),
+	Environment:    envGet("K8S_ENV", "undefined").(string),
 }
 
 var dPubSubOptions = discovery.PubSubOptions{
@@ -600,6 +602,8 @@ func Execute() {
 	flags.StringVar(&dK8sOptions.ComponentLabel, "k8s-component-label", dK8sOptions.ComponentLabel, "K8s discovery component label")
 	flags.StringVar(&dK8sOptions.InstanceLabel, "k8s-instance-label", dK8sOptions.InstanceLabel, "K8s discovery instance label")
 	flags.StringToStringVarP(&dK8sOptions.CommonLabels, "k8s-common-labels", "", dK8sOptions.CommonLabels, "K8s discovery common labels")
+	flags.BoolVar(&dK8sOptions.SkipUnknown, "k8s-skip-unknown", dK8sOptions.SkipUnknown, "K8s discovery skip unknown applications")
+	flags.StringVar(&dK8sOptions.Environment, "k8s-env", dK8sOptions.Environment, "K8s discovery environment (test/prod/etc…)")
 
 	// PubSub
 	flags.BoolVar(&dPubSubOptions.Enabled, "pubsub-enabled", dPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")

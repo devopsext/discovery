@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"context"
-
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
@@ -21,6 +20,8 @@ type K8sOptions struct {
 	ComponentLabel string
 	InstanceLabel  string
 	CommonLabels   map[string]string
+	SkipUnknown    bool
+	Environment    string
 }
 
 type K8s struct {
@@ -36,12 +37,12 @@ type K8sSinkObject struct {
 	k8s     *K8s
 }
 
-func (k *K8sSinkObject) Map() common.SinkMap {
-	return k.sinkMap
+func (kso *K8sSinkObject) Map() common.SinkMap {
+	return kso.sinkMap
 }
 
-func (k *K8sSinkObject) Options() interface{} {
-	return k.k8s.options
+func (kso *K8sSinkObject) Options() interface{} {
+	return kso.k8s.options
 }
 
 func (k *K8s) Discover() {
@@ -56,7 +57,8 @@ func (k *K8s) Discover() {
 
 	k.sinks.Process(k, &K8sSinkObject{
 		sinkMap: k.podsToSinkMap(pods.Items),
-		k8s:     k,
+		//sinkMap: k.podsToSinkMap(testPods()),
+		k8s: k,
 	})
 }
 
@@ -73,13 +75,34 @@ func (k *K8s) podsToSinkMap(pods []v1.Pod) common.SinkMap {
 			continue
 		}
 
-		r[common.IfDef(pod.Labels[k.options.InstanceLabel], pod.Name).(string)] = common.MergeLabels(common.Labels{
-			"application": common.IfDef(pod.Labels[k.options.AppLabel], "unknown").(string),
-			"component":   common.IfDef(pod.Labels[k.options.ComponentLabel], "unknown").(string),
+		application := common.IfDef(pod.Labels[k.options.AppLabel], "unknown").(string)
+		component := common.IfDef(pod.Labels[k.options.ComponentLabel], "unknown").(string)
+		instance := common.IfDef(pod.Labels[k.options.InstanceLabel], "").(string)
+
+		if k.options.SkipUnknown && utils.IsEmpty(pod.Labels[k.options.AppLabel]) {
+			continue
+		}
+
+		if utils.IsEmpty(instance) {
+			instance = application
+		}
+
+		if component != "unknown" {
+			instance = component + "." + instance
+		}
+
+		instance = instance + "." + pod.Namespace + "." + k.options.ClusterName
+
+		r[instance] = common.MergeLabels(common.Labels{
+			"application": application,
+			"component":   component,
 			"namespace":   pod.Namespace,
 			"cluster":     k.options.ClusterName,
 			"node":        pod.Spec.NodeName,
 			"ip":          pod.Status.PodIP,
+			"environment": k.options.Environment,
+			"type":        "container",
+			"kind":        "workload",
 		}, k.options.CommonLabels)
 	}
 
@@ -93,12 +116,15 @@ func testPods() []v1.Pod {
 				Name:      "test-pod-1",
 				Namespace: "test-ns-1",
 				Labels: map[string]string{
-					"sc/application": "test-app-1",
-					"sc/component":   "test-component-1",
+					"application": "test-app-1",
+					"component":   "test-component-1",
 				},
 			},
 			Spec: v1.PodSpec{
 				NodeName: "test-node-1",
+			},
+			Status: v1.PodStatus{
+				PodIP: "10.0.0.1",
 			},
 		},
 		{
@@ -106,11 +132,14 @@ func testPods() []v1.Pod {
 				Name:      "test-pod-2",
 				Namespace: "test-ns-2",
 				Labels: map[string]string{
-					"sc/application": "test-app-2",
+					"application": "test-app-2",
 				},
 			},
 			Spec: v1.PodSpec{
 				NodeName: "test-node-2",
+			},
+			Status: v1.PodStatus{
+				PodIP: "10.0.0.2",
 			},
 		},
 		{
@@ -118,11 +147,14 @@ func testPods() []v1.Pod {
 				Name:      "test-pod-3",
 				Namespace: "test-ns-3",
 				Labels: map[string]string{
-					"sc/component": "test-component-3",
+					"component": "test-component-3",
 				},
 			},
 			Spec: v1.PodSpec{
 				NodeName: "test-node-3",
+			},
+			Status: v1.PodStatus{
+				PodIP: "10.0.0.3",
 			},
 		},
 		{
@@ -132,6 +164,9 @@ func testPods() []v1.Pod {
 			},
 			Spec: v1.PodSpec{
 				NodeName: "test-node-4",
+			},
+			Status: v1.PodStatus{
+				PodIP: "10.0.0.4",
 			},
 		},
 	}
