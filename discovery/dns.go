@@ -45,10 +45,6 @@ func (ds *DNSSinkObject) Map() common.SinkMap {
 	return ds.sinkMap
 }
 
-func (ds *DNSSinkObject) Slice() []interface{} {
-	return common.ConvertLabelMapToSlice(common.ConvertSyncMapToLabelsMap(ds.sinkMap))
-}
-
 func (ds *DNSSinkObject) Options() interface{} {
 	return ds.dns.options
 }

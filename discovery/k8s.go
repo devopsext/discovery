@@ -45,10 +45,6 @@ func (kso *K8sSinkObject) Options() interface{} {
 	return kso.k8s.options
 }
 
-func (kso *K8sSinkObject) Slice() []interface{} {
-	return common.ConvertLabelMapToSlice(common.ConvertSyncMapToLabelsMap(kso.sinkMap))
-}
-
 func (k *K8s) Discover() {
 
 	k.logger.Debug("K8s has to discover...")

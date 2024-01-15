@@ -46,10 +46,6 @@ func (ts *TCPSinkObject) Map() common.SinkMap {
 	return ts.sinkMap
 }
 
-func (ts *TCPSinkObject) Slice() []interface{} {
-	return common.ConvertLabelMapToSlice(common.ConvertSyncMapToLabelsMap(ts.sinkMap))
-}
-
 func (ts *TCPSinkObject) Options() interface{} {
 	return ts.tcp.options
 }

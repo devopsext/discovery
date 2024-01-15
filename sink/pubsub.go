@@ -36,7 +36,7 @@ func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
 	data, err := json.Marshal(PubSubPublishObject{
 		Source: d.Name(),
 		Type:   "json",
-		Data:   so.Slice(),
+		Data:   so.Map(),
 	})
 	if err != nil {
 		ps.logger.Error("PubSub Sink: %v", err)

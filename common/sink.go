@@ -11,7 +11,6 @@ type SinkMap map[string]interface{}
 
 type SinkObject interface {
 	Map() SinkMap
-	Slice() []interface{}
 	Options() interface{}
 }
 

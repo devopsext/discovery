@@ -77,10 +77,6 @@ func (os *VCenterSinkObject) Map() common.SinkMap {
 	return os.sinkMap
 }
 
-func (os *VCenterSinkObject) Slice() []interface{} {
-	return common.ConvertLabelMapToSlice(common.ConvertSyncMapToLabelsMap(os.sinkMap))
-}
-
 func (os *VCenterSinkObject) Options() interface{} {
 	return os.VCenter.options
 }
