@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"fmt"
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
@@ -93,9 +94,10 @@ func (k *K8s) podsToSinkMap(pods []v1.Pod) common.SinkMap {
 
 		instance = instance + "." + pod.Namespace + "." + k.options.ClusterName
 
-		r[instance] = common.MergeLabels(common.Labels{
+		r[fmt.Sprintf("%s.%s.%s", pod.Name, pod.Namespace, k.options.ClusterName)] = common.MergeLabels(common.Labels{
 			"application": application,
 			"component":   component,
+			"instance":    instance,
 			"namespace":   pod.Namespace,
 			"cluster":     k.options.ClusterName,
 			"node":        pod.Spec.NodeName,
