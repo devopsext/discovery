@@ -6,8 +6,8 @@ require (
 	cloud.google.com/go/pubsub v1.3.1
 	github.com/BurntSushi/toml v0.3.1
 	github.com/devopsext/sre v0.3.0
-	github.com/devopsext/tools v0.10.3
-	github.com/devopsext/utils v0.2.3
+	github.com/devopsext/tools v0.13.5
+	github.com/devopsext/utils v0.3.3
 	github.com/go-co-op/gocron v1.18.0
 	github.com/jinzhu/copier v0.3.5
 	github.com/pkg/errors v0.9.1
@@ -29,6 +29,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.2 // indirect
 	github.com/Microsoft/go-winio v0.5.0 // indirect
 	github.com/VictoriaMetrics/metrics v1.25.3 // indirect
+	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
 	github.com/blues/jsonata-go v1.5.4 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

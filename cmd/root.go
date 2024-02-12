@@ -158,6 +158,18 @@ var dVCenterOptions = discovery.VCenterOptions{
 	},
 }
 
+var dAWSOptions = discovery.AWSOptions{
+	AWSKeys: vendors.AWSKeys{
+		AccessKey: envGet("AWS_ACCESS_KEY", "").(string),
+		SecretKey: envGet("AWS_SECRET_KEY", "").(string),
+	},
+}
+
+var dAWSEC2Options = discovery.AWSEC2Options{
+	Schedule:   envGet("AWS_EC2_SCHEDULE", "").(string),
+	AWSOptions: dAWSOptions,
+}
+
 var dK8sOptions = discovery.K8sOptions{
 	Schedule:       envGet("K8S_SCHEDULE", "").(string), // K8s discovery disabled if empty
 	ClusterName:    envGet("K8S_CLUSTER", "undefined").(string),
@@ -477,6 +489,7 @@ func Execute() {
 			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
 			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, sinks), logger)
 			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dVCenterOptions.Schedule, discovery.NewVCenter(dVCenterOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, sinks), logger)
 			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, sinks), logger)
 
 			scheduler.StartAsync()
@@ -593,6 +606,12 @@ func Execute() {
 	flags.StringVar(&dVCenterOptions.User, "vcenter-user", dVCenterOptions.User, "VCenter discovery user")
 	flags.StringVar(&dVCenterOptions.Password, "vcenter-password", dVCenterOptions.Password, "VCenter discovery password")
 	flags.StringVar(&dVCenterOptions.Session, "vcenter-session", dVCenterOptions.Session, "VCenter discovery session")
+
+	// AWS EC2
+	flags.StringVar(&dAWSEC2Options.Schedule, "ec2-schedule", dAWSEC2Options.Schedule, "AWS EC2 discovery schedule")
+	flags.StringVar(&dAWSEC2Options.AccessKey, "ec2-access-key", dAWSEC2Options.AccessKey, "AWS EC2 discovery access key")
+	flags.StringVar(&dAWSEC2Options.SecretKey, "ec2-secret-key", dAWSEC2Options.SecretKey, "AWS EC2 discovery secret key")
+
 	// K8s
 	flags.StringVar(&dK8sOptions.Schedule, "k8s-schedule", dK8sOptions.Schedule, "K8s discovery schedule")
 	flags.StringVar(&dK8sOptions.ClusterName, "k8s-cluster", dK8sOptions.ClusterName, "K8s discovery cluster name")
