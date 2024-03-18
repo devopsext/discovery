@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/devopsext/discovery/common"
+	"github.com/devopsext/discovery/discovery"
 	sreCommon "github.com/devopsext/sre/common"
 	"google.golang.org/api/option"
 	"os"
@@ -27,27 +28,36 @@ type PubSub struct {
 }
 
 type PubSubPublishObject struct {
-	Source string      `json:"source"`
-	Type   string      `json:"type"`
-	Data   interface{} `json:"data"`
+	Source  string      `json:"source"`
+	Type    string      `json:"type"`
+	Cluster string      `json:"cluster"`
+	Data    interface{} `json:"data"`
 }
 
 func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
-	data, err := json.Marshal(PubSubPublishObject{
-		Source: d.Name(),
-		Type:   "yaml",
-		Data:   so.Map(),
-	})
-	if err != nil {
-		ps.logger.Error("PubSub Sink: %v", err)
-		return
-	}
 
-	ps.logger.Debug("PubSub has to publish %d bytes...", len(data))
+	switch d.Name() {
+	case "K8s":
+		data, err := json.Marshal(PubSubPublishObject{
+			Source:  d.Name(),
+			Type:    "json",
+			Cluster: so.Options().(discovery.K8sOptions).ClusterName,
+			Data:    so.Map(),
+		})
+		if err != nil {
+			ps.logger.Error("PubSub Sink: %v", err)
+			return
+		}
 
-	err = ps.publish(context.Background(), data)
-	if err != nil {
-		ps.logger.Error("PubSub Sink: %v", err)
+		ps.logger.Debug("PubSub has to publish %d bytes...", len(data))
+
+		err = ps.publish(context.Background(), data)
+		if err != nil {
+			ps.logger.Error("PubSub Sink: %v", err)
+			return
+		}
+	default:
+		ps.logger.Debug("PubSub Sink: %s is not supported", d.Name())
 		return
 	}
 }
