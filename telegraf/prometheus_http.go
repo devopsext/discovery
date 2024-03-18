@@ -167,7 +167,7 @@ func (ti *InputPrometheusHttp) buildTags(name string, labels map[string]string, 
 	return r
 }
 
-func (ti *InputPrometheusHttp) buildQualities(s *common.Service, qualities []*common.BaseQuality, tpl string,
+func (ti *InputPrometheusHttp) buildQualities(s *common.Application, qualities []*common.BaseQuality, tpl string,
 	opts InputPrometheusHttpOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
 
@@ -209,7 +209,7 @@ func (ti *InputPrometheusHttp) buildQualities(s *common.Service, qualities []*co
 	ti.Metric = append(ti.Metric, metric)
 }
 
-func (ti *InputPrometheusHttp) buildAvailability(s *common.Service, baseAvailability *common.BaseAvailability, tpl string,
+func (ti *InputPrometheusHttp) buildAvailability(s *common.Application, baseAvailability *common.BaseAvailability, tpl string,
 	opts InputPrometheusHttpOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
 
@@ -250,7 +250,7 @@ func (ti *InputPrometheusHttp) buildAvailability(s *common.Service, baseAvailabi
 
 }
 
-func (ti *InputPrometheusHttp) buildMetrics(s *common.Service, metrics []*common.BaseMetric, tpl string,
+func (ti *InputPrometheusHttp) buildMetrics(s *common.Application, metrics []*common.BaseMetric, tpl string,
 	opts InputPrometheusHttpOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
 

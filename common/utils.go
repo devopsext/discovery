@@ -323,7 +323,7 @@ func ConvertSyncMapToLabelsMap(m SinkMap) LabelsMap {
 	return r
 }
 
-func ConvertServicesToSinkMap(m Services) SinkMap {
+func ConvertApplicationsToSinkMap(m Applications) SinkMap {
 
 	r := make(SinkMap)
 	for k, v := range m {
@@ -332,11 +332,11 @@ func ConvertServicesToSinkMap(m Services) SinkMap {
 	return r
 }
 
-func ConvertSyncMapToServices(m SinkMap) Services {
+func ConvertSyncMapToApplications(m SinkMap) Applications {
 
-	r := make(Services)
+	r := make(Applications)
 	for k, v := range m {
-		s, ok := v.(*Service)
+		s, ok := v.(*Application)
 		if ok {
 			r[k] = s
 		}

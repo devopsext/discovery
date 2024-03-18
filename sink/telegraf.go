@@ -64,7 +64,7 @@ func (t *Telegraf) Providers() []string {
 	return t.options.Providers
 }
 
-// .telegraf/prefix-{{.namespace}}-discovery-{{.service}}-{{.container_name}}{{.container}}.conf
+// .telegraf/prefix-{{.namespace}}-discovery-{{.application}}-{{.container_name}}{{.container}}.conf
 func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so interface{}) error {
 
 	opts, ok := so.(discovery.SignalOptions)
@@ -72,13 +72,13 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		return errors.New("no options")
 	}
 
-	m := common.ConvertSyncMapToServices(sm)
+	m := common.ConvertSyncMapToApplications(sm)
 	source := d.Source()
 
 	for k, s1 := range m {
 
 		path := common.Render(t.options.Signal.Template, s1.Vars, t.observability)
-		t.logger.Debug("%s: Processing service: %s for path: %s", source, k, path)
+		t.logger.Debug("%s: Processing application: %s for path: %s", source, k, path)
 		t.logger.Debug("%s: Found metrics: %v", source, s1.Metrics)
 
 		telegrafConfig := &telegraf.Config{
@@ -93,7 +93,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 
 		bytes, err := telegrafConfig.GenerateInputPrometheusHttpBytes(s1, t.options.Signal.Tags, inputOpts, path)
 		if err != nil {
-			t.logger.Error("%s: Service %s error: %s", source, k, err)
+			t.logger.Error("%s: application %s error: %s", source, k, err)
 			continue
 		}
 		telegrafConfig.CreateIfCheckSumIsDifferent(source, path, t.options.Checksum, bytes, t.logger)

@@ -29,7 +29,7 @@ type SignalOptions struct {
 	QueryPeriod  string
 	QueryStep    string
 	Metric       string
-	Service      string
+	Application  string
 	Field        string
 	BaseTemplate string
 	Vars         string
@@ -37,18 +37,18 @@ type SignalOptions struct {
 }
 
 type Signal struct {
-	source          string
-	prometheus      *toolsVendors.Prometheus
-	prometheusOpts  toolsVendors.PrometheusOptions
-	options         SignalOptions
-	logger          sreCommon.Logger
-	observability   *common.Observability
-	serviceTemplate *toolsRender.TextTemplate
-	fieldTemplate   *toolsRender.TextTemplate
-	varsTemplate    *toolsRender.TextTemplate
-	files           map[string]interface{}
-	disables        map[string]*toolsRender.TextTemplate
-	sinks           *common.Sinks
+	source              string
+	prometheus          *toolsVendors.Prometheus
+	prometheusOpts      toolsVendors.PrometheusOptions
+	options             SignalOptions
+	logger              sreCommon.Logger
+	observability       *common.Observability
+	applicationTemplate *toolsRender.TextTemplate
+	fieldTemplate       *toolsRender.TextTemplate
+	varsTemplate        *toolsRender.TextTemplate
+	files               map[string]interface{}
+	disables            map[string]*toolsRender.TextTemplate
+	sinks               *common.Sinks
 }
 
 type SignalSinkObject struct {
@@ -82,7 +82,7 @@ func (s *Signal) render(tpl *toolsRender.TextTemplate, def string, obj interface
 	return s1
 }
 
-// ".templates/SRE/service-*.yml"
+// ".templates/SRE/application-*.yml"
 func (s *Signal) readBaseConfigs() map[string]*common.BaseConfig {
 
 	configs := make(map[string]*common.BaseConfig)
@@ -274,11 +274,11 @@ func (s *Signal) expandDisabled(files map[string]*common.File, vars map[string]s
 	return r
 }
 
-func (s *Signal) checkDisabled(disabled []string, service string) (bool, string) {
+func (s *Signal) checkDisabled(disabled []string, application string) (bool, string) {
 
 	for _, v := range disabled {
 
-		match, _ := regexp.MatchString(v, service)
+		match, _ := regexp.MatchString(v, application)
 		if match {
 			return true, v
 		}
@@ -312,10 +312,10 @@ func (s *Signal) filterVectors(name string, configs map[string]*common.BaseConfi
 	return r
 }
 
-func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) map[string]*common.Service {
+func (s *Signal) findApplications(vectors []*common.PrometheusResponseDataVector) map[string]*common.Application {
 
 	configs := s.readBaseConfigs()
-	matched := make(map[string]*common.Service)
+	matched := make(map[string]*common.Application)
 	gid := utils.GoRoutineID()
 
 	if utils.IsEmpty(s.options.Metric) {
@@ -360,27 +360,27 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 		m["source"] = s.source
 
 		vars := s.render(s.varsTemplate, s.options.Vars, m)
-		serviceVars := utils.MapGetKeyValues(vars)
-		mergedVars := common.MergeStringMaps(v.Labels, serviceVars)
+		applicationVars := utils.MapGetKeyValues(vars)
+		mergedVars := common.MergeStringMaps(v.Labels, applicationVars)
 
-		service := ""
+		application := ""
 		field := ""
 
-		if utils.IsEmpty(s.options.Service) && (len(v.Labels) > 1) {
+		if utils.IsEmpty(s.options.Application) && (len(v.Labels) > 1) {
 			flag := false
 			for _, m := range v.Labels {
 				if flag {
-					service = m
+					application = m
 					break
 				}
 				flag = true
 			}
 		} else {
-			ident := s.render(s.serviceTemplate, s.options.Service, mergedVars)
-			if ident == s.options.Service {
-				service = mergedVars[ident]
+			ident := s.render(s.applicationTemplate, s.options.Application, mergedVars)
+			if ident == s.options.Application {
+				application = mergedVars[ident]
 			} else {
-				service = ident
+				application = ident
 			}
 		}
 
@@ -393,19 +393,19 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 
 		metric := mergedVars[name]
 
-		if utils.IsEmpty(service) || utils.IsEmpty(metric) {
-			s.logger.Debug("[%d] %s: No service, field or metric found in labels, but: %v", gid, s.source, mergedVars)
+		if utils.IsEmpty(application) || utils.IsEmpty(metric) {
+			s.logger.Debug("[%d] %s: No application, field or metric found in labels, but: %v", gid, s.source, mergedVars)
 			continue
 		}
 
-		// find service in cmdb
+		// find application in cmdb
 		// if it's disabled, skip it with warning
-		fieldAndService := fmt.Sprintf("%s/%s", field, service)
+		fieldAndApplication := fmt.Sprintf("%s/%s", field, application)
 
 		disabled := s.expandDisabled(fls, mergedVars)
-		dis, _ := s.checkDisabled(disabled, service)
+		dis, _ := s.checkDisabled(disabled, application)
 		if dis {
-			//s.logger.Trace("%s: %s disabled by pattern: %s", s.source, fieldAndService, pattern)
+			//s.logger.Trace("%s: %s disabled by pattern: %s", s.source, fieldAndApplication, pattern)
 			continue
 		}
 
@@ -420,10 +420,10 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 				continue
 			}
 
-			ds := matched[fieldAndService]
+			ds := matched[fieldAndApplication]
 			if ds == nil {
-				s.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, s.source, fieldAndService, mergedVars, time.Since(when))
-				ds = &common.Service{
+				s.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, s.source, fieldAndApplication, mergedVars, time.Since(when))
+				ds = &common.Application{
 					Configs: make(map[string]*common.BaseConfig),
 					Vars:    make(map[string]string),
 				}
@@ -436,13 +436,13 @@ func (s *Signal) findServices(vectors []*common.PrometheusResponseDataVector) ma
 			if ds.Configs[path] == nil {
 				ds.Configs[path] = config
 			}
-			for k, l := range serviceVars {
+			for k, l := range applicationVars {
 				if (ds.Vars[k] == "") && (l != metric) {
 					ds.Vars[k] = l
 				}
 			}
 			ds.Files = fls
-			matched[fieldAndService] = ds
+			matched[fieldAndApplication] = ds
 		}
 	}
 	return matched
@@ -491,15 +491,15 @@ func (s *Signal) Discover() {
 		return
 	}
 
-	services := s.findServices(res.Data.Result)
-	if len(services) == 0 {
-		s.logger.Debug("%s: Signal not found any services according query", s.source)
+	applications := s.findApplications(res.Data.Result)
+	if len(applications) == 0 {
+		s.logger.Debug("%s: Signal not found any applications according query", s.source)
 		return
 	}
-	s.logger.Debug("%s: Signal found %d services according query. Processing...", s.source, len(services))
+	s.logger.Debug("%s: Signal found %d applications according query. Processing...", s.source, len(applications))
 
 	s.sinks.Process(s, &SignalSinkObject{
-		sinkMap: common.ConvertServicesToSinkMap(services),
+		sinkMap: common.ConvertApplicationsToSinkMap(applications),
 		signal:  s,
 	})
 }
@@ -539,11 +539,11 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 		return nil
 	}
 
-	serviceOpts := toolsRender.TemplateOptions{
-		Content: options.Service,
-		Name:    "signal-service",
+	applicationOpts := toolsRender.TemplateOptions{
+		Content: options.Application,
+		Name:    "signal-application",
 	}
-	serviceTemplate, err := toolsRender.NewTextTemplate(serviceOpts, observability)
+	applicationTemplate, err := toolsRender.NewTextTemplate(applicationOpts, observability)
 	if err != nil {
 		logger.Error(err)
 		return nil
@@ -569,17 +569,17 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 	}
 
 	return &Signal{
-		source:          source,
-		prometheus:      toolsVendors.NewPrometheus(prometheusOpts),
-		prometheusOpts:  prometheusOpts,
-		options:         options,
-		logger:          logger,
-		observability:   observability,
-		serviceTemplate: serviceTemplate,
-		fieldTemplate:   fieldTemplate,
-		varsTemplate:    varsTemplate,
-		files:           make(map[string]interface{}),
-		disables:        make(map[string]*toolsRender.TextTemplate),
-		sinks:           sinks,
+		source:              source,
+		prometheus:          toolsVendors.NewPrometheus(prometheusOpts),
+		prometheusOpts:      prometheusOpts,
+		options:             options,
+		logger:              logger,
+		observability:       observability,
+		applicationTemplate: applicationTemplate,
+		fieldTemplate:       fieldTemplate,
+		varsTemplate:        varsTemplate,
+		files:               make(map[string]interface{}),
+		disables:            make(map[string]*toolsRender.TextTemplate),
+		sinks:               sinks,
 	}
 }

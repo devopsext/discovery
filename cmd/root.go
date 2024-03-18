@@ -73,7 +73,7 @@ var dSignalOptions = discovery.SignalOptions{
 	QueryPeriod:  envGet("SIGNAL_QUERY_PERIOD", "").(string),
 	QueryStep:    envGet("SIGNAL_QUERY_STEP", "").(string),
 	Metric:       envGet("SIGNAL_METRIC", "").(string),
-	Service:      envGet("SIGNAL_SERVICE", "").(string),
+	Application:  envGet("SIGNAL_APPLICATION", "").(string),
 	Field:        envGet("SIGNAL_FIELD", "").(string),
 	Files:        envFileContentExpand("SIGNAL_FILES", ""),
 	Vars:         envFileContentExpand("SIGNAL_VARS", ""),
@@ -520,7 +520,7 @@ func Execute() {
 	flags.StringVar(&dSignalOptions.Query, "signal-query", dSignalOptions.Query, "Signal discovery query")
 	flags.StringVar(&dSignalOptions.QueryPeriod, "signal-query-period", dSignalOptions.QueryPeriod, "Signal discovery query period")
 	flags.StringVar(&dSignalOptions.QueryStep, "signal-query-step", dSignalOptions.QueryStep, "Signal discovery query step")
-	flags.StringVar(&dSignalOptions.Service, "signal-service", dSignalOptions.Service, "Signal discovery service label")
+	flags.StringVar(&dSignalOptions.Application, "signal-application", dSignalOptions.Application, "Signal discovery application label")
 	flags.StringVar(&dSignalOptions.Field, "signal-field", dSignalOptions.Field, "Signal discovery field label")
 	flags.StringVar(&dSignalOptions.Metric, "signal-metric", dSignalOptions.Metric, "Signal discovery metric label")
 	flags.StringVar(&dSignalOptions.Files, "signal-files", dSignalOptions.Files, "Signal discovery files")

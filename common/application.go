@@ -67,7 +67,7 @@ type File struct {
 
 type Files map[string]*File
 
-type Service struct {
+type Application struct {
 	Metrics []string
 	Configs map[string]*BaseConfig
 	//	Labels  Labels
@@ -75,7 +75,7 @@ type Service struct {
 	Files Files
 }
 
-type Services map[string]*Service
+type Applications map[string]*Application
 
 func (bc *BaseConfig) LabelsExist(c *BaseCondition, labels Labels) bool {
 

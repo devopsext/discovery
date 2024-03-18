@@ -58,7 +58,7 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 
 	switch dname {
 	case "Signal":
-		ms := common.ConvertSyncMapToServices(m)
+		ms := common.ConvertSyncMapToApplications(m)
 		if len(ms) == 0 {
 			break
 		}
