@@ -36,8 +36,7 @@ type PubSubMessagePayloadFile struct {
 }
 
 type PubSubMessagePayloadArchive struct {
-	Dir  string `json:"dir"`
-	Data []byte `json:"data"`
+	Files []*PubSubMessagePayloadFile `json:"files"`
 }
 
 type PubSubMessagePayloadKind = int
