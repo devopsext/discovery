@@ -369,3 +369,47 @@ func StringSliceToMap(lines []string) map[string]string {
 	}
 	return l
 }
+
+func FileWriteWithCheckSum(path string, data []byte, checksum bool) (bool, error) {
+
+	bytesHashString := ""
+	bytesHash := ByteMD5(data)
+	if bytesHash != nil {
+		bytesHashString = fmt.Sprintf("%x", bytesHash)
+	}
+
+	if checksum {
+
+		if _, err := os.Stat(path); err == nil {
+			fileHashString := ""
+			fileHash := FileMD5(path)
+			if fileHash != nil {
+				fileHashString = fmt.Sprintf("%x", fileHash)
+			}
+
+			if fileHashString == bytesHashString {
+				return true, nil
+			}
+		}
+	}
+
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err := os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	f, err := os.Create(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	_, err = f.Write(data)
+	if err != nil {
+		return false, err
+	}
+	return false, nil
+}

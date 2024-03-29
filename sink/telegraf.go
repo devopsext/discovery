@@ -182,7 +182,7 @@ func (t *Telegraf) Process(d common.Discovery, so common.SinkObject) {
 	}
 
 	if err != nil {
-		t.logger.Error("%s: %s query error: %s", d.Source(), dname, err)
+		t.logger.Error("Telegraf process %s from %s error: %s", dname, d.Source(), err)
 		return
 	}
 }

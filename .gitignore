@@ -41,3 +41,5 @@ signal.disabled.tpl
 signal.telegraf.quality.query.tpl
 signal.telegraf.tags.tpl
 signal.vars.tpl
+pubsub-catalog.json
+.assets

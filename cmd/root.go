@@ -184,19 +184,22 @@ var dK8sOptions = discovery.K8sOptions{
 }
 
 var dPubSubOptions = discovery.PubSubOptions{
-	Enabled:                 envGet("PUBSUB_ENABLED", false).(bool),
-	Credentials:             envGet("PUBSUB_CREDENTIALS", "").(string),
-	ProjectID:               envGet("PUBSUB_PROJECT_ID", "").(string),
-	TopicID:                 envGet("PUBSUB_TOPIC", "").(string),
-	SubscriptionName:        envGet("PUBSUB_SUBSCRIPTION_NAME", "").(string),
-	SubscriptionAckDeadline: envGet("PUBSUB_SUBSCRIPTION_ACK_DEADLINE", 20).(int),
-	SubscriptionRetention:   envGet("PUBSUB_SUBSCRIPTION_RETENTION", 86400).(int),
-	Dir:                     envGet("PUBSUB_DIR", "").(string),
+	Credentials:  envGet("PUBSUB_CREDENTIALS", "").(string),
+	Topic:        envGet("PUBSUB_TOPIC", "").(string),
+	Subscription: envGet("PUBSUB_SUBSCRIPTION", "").(string),
+	Project:      envGet("PUBSUB_PROJECT", "").(string),
+	AckDeadline:  envGet("PUBSUB_ACK_DEADLINE", 20).(int),
+	Retention:    envGet("PUBSUB_RETENTION", 86400).(int),
 }
 
 var dDumbOptions = discovery.DumbOptions{
 	Enabled:  envGet("DUMB_ENABLED", false).(bool),
 	Schedule: envGet("DUMB_SCHEDULE", "10s").(string),
+}
+
+var sinkFileOptions = sink.FileOptions{
+	Checksum:  envGet("SINK_FILE_CHECKSUM", false).(bool),
+	Providers: strings.Split(envStringExpand("SINK_FILE_PROVIDERS", ""), ","),
 }
 
 var sinkJsonOptions = sink.JsonOptions{
@@ -371,13 +374,13 @@ func runStandAloneDiscovery(wg *sync.WaitGroup, discovery common.Discovery, logg
 	logger.Debug("%s: discovery enabled on event", discovery.Name())
 }
 
-func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce, wait bool, scheduler *gocron.Scheduler, schedule string, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
+func runPrometheusDiscovery(wg *sync.WaitGroup, scheduler *gocron.Scheduler, schedule string, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
 
 	if utils.IsEmpty(discovery) {
 		return
 	}
 	// run once and return if there is flag
-	if runOnce {
+	if rootOptions.RunOnce {
 		wg.Add(1)
 		go func(d common.Discovery) {
 			defer wg.Done()
@@ -387,18 +390,18 @@ func runPrometheusDiscovery(wg *sync.WaitGroup, runOnce, wait bool, scheduler *g
 	}
 	// run on schedule if there is one defined
 	if !utils.IsEmpty(schedule) {
-		runSchedule(scheduler, schedule, wait, discovery.Discover)
-		logger.Debug("%s: %s discovery enabled on schedule: %s", discovery.Name(), value, schedule)
+		runSchedule(scheduler, schedule, rootOptions.SchedulerWait, discovery.Discover)
+		logger.Debug("%s: %s (%s) discovery enabled on schedule: %s", discovery.Name(), name, value, schedule)
 	}
 }
 
-func runSimpleDiscovery(wg *sync.WaitGroup, runOnce, wait bool, scheduler *gocron.Scheduler, schedule string, discovery common.Discovery, logger *sreCommon.Logs) {
+func runSimpleDiscovery(wg *sync.WaitGroup, scheduler *gocron.Scheduler, schedule string, discovery common.Discovery, logger *sreCommon.Logs) {
 
 	if utils.IsEmpty(discovery) {
 		return
 	}
 	// run once and return if there is flag
-	if runOnce {
+	if rootOptions.RunOnce {
 		wg.Add(1)
 		go func(d common.Discovery) {
 			defer wg.Done()
@@ -408,7 +411,7 @@ func runSimpleDiscovery(wg *sync.WaitGroup, runOnce, wait bool, scheduler *gocro
 	}
 	// run on schedule if there is one defined
 	if !utils.IsEmpty(schedule) {
-		runSchedule(scheduler, schedule, wait, discovery.Discover)
+		runSchedule(scheduler, schedule, rootOptions.SchedulerWait, discovery.Discover)
 		logger.Debug("%s: discovery enabled on schedule: %s", discovery.Name(), schedule)
 	}
 }
@@ -443,6 +446,7 @@ func Execute() {
 			logger := obs.Logs()
 
 			sinks := common.NewSinks(obs)
+			sinks.Add(sink.NewFile(sinkFileOptions, obs))
 			sinks.Add(sink.NewJson(sinkJsonOptions, obs))
 			sinks.Add(sink.NewYaml(sinkYamlOptions, obs))
 			sinks.Add(sink.NewTelegraf(sinkTelegrafOptions, obs))
@@ -478,25 +482,25 @@ func Execute() {
 				opts.User = prom.User
 				opts.Password = prom.Password
 
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
 			}
 			// run simple discoveries
-			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
-			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
-			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, sinks), logger)
-			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dVCenterOptions.Schedule, discovery.NewVCenter(dVCenterOptions, obs, sinks), logger)
-			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, sinks), logger)
-			runSimpleDiscovery(wg, rootOptions.RunOnce, rootOptions.SchedulerWait, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, scheduler, dVCenterOptions.Schedule, discovery.NewVCenter(dVCenterOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, sinks), logger)
+			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, sinks), logger)
 
 			scheduler.StartAsync()
 
 			// run supportive discoveries without scheduler
 			if !rootOptions.RunOnce {
-				runStandAloneDiscovery(wg, discovery.NewPubSub(dPubSubOptions, obs, sinks), logger)
+				runStandAloneDiscovery(wg, discovery.NewPubSub(dPubSubOptions.Topic, dPubSubOptions, obs, sinks), logger)
 			}
 			wg.Wait()
 
@@ -512,7 +516,7 @@ func Execute() {
 	flags.StringSliceVar(&rootOptions.Logs, "logs", rootOptions.Logs, "Log providers: stdout")
 	flags.StringSliceVar(&rootOptions.Metrics, "metrics", rootOptions.Metrics, "Metric providers: prometheus")
 	flags.BoolVar(&rootOptions.RunOnce, "run-once", rootOptions.RunOnce, "Run once")
-	//flags.BoolVar(&rootOptions.SchedulerWait, "scheduler-wait", rootOptions.SchedulerWait, "Scheduler wait")
+	flags.BoolVar(&rootOptions.SchedulerWait, "scheduler-wait", rootOptions.SchedulerWait, "Scheduler wait until first try")
 
 	flags.StringVar(&stdoutOptions.Format, "stdout-format", stdoutOptions.Format, "Stdout format: json, text, template")
 	flags.StringVar(&stdoutOptions.Level, "stdout-level", stdoutOptions.Level, "Stdout level: info, warn, error, debug, panic")
@@ -625,21 +629,22 @@ func Execute() {
 	flags.StringVar(&dK8sOptions.Environment, "k8s-env", dK8sOptions.Environment, "K8s discovery environment (test/prod/etc…)")
 
 	// PubSub
-	flags.BoolVar(&dPubSubOptions.Enabled, "pubsub-enabled", dPubSubOptions.Enabled, "PaubSub enable pulling from the PubSub topic")
 	flags.StringVar(&dPubSubOptions.Credentials, "pubsub-credentials", dPubSubOptions.Credentials, "Credentials for PubSub")
-	flags.StringVar(&dPubSubOptions.ProjectID, "pubsub-project-id", dPubSubOptions.ProjectID, "PubSub project ID")
-	flags.StringVar(&dPubSubOptions.TopicID, "pubsub-topic-id", dPubSubOptions.TopicID, "PubSub topic ID")
-	flags.StringVar(&dPubSubOptions.SubscriptionName, "pubsub-subscription-name", dPubSubOptions.SubscriptionName, "PubSub subscription name")
-	flags.IntVar(&dPubSubOptions.SubscriptionAckDeadline, "pubsub-subscription-ack-deadline", dPubSubOptions.SubscriptionAckDeadline, "PubSub subscription ack deadline duration seconds")
-	flags.IntVar(&dPubSubOptions.SubscriptionRetention, "pubsub-subscription-retention", dPubSubOptions.SubscriptionRetention, "PubSub subscription retention duration seconds")
-	flags.StringVar(&dPubSubOptions.Dir, "pubsub-dir", dPubSubOptions.Dir, "Pubsub directory")
+	flags.StringVar(&dPubSubOptions.Topic, "pubsub-topic", dPubSubOptions.Topic, "PubSub topic")
+	flags.StringVar(&dPubSubOptions.Subscription, "pubsub-subscription", dPubSubOptions.Subscription, "PubSub subscription")
+	flags.StringVar(&dPubSubOptions.Project, "pubsub-project", dPubSubOptions.Project, "PubSub project")
+	flags.IntVar(&dPubSubOptions.AckDeadline, "pubsub-ack-deadline", dPubSubOptions.AckDeadline, "PubSub subscription ack deadline duration seconds")
+	flags.IntVar(&dPubSubOptions.Retention, "pubsub-retention", dPubSubOptions.Retention, "PubSub subscription retention duration seconds")
 
+	// Sink File
+	flags.BoolVar(&sinkFileOptions.Checksum, "sink-file-checksum", sinkFileOptions.Checksum, "File sink checksum")
+	flags.StringSliceVar(&sinkFileOptions.Providers, "sink-file-providers", sinkFileOptions.Providers, "File sink providers through")
 	// Sink Json
-	flags.StringVar(&sinkJsonOptions.Dir, "sink-json-dir", sinkJsonOptions.Dir, "Sink json directory")
-
+	flags.StringVar(&sinkJsonOptions.Dir, "sink-json-dir", sinkJsonOptions.Dir, "Json sink directory")
+	flags.StringSliceVar(&sinkJsonOptions.Providers, "sink-json-providers", sinkJsonOptions.Providers, "Json sink providers through")
 	// Sink Yaml
-	flags.StringVar(&sinkYamlOptions.Dir, "sink-yaml-dir", sinkYamlOptions.Dir, "Sink yaml directory")
-
+	flags.StringVar(&sinkYamlOptions.Dir, "sink-yaml-dir", sinkYamlOptions.Dir, "Yaml sink directory")
+	flags.StringSliceVar(&sinkYamlOptions.Providers, "sink-yaml-providers", sinkYamlOptions.Providers, "Yaml sink providers through")
 	// Sink Telegraf general
 	flags.StringSliceVar(&sinkTelegrafOptions.Providers, "sink-telegraf-providers", sinkTelegrafOptions.Providers, "Telegraf sink providers through")
 	flags.BoolVar(&sinkTelegrafOptions.Checksum, "sink-telegraf-checksum", sinkTelegrafOptions.Checksum, "Telegraf sink checksum")
@@ -705,7 +710,6 @@ func Execute() {
 	flags.StringVar(&sinkTelegrafOptions.TCP.Timeout, "sink-telegraf-tcp-timeout", sinkTelegrafOptions.TCP.Timeout, "Telegraf sink TCP timeout")
 	flags.StringVar(&sinkTelegrafOptions.TCP.ReadTimeout, "sink-telegraf-tcp-read-timeout", sinkTelegrafOptions.TCP.ReadTimeout, "Telegraf sink TCP read timeout")
 	flags.StringSliceVar(&sinkTelegrafOptions.TCP.Tags, "sink-telegraf-tcp-tags", sinkTelegrafOptions.TCP.Tags, "Telegraf sink TCP tags")
-
 	// Sink Observability
 	flags.StringVar(&sinkObservabilityOptions.DiscoveryName, "sink-observability-discovery-name", sinkObservabilityOptions.DiscoveryName, "Observability sink discovery name")
 	flags.StringVar(&sinkObservabilityOptions.TotalName, "sink-observability-total-name", sinkObservabilityOptions.TotalName, "Observability sink total name")

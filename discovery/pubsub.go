@@ -3,39 +3,71 @@ package discovery
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"os"
-	"sync/atomic"
 	"time"
 
 	"cloud.google.com/go/pubsub"
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
+	"github.com/devopsext/utils"
 	"google.golang.org/api/option"
 )
 
 type PubSubOptions struct {
-	Enabled                 bool
-	Credentials             string
-	ProjectID               string
-	TopicID                 string
-	SubscriptionName        string
-	SubscriptionAckDeadline int
-	SubscriptionRetention   int
-	Dir                     string
+	Credentials  string
+	Project      string
+	Topic        string
+	Subscription string
+	AckDeadline  int
+	Retention    int
 }
 
 type PubSub struct {
+	source        string
 	options       PubSubOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
 	sinks         *common.Sinks
+	client        *pubsub.Client
 }
 
-type File struct {
-	Time time.Time   `json:"time"`
-	Type string      `json:"type"`
-	Data interface{} `json:"data"`
+type PubSubMessagePayloadFile struct {
+	Path string `json:"path"`
+	Data []byte `json:"data"`
+}
+
+type PubSubMessagePayloadArchive struct {
+	Dir  string `json:"dir"`
+	Data []byte `json:"data"`
+}
+
+type PubSubMessagePayloadKind = int
+
+const (
+	PubSubMessagePayloadKindUnknown int = iota
+	PubSubMessagePayloadKindFile
+	PubSubMessagePayloadKindArchive
+)
+
+type PubSubMessagePayload struct {
+	Kind PubSubMessagePayloadKind `json:"kind"`
+	Data []byte                   `json:"data"`
+}
+
+type PubSubMessage struct {
+	Payload map[string]*PubSubMessagePayload `json:"payload"`
+}
+
+type PubSubSinkObject struct {
+	sinkMap common.SinkMap
+	pubsub  *PubSub
+}
+
+func (so *PubSubSinkObject) Map() common.SinkMap {
+	return so.sinkMap
+}
+
+func (so *PubSubSinkObject) Options() interface{} {
+	return so.pubsub.options
 }
 
 func (ps *PubSub) Name() string {
@@ -43,153 +75,101 @@ func (ps *PubSub) Name() string {
 }
 
 func (ps *PubSub) Source() string {
-	return ""
-}
-
-func (ps *PubSub) createSubscription(client *pubsub.Client, ctx context.Context, topic *pubsub.Topic, subID string) error {
-
-	sub := client.Subscription(subID)
-	ok, err := sub.Exists(ctx)
-	if err != nil {
-		return fmt.Errorf("an error occurred while checking the subscription status: %w", err)
-	}
-	if !ok {
-		sub, err := client.CreateSubscription(ctx, subID, pubsub.SubscriptionConfig{
-			Topic:             topic,
-			AckDeadline:       time.Duration(ps.options.SubscriptionAckDeadline) * time.Second,
-			RetentionDuration: time.Duration(ps.options.SubscriptionRetention) * time.Second,
-		})
-		if err != nil {
-			return fmt.Errorf("an error occurred while creating the subscription: %w", err)
-		}
-		ps.logger.Debug("PubSub: created subscription: %v", sub)
-	}
-	return nil
-}
-
-func (ps *PubSub) updateCmdbFiles(data []byte) error {
-
-	var cmdbMessage File
-	bytesHashString := ""
-	fileHashString := ""
-
-	err := json.Unmarshal(data, &cmdbMessage)
-	if err != nil {
-		return err
-	}
-
-	cmdbDataBytes, err := json.Marshal(cmdbMessage.Data)
-	if err != nil {
-		return err
-	}
-
-	bytesHash := common.ByteMD5(cmdbDataBytes)
-	if bytesHash != nil {
-		bytesHashString = fmt.Sprintf("%x", bytesHash)
-	}
-
-	path := ps.options.Dir + "/" + cmdbMessage.Type
-
-	if _, err := os.Stat(path); err == nil {
-		fileHash := common.FileMD5(path)
-		if fileHash != nil {
-			fileHashString = fmt.Sprintf("%x", fileHash)
-		}
-	}
-
-	if fileHashString != bytesHashString {
-		f, err := os.Create(path)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		_, err = f.Write(cmdbDataBytes)
-		if err != nil {
-			return err
-		}
-		ps.logger.Debug("PubSub: file %s created or updated with md5 hash: %s", path, bytesHashString)
-	} else {
-		ps.logger.Debug("PubSub: file %s has the same md5 hash: %s, skipped", path, fileHashString)
-	}
-
-	return nil
-}
-
-func (ps *PubSub) pullMsgs(client *pubsub.Client, ctx context.Context, subID string) error {
-
-	var received int32
-
-	sub := client.Subscription(subID)
-
-	err := sub.Receive(ctx, func(_ context.Context, msg *pubsub.Message) {
-		err := ps.updateCmdbFiles(msg.Data)
-		if err == nil {
-			atomic.AddInt32(&received, 1)
-			msg.Ack()
-		} else {
-			ps.logger.Error("PubSub: couldn't process the message from pubsub with id: %s. Error: %w", msg.ID, err)
-		}
-	})
-	if err != nil {
-		return fmt.Errorf("an error occurred while pulling messages: %w", err)
-	}
-	ps.logger.Debug("PubSub: received %d messages", received)
-
-	return nil
+	return ps.source
 }
 
 func (ps *PubSub) Discover() {
 
-	if _, err := os.Stat(ps.options.Dir); err != nil {
-		ps.logger.Error("PubSub: %v", err)
-		return
-	}
-
-	var o option.ClientOption
-	if _, err := os.Stat(ps.options.Credentials); err == nil {
-		o = option.WithCredentialsFile(ps.options.Credentials)
-	} else {
-		o = option.WithCredentialsJSON([]byte(ps.options.Credentials))
-	}
+	ps.logger.Debug("%s: PubSub discovery by topic: %s", ps.source, ps.options.Topic)
 
 	ctx := context.Background()
-	client, err := pubsub.NewClient(ctx, ps.options.ProjectID, o)
-	if err != nil {
-		ps.logger.Error("PubSub: %v", err)
-		return
-	}
-	defer client.Close()
+	topic := ps.client.Topic(ps.options.Topic)
+	subID := ps.options.Subscription
 
-	topic := client.Topic(ps.options.TopicID)
-
-	sub := ps.options.SubscriptionName
-	err = ps.createSubscription(client, ctx, topic, sub)
+	sub := ps.client.Subscription(subID)
+	exists, err := sub.Exists(ctx)
 	if err != nil {
-		ps.logger.Error("PubSub: %v", err)
+		ps.logger.Debug("%s: PubSub subscription %s error: %s", ps.source, subID, err)
 		return
 	}
 
-	err = ps.pullMsgs(client, ctx, sub)
+	if !exists {
+		sub, err = ps.client.CreateSubscription(ctx, subID, pubsub.SubscriptionConfig{
+			Topic:             topic,
+			AckDeadline:       time.Duration(ps.options.AckDeadline) * time.Second,
+			RetentionDuration: time.Duration(ps.options.Retention) * time.Second,
+		})
+		if err != nil {
+			ps.logger.Debug("%s: PubSub subscription %s creation error: %s", ps.source, subID, err)
+			return
+		}
+		ps.logger.Debug("%s: PubSub subscription %s was created", ps.source, subID)
+	}
+
+	err = sub.Receive(ctx, func(_ context.Context, msg *pubsub.Message) {
+
+		var pm PubSubMessage
+		err := json.Unmarshal(msg.Data, &pm)
+		if err != nil {
+			msg.Nack()
+			ps.logger.Error("%s: PubSub couldn't unmarshal from %s error: %s", ps.source, subID, err)
+			return
+		}
+
+		m := make(map[string]interface{})
+
+		for k, v := range pm.Payload {
+
+			if v.Kind == PubSubMessagePayloadKindUnknown {
+				ps.logger.Error("%s: PubSub couldn't process unknown message from %s error: %s", ps.source, subID, err)
+				continue
+			}
+			m[k] = v
+		}
+
+		ps.sinks.Process(ps, &PubSubSinkObject{
+			sinkMap: m,
+			pubsub:  ps,
+		})
+		msg.Ack()
+	})
+
 	if err != nil {
-		ps.logger.Error("PubSub: %v", err)
+		ps.logger.Error("%s: PubSub couldn't receive messages from %s error: %s", ps.source, subID, err)
 		return
 	}
 }
 
-func NewPubSub(options PubSubOptions, observability *common.Observability, sinks *common.Sinks) *PubSub {
+func NewPubSub(source string, options PubSubOptions, observability *common.Observability, sinks *common.Sinks) *PubSub {
 
 	logger := observability.Logs()
 
-	if !options.Enabled {
-		logger.Debug("PubSub is disabled. Skipped")
+	if utils.IsEmpty(options.Credentials) || utils.IsEmpty(options.Topic) ||
+		utils.IsEmpty(options.Subscription) || utils.IsEmpty(options.Project) {
+		logger.Debug("%s: PubSub is disabled. Skipped", source)
+		return nil
+	}
+
+	data, err := utils.Content(options.Credentials)
+	if err != nil {
+		logger.Debug("%s: PubSub credentials error: %s", source, err)
+		return nil
+	}
+
+	o := option.WithCredentialsJSON(data)
+
+	client, err := pubsub.NewClient(context.Background(), options.Project, o)
+	if err != nil {
+		logger.Error("%s: PubSub new client error: %s", source, err)
 		return nil
 	}
 
 	return &PubSub{
+		source:        source,
 		options:       options,
 		logger:        logger,
 		observability: observability,
 		sinks:         sinks,
+		client:        client,
 	}
 }

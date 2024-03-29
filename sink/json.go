@@ -2,11 +2,12 @@ package sink
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
-	"os"
-	"path/filepath"
 )
 
 type JsonOptions struct {

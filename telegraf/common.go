@@ -3,9 +3,6 @@ package telegraf
 import (
 	"bufio"
 	"bytes"
-	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -40,51 +37,18 @@ func (tc *Config) CreateWithTemplateIfCheckSumIsDifferent(name, template, conf s
 		bs = bytes.Join([][]byte{bs, []byte(template)}, []byte("\n"))
 	}
 
-	bytesHashString := ""
-	bytesHash := common.ByteMD5(bs)
-	if bytesHash != nil {
-		bytesHashString = fmt.Sprintf("%x", bytesHash)
-	}
-
-	path := conf
-	if checksum {
-
-		if _, err := os.Stat(path); err == nil {
-			fileHashString := ""
-			fileHash := common.FileMD5(path)
-			if fileHash != nil {
-				fileHashString = fmt.Sprintf("%x", fileHash)
-			}
-
-			if fileHashString == bytesHashString {
-				logger.Debug("%s: File %s has the same md5 hash: %s, skipped", name, path, fileHashString)
-				return
-			}
-		}
-	}
-
-	dir := filepath.Dir(path)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err := os.MkdirAll(dir, os.ModePerm)
-		if err != nil {
-			logger.Error(err)
-			return
-		}
-	}
-
-	f, err := os.Create(path)
+	exists, err := common.FileWriteWithCheckSum(conf, bs, checksum)
 	if err != nil {
-		logger.Error(err)
+		logger.Debug("%s: Cannot create file %s error: %s", name, conf, err)
 		return
 	}
-	defer f.Close()
 
-	_, err = f.Write(bs)
-	if err != nil {
-		logger.Error(err)
+	if exists {
+		logger.Debug("%s: File %s exists, skipped", name, conf)
 		return
 	}
-	logger.Debug("%s: File %s created with md5 hash: %s", name, path, bytesHashString)
+
+	logger.Debug("%s: File %s created or replaced", name, conf)
 }
 
 func (tc *Config) CreateIfCheckSumIsDifferent(name, conf string, checksum bool, bs []byte, logger sreCommon.Logger) {
