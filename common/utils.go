@@ -68,7 +68,7 @@ func MergeInterfacegMaps(maps ...map[string]interface{}) map[string]interface{} 
 	return r
 }
 
-func ByteMD5(b []byte) []byte {
+func MD5(b []byte) []byte {
 	h := md5.New()
 	h.Write(b)
 	return h.Sum(nil)
@@ -373,7 +373,7 @@ func StringSliceToMap(lines []string) map[string]string {
 func FileWriteWithCheckSum(path string, data []byte, checksum bool) (bool, error) {
 
 	bytesHashString := ""
-	bytesHash := ByteMD5(data)
+	bytesHash := MD5(data)
 	if bytesHash != nil {
 		bytesHashString = fmt.Sprintf("%x", bytesHash)
 	}

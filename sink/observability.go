@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/devopsext/discovery/common"
+	"github.com/devopsext/discovery/discovery"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
 )
@@ -58,6 +59,7 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 
 	switch dname {
 	case "Signal":
+
 		ms := common.ConvertSyncMapToApplications(m)
 		if len(ms) == 0 {
 			break
@@ -66,6 +68,25 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 		for k1, s1 := range ms {
 			lm[k1] = s1.Vars
 		}
+
+	case "PubSub":
+
+		lm = make(map[string]common.Labels)
+		for k, v := range m {
+			pf, ok := v.(*discovery.PubSubMessagePayloadFile)
+			if ok {
+				lml := make(common.Labels)
+				lml["path"] = pf.Path
+				lml["kind"] = "file"
+				lml["size"] = fmt.Sprintf("%d", len(pf.Data))
+				bytesHash := common.MD5(pf.Data)
+				if bytesHash != nil {
+					lml["md5"] = fmt.Sprintf("%x", bytesHash)
+				}
+				lm[k] = lml
+			}
+		}
+
 	default:
 		lm = common.ConvertSyncMapToLabelsMap(m)
 	}

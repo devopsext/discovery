@@ -1,8 +1,12 @@
 package discovery
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
+	"io"
+	"path/filepath"
 	"time"
 
 	"cloud.google.com/go/pubsub"
@@ -82,6 +86,27 @@ func (ps *PubSub) Source() string {
 	return ""
 }
 
+func (ps *PubSub) decompress(pl *PubSubMessagePayload) ([]byte, error) {
+
+	var data []byte
+	switch pl.Compression {
+	case PubSubMessagePayloadCompressionGZip:
+
+		buf := bytes.NewReader(pl.Data)
+		zr, err := gzip.NewReader(buf)
+		if err != nil {
+			return nil, err
+		}
+
+		d, err := io.ReadAll(zr)
+		if err != nil {
+			return nil, err
+		}
+		data = d
+	}
+	return data, nil
+}
+
 func (ps *PubSub) Discover() {
 
 	ps.logger.Debug("PubSub discovery by topic: %s", ps.options.Topic)
@@ -124,11 +149,45 @@ func (ps *PubSub) Discover() {
 
 		for k, v := range pm.Payload {
 
+			ps.logger.Debug("PubSub is processing payload %s from %s", k, subID)
+
 			if v.Kind == PubSubMessagePayloadKindUnknown {
-				ps.logger.Error("PubSub couldn't process unknown message from %s error: %s", subID, err)
+				ps.logger.Error("PubSub couldn't process unknown payload %s from %s error: %s", k, subID, err)
 				continue
 			}
-			m[k] = v
+
+			data, err := ps.decompress(v)
+			if err != nil {
+				ps.logger.Error("PubSub couldn't decompress payload %s from %s error: %s", k, subID, err)
+				continue
+			}
+
+			switch v.Kind {
+			case PubSubMessagePayloadKindFile:
+
+				var f PubSubMessagePayloadFile
+				err := json.Unmarshal(data, &f)
+				if err != nil {
+					ps.logger.Error("PubSub couldn't unmarshall payload %s from %s to file error: %s", k, subID, err)
+					continue
+				}
+				name := filepath.Base(f.Path)
+				m[name] = &f
+
+			case PubSubMessagePayloadKindFiles:
+
+				var fs []*PubSubMessagePayloadFile
+				err := json.Unmarshal(data, &fs)
+				if err != nil {
+					ps.logger.Error("PubSub couldn't unmarshall payload %s from %s to files error: %s", k, subID, err)
+					continue
+				}
+
+				for _, f := range fs {
+					name := filepath.Base(f.Path)
+					m[name] = f
+				}
+			}
 		}
 
 		ps.sinks.Process(ps, &PubSubSinkObject{

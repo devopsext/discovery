@@ -1,8 +1,6 @@
 package sink
 
 import (
-	"encoding/json"
-
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
 	sreCommon "github.com/devopsext/sre/common"
@@ -28,14 +26,7 @@ func (f *File) Providers() []string {
 	return f.options.Providers
 }
 
-func (f *File) processPubSubPayloadFile(pl *discovery.PubSubMessagePayload) {
-
-	var pf discovery.PubSubMessagePayloadFile
-	err := json.Unmarshal(pl.Data, &pf)
-	if err != nil {
-		f.logger.Error("File couldn't unmarshall payload as file error: %s", err)
-		return
-	}
+func (f *File) processPubSubPayloadFile(pf *discovery.PubSubMessagePayloadFile) {
 
 	exists, err := common.FileWriteWithCheckSum(pf.Path, pf.Data, f.options.Checksum)
 	if err != nil {
@@ -55,19 +46,9 @@ func (f *File) processPubSub(sm common.SinkMap) {
 	for k, v := range sm {
 
 		f.logger.Debug("File is processing payload %s...", k)
-		pl, ok := v.(*discovery.PubSubMessagePayload)
+		pf, ok := v.(*discovery.PubSubMessagePayloadFile)
 		if ok {
-
-			switch pl.Kind {
-			case discovery.PubSubMessagePayloadKindUnknown:
-				f.logger.Debug("File has no support for %s", k)
-				continue
-			case discovery.PubSubMessagePayloadKindFile:
-				f.processPubSubPayloadFile(pl)
-			case discovery.PubSubMessagePayloadKindFiles:
-				f.logger.Debug("File has no support for %s", k)
-				continue
-			}
+			f.processPubSubPayloadFile(pf)
 		}
 	}
 }
