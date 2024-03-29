@@ -50,7 +50,7 @@ func (f *File) processPubSubPayloadFile(pl *discovery.PubSubMessagePayload) {
 	f.logger.Debug("File created/updated in %s", pf.Path)
 }
 
-func (f *File) processPubSub(sm common.SinkMap, source string) {
+func (f *File) processPubSub(sm common.SinkMap) {
 
 	for k, v := range sm {
 
@@ -74,14 +74,13 @@ func (f *File) processPubSub(sm common.SinkMap, source string) {
 
 func (f *File) Process(d common.Discovery, so common.SinkObject) {
 
-	source := d.Source()
 	dname := d.Name()
 	m := so.Map()
 	f.logger.Debug("File has to process %d objects from %s...", len(m), d.Name())
 
 	switch dname {
 	case "PubSub":
-		f.processPubSub(m, source)
+		f.processPubSub(m)
 	default:
 		f.logger.Debug("File has no support for %s", dname)
 		return

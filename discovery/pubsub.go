@@ -22,7 +22,6 @@ type PubSubOptions struct {
 }
 
 type PubSub struct {
-	source        string
 	options       PubSubOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
@@ -80,12 +79,12 @@ func (ps *PubSub) Name() string {
 }
 
 func (ps *PubSub) Source() string {
-	return ps.source
+	return ""
 }
 
 func (ps *PubSub) Discover() {
 
-	ps.logger.Debug("%s: PubSub discovery by topic: %s", ps.source, ps.options.Topic)
+	ps.logger.Debug("PubSub discovery by topic: %s", ps.options.Topic)
 
 	ctx := context.Background()
 	topic := ps.client.Topic(ps.options.Topic)
@@ -94,7 +93,7 @@ func (ps *PubSub) Discover() {
 	sub := ps.client.Subscription(subID)
 	exists, err := sub.Exists(ctx)
 	if err != nil {
-		ps.logger.Debug("%s: PubSub subscription %s error: %s", ps.source, subID, err)
+		ps.logger.Debug("PubSub subscription %s error: %s", subID, err)
 		return
 	}
 
@@ -105,10 +104,10 @@ func (ps *PubSub) Discover() {
 			RetentionDuration: time.Duration(ps.options.Retention) * time.Second,
 		})
 		if err != nil {
-			ps.logger.Debug("%s: PubSub subscription %s creation error: %s", ps.source, subID, err)
+			ps.logger.Debug("PubSub subscription %s creation error: %s", subID, err)
 			return
 		}
-		ps.logger.Debug("%s: PubSub subscription %s was created", ps.source, subID)
+		ps.logger.Debug("PubSub subscription %s was created", subID)
 	}
 
 	err = sub.Receive(ctx, func(_ context.Context, msg *pubsub.Message) {
@@ -117,7 +116,7 @@ func (ps *PubSub) Discover() {
 		err := json.Unmarshal(msg.Data, &pm)
 		if err != nil {
 			msg.Nack()
-			ps.logger.Error("%s: PubSub couldn't unmarshal from %s error: %s", ps.source, subID, err)
+			ps.logger.Error("PubSub couldn't unmarshal from %s error: %s", subID, err)
 			return
 		}
 
@@ -126,7 +125,7 @@ func (ps *PubSub) Discover() {
 		for k, v := range pm.Payload {
 
 			if v.Kind == PubSubMessagePayloadKindUnknown {
-				ps.logger.Error("%s: PubSub couldn't process unknown message from %s error: %s", ps.source, subID, err)
+				ps.logger.Error("PubSub couldn't process unknown message from %s error: %s", subID, err)
 				continue
 			}
 			m[k] = v
@@ -140,24 +139,24 @@ func (ps *PubSub) Discover() {
 	})
 
 	if err != nil {
-		ps.logger.Error("%s: PubSub couldn't receive messages from %s error: %s", ps.source, subID, err)
+		ps.logger.Error("PubSub couldn't receive messages from %s error: %s", subID, err)
 		return
 	}
 }
 
-func NewPubSub(source string, options PubSubOptions, observability *common.Observability, sinks *common.Sinks) *PubSub {
+func NewPubSub(options PubSubOptions, observability *common.Observability, sinks *common.Sinks) *PubSub {
 
 	logger := observability.Logs()
 
 	if utils.IsEmpty(options.Credentials) || utils.IsEmpty(options.Topic) ||
 		utils.IsEmpty(options.Subscription) || utils.IsEmpty(options.Project) {
-		logger.Debug("%s: PubSub is disabled. Skipped", source)
+		logger.Debug("PubSub is disabled. Skipped")
 		return nil
 	}
 
 	data, err := utils.Content(options.Credentials)
 	if err != nil {
-		logger.Debug("%s: PubSub credentials error: %s", source, err)
+		logger.Debug("PubSub credentials error: %s", err)
 		return nil
 	}
 
@@ -165,12 +164,11 @@ func NewPubSub(source string, options PubSubOptions, observability *common.Obser
 
 	client, err := pubsub.NewClient(context.Background(), options.Project, o)
 	if err != nil {
-		logger.Error("%s: PubSub new client error: %s", source, err)
+		logger.Error("PubSub new client error: %s", err)
 		return nil
 	}
 
 	return &PubSub{
-		source:        source,
 		options:       options,
 		logger:        logger,
 		observability: observability,

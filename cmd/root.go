@@ -500,7 +500,7 @@ func Execute() {
 
 			// run supportive discoveries without scheduler
 			if !rootOptions.RunOnce {
-				runStandAloneDiscovery(wg, discovery.NewPubSub(dPubSubOptions.Topic, dPubSubOptions, obs, sinks), logger)
+				runStandAloneDiscovery(wg, discovery.NewPubSub(dPubSubOptions, obs, sinks), logger)
 			}
 			wg.Wait()
 
