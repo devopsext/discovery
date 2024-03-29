@@ -64,7 +64,7 @@ func (f *File) processPubSub(sm common.SinkMap, source string) {
 				continue
 			case discovery.PubSubMessagePayloadKindFile:
 				f.processPubSubPayloadFile(pl)
-			case discovery.PubSubMessagePayloadKindArchive:
+			case discovery.PubSubMessagePayloadKindFiles:
 				f.logger.Debug("File has no support for %s", k)
 				continue
 			}

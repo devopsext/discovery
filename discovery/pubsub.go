@@ -35,29 +35,27 @@ type PubSubMessagePayloadFile struct {
 	Data []byte `json:"data"`
 }
 
-type PubSubMessagePayloadArchiveCompression = int
-
-const (
-	PubSubMessagePayloadArchiveCompressionNone int = iota
-	PubSubMessagePayloadArchiveCompressionZip
-)
-
-type PubSubMessagePayloadArchive struct {
-	Compression PubSubMessagePayloadArchiveCompression `json:"compression"`
-	Files       []*PubSubMessagePayloadFile            `json:"files"`
-}
+type PubSubMessagePayloadFiles = []*PubSubMessagePayloadFile
 
 type PubSubMessagePayloadKind = int
 
 const (
 	PubSubMessagePayloadKindUnknown int = iota
 	PubSubMessagePayloadKindFile
-	PubSubMessagePayloadKindArchive
+	PubSubMessagePayloadKindFiles
+)
+
+type PubSubMessagePayloadCompression = int
+
+const (
+	PubSubMessagePayloadCompressionNone int = iota
+	PubSubMessagePayloadCompressionZip
 )
 
 type PubSubMessagePayload struct {
-	Kind PubSubMessagePayloadKind `json:"kind"`
-	Data []byte                   `json:"data"`
+	Kind        PubSubMessagePayloadKind        `json:"kind"`
+	Compression PubSubMessagePayloadCompression `json:"compression"`
+	Data        []byte                          `json:"data"`
 }
 
 type PubSubMessage struct {
