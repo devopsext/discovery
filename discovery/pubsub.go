@@ -49,7 +49,7 @@ type PubSubMessagePayloadCompression = int
 
 const (
 	PubSubMessagePayloadCompressionNone int = iota
-	PubSubMessagePayloadCompressionZip
+	PubSubMessagePayloadCompressionGZip
 )
 
 type PubSubMessagePayload struct {
