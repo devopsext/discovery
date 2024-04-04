@@ -189,12 +189,12 @@ func (ps *PubSub) Discover() {
 				}
 			}
 		}
+		msg.Ack()
 
 		ps.sinks.Process(ps, &PubSubSinkObject{
 			sinkMap: m,
 			pubsub:  ps,
 		})
-		msg.Ack()
 	})
 
 	if err != nil {

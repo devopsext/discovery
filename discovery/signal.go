@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -29,7 +30,7 @@ type SignalOptions struct {
 	QueryPeriod  string
 	QueryStep    string
 	Metric       string
-	Application  string
+	Ident        string
 	Field        string
 	BaseTemplate string
 	Vars         string
@@ -37,18 +38,18 @@ type SignalOptions struct {
 }
 
 type Signal struct {
-	source              string
-	prometheus          *toolsVendors.Prometheus
-	prometheusOpts      toolsVendors.PrometheusOptions
-	options             SignalOptions
-	logger              sreCommon.Logger
-	observability       *common.Observability
-	applicationTemplate *toolsRender.TextTemplate
-	fieldTemplate       *toolsRender.TextTemplate
-	varsTemplate        *toolsRender.TextTemplate
-	files               map[string]interface{}
-	disables            map[string]*toolsRender.TextTemplate
-	sinks               *common.Sinks
+	source         string
+	prometheus     *toolsVendors.Prometheus
+	prometheusOpts toolsVendors.PrometheusOptions
+	options        SignalOptions
+	logger         sreCommon.Logger
+	observability  *common.Observability
+	objectTemplate *toolsRender.TextTemplate
+	fieldTemplate  *toolsRender.TextTemplate
+	varsTemplate   *toolsRender.TextTemplate
+	files          *sync.Map
+	disables       map[string]*toolsRender.TextTemplate
+	sinks          *common.Sinks
 }
 
 type SignalSinkObject struct {
@@ -82,7 +83,7 @@ func (s *Signal) render(tpl *toolsRender.TextTemplate, def string, obj interface
 	return s1
 }
 
-// ".templates/SRE/application-*.yml"
+// ".templates/*.yml"
 func (s *Signal) readBaseConfigs() map[string]*common.BaseConfig {
 
 	configs := make(map[string]*common.BaseConfig)
@@ -202,12 +203,24 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 	fs := s.render(tpl, s.options.Files, vars)
 	kv := utils.MapGetKeyValues(fs)
 	for k, v := range kv {
+
 		if utils.FileExists(v) {
 			typ := strings.Replace(filepath.Ext(v), ".", "", 1)
 
-			obj := s.files[v]
+			var obj interface{}
+			md5 := common.FileMd5ToString(v)
+			if utils.IsEmpty(md5) {
+				continue
+			}
+
+			r, ok := s.files.Load(md5)
+			if ok {
+				obj = r
+			}
+
 			if obj == nil {
 				obj = s.readFile(v, typ)
+				s.files.Store(md5, obj)
 			}
 
 			if obj != nil {
@@ -216,7 +229,6 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 					Type: typ,
 					Obj:  obj,
 				}
-				s.files[v] = obj
 			}
 		}
 	}
@@ -274,11 +286,11 @@ func (s *Signal) expandDisabled(files map[string]*common.File, vars map[string]s
 	return r
 }
 
-func (s *Signal) checkDisabled(disabled []string, application string) (bool, string) {
+func (s *Signal) checkDisabled(disabled []string, ident string) (bool, string) {
 
 	for _, v := range disabled {
 
-		match, _ := regexp.MatchString(v, application)
+		match, _ := regexp.MatchString(v, ident)
 		if match {
 			return true, v
 		}
@@ -312,10 +324,15 @@ func (s *Signal) filterVectors(name string, configs map[string]*common.BaseConfi
 	return r
 }
 
-func (s *Signal) findApplications(vectors []*common.PrometheusResponseDataVector) map[string]*common.Application {
+func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map[string]*common.Object {
+
+	s.files.Range(func(key any, value any) bool {
+		s.files.Delete(key)
+		return true
+	})
 
 	configs := s.readBaseConfigs()
-	matched := make(map[string]*common.Application)
+	matched := make(map[string]*common.Object)
 	gid := utils.GoRoutineID()
 
 	if utils.IsEmpty(s.options.Metric) {
@@ -360,52 +377,52 @@ func (s *Signal) findApplications(vectors []*common.PrometheusResponseDataVector
 		m["source"] = s.source
 
 		vars := s.render(s.varsTemplate, s.options.Vars, m)
-		applicationVars := utils.MapGetKeyValues(vars)
-		mergedVars := common.MergeStringMaps(v.Labels, applicationVars)
+		objectVars := utils.MapGetKeyValues(vars)
+		mergedVars := common.MergeStringMaps(v.Labels, objectVars)
 
-		application := ""
+		ident := ""
 		field := ""
 
-		if utils.IsEmpty(s.options.Application) && (len(v.Labels) > 1) {
+		if utils.IsEmpty(s.options.Ident) && (len(v.Labels) > 1) {
 			flag := false
 			for _, m := range v.Labels {
 				if flag {
-					application = m
+					ident = m
 					break
 				}
 				flag = true
 			}
 		} else {
-			ident := s.render(s.applicationTemplate, s.options.Application, mergedVars)
-			if ident == s.options.Application {
-				application = mergedVars[ident]
+			temp := s.render(s.objectTemplate, s.options.Ident, mergedVars)
+			if temp == s.options.Ident {
+				ident = mergedVars[temp]
 			} else {
-				application = ident
+				ident = temp
 			}
 		}
 
-		ident := s.render(s.fieldTemplate, s.options.Field, mergedVars)
-		if ident == s.options.Field {
-			field = mergedVars[ident]
+		temp := s.render(s.fieldTemplate, s.options.Field, mergedVars)
+		if temp == s.options.Field {
+			field = mergedVars[temp]
 		} else {
-			field = ident
+			field = temp
 		}
 
 		metric := mergedVars[name]
 
-		if utils.IsEmpty(application) || utils.IsEmpty(metric) {
-			s.logger.Debug("[%d] %s: No application, field or metric found in labels, but: %v", gid, s.source, mergedVars)
+		if utils.IsEmpty(ident) || utils.IsEmpty(metric) {
+			s.logger.Debug("[%d] %s: No object, field or metric found in labels, but: %v", gid, s.source, mergedVars)
 			continue
 		}
 
-		// find application in cmdb
+		// find objects in files
 		// if it's disabled, skip it with warning
-		fieldAndApplication := fmt.Sprintf("%s/%s", field, application)
+		fieldAndIdent := fmt.Sprintf("%s/%s", field, ident)
 
 		disabled := s.expandDisabled(fls, mergedVars)
-		dis, _ := s.checkDisabled(disabled, application)
+		dis, _ := s.checkDisabled(disabled, ident)
 		if dis {
-			//s.logger.Trace("%s: %s disabled by pattern: %s", s.source, fieldAndApplication, pattern)
+			//s.logger.Trace("%s: %s disabled by pattern: %s", s.source, fieldAndIdent, pattern)
 			continue
 		}
 
@@ -420,10 +437,10 @@ func (s *Signal) findApplications(vectors []*common.PrometheusResponseDataVector
 				continue
 			}
 
-			ds := matched[fieldAndApplication]
+			ds := matched[fieldAndIdent]
 			if ds == nil {
-				s.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, s.source, fieldAndApplication, mergedVars, time.Since(when))
-				ds = &common.Application{
+				s.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, s.source, fieldAndIdent, mergedVars, time.Since(when))
+				ds = &common.Object{
 					Configs: make(map[string]*common.BaseConfig),
 					Vars:    make(map[string]string),
 				}
@@ -436,13 +453,13 @@ func (s *Signal) findApplications(vectors []*common.PrometheusResponseDataVector
 			if ds.Configs[path] == nil {
 				ds.Configs[path] = config
 			}
-			for k, l := range applicationVars {
+			for k, l := range objectVars {
 				if (ds.Vars[k] == "") && (l != metric) {
 					ds.Vars[k] = l
 				}
 			}
 			ds.Files = fls
-			matched[fieldAndApplication] = ds
+			matched[fieldAndIdent] = ds
 		}
 	}
 	return matched
@@ -491,15 +508,15 @@ func (s *Signal) Discover() {
 		return
 	}
 
-	applications := s.findApplications(res.Data.Result)
-	if len(applications) == 0 {
-		s.logger.Debug("%s: Signal not found any applications according query", s.source)
+	objects := s.findObjects(res.Data.Result)
+	if len(objects) == 0 {
+		s.logger.Debug("%s: Signal not found any objects according query", s.source)
 		return
 	}
-	s.logger.Debug("%s: Signal found %d applications according query. Processing...", s.source, len(applications))
+	s.logger.Debug("%s: Signal found %d objects according query. Processing...", s.source, len(objects))
 
 	s.sinks.Process(s, &SignalSinkObject{
-		sinkMap: common.ConvertApplicationsToSinkMap(applications),
+		sinkMap: common.ConvertObjectsToSinkMap(objects),
 		signal:  s,
 	})
 }
@@ -539,11 +556,11 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 		return nil
 	}
 
-	applicationOpts := toolsRender.TemplateOptions{
-		Content: options.Application,
-		Name:    "signal-application",
+	objectOpts := toolsRender.TemplateOptions{
+		Content: options.Ident,
+		Name:    "signal-ident",
 	}
-	applicationTemplate, err := toolsRender.NewTextTemplate(applicationOpts, observability)
+	objectTemplate, err := toolsRender.NewTextTemplate(objectOpts, observability)
 	if err != nil {
 		logger.Error(err)
 		return nil
@@ -569,17 +586,17 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 	}
 
 	return &Signal{
-		source:              source,
-		prometheus:          toolsVendors.NewPrometheus(prometheusOpts),
-		prometheusOpts:      prometheusOpts,
-		options:             options,
-		logger:              logger,
-		observability:       observability,
-		applicationTemplate: applicationTemplate,
-		fieldTemplate:       fieldTemplate,
-		varsTemplate:        varsTemplate,
-		files:               make(map[string]interface{}),
-		disables:            make(map[string]*toolsRender.TextTemplate),
-		sinks:               sinks,
+		source:         source,
+		prometheus:     toolsVendors.NewPrometheus(prometheusOpts),
+		prometheusOpts: prometheusOpts,
+		options:        options,
+		logger:         logger,
+		observability:  observability,
+		objectTemplate: objectTemplate,
+		fieldTemplate:  fieldTemplate,
+		varsTemplate:   varsTemplate,
+		files:          &sync.Map{},
+		disables:       make(map[string]*toolsRender.TextTemplate),
+		sinks:          sinks,
 	}
 }

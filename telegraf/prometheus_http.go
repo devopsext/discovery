@@ -2,7 +2,6 @@ package telegraf
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -95,8 +94,18 @@ func (ti *InputPrometheusHttp) sanitizeQuery(query string) string {
 }
 
 func (ti *InputPrometheusHttp) setVars(q, f string, vars map[string]string) string {
-	for k, v := range vars {
-		q = strings.ReplaceAll(q, fmt.Sprintf(f, k), v)
+
+	keys := common.GetStringKeys(vars)
+	sort.Slice(keys, func(i, j int) bool {
+		l1, l2 := len(keys[i]), len(keys[j])
+		if l1 != l2 {
+			return l1 > l2
+		}
+		return keys[i] > keys[j]
+	})
+
+	for _, k := range keys {
+		q = strings.ReplaceAll(q, fmt.Sprintf(f, k), vars[k])
 	}
 	return q
 }
@@ -131,7 +140,7 @@ func (ti *InputPrometheusHttp) renderLabels(name, tpl string, tags map[string]st
 	return common.MergeStringMaps(tags, kv)
 }
 
-func (ti *InputPrometheusHttp) enableLabel(name, l string) string {
+/*func (ti *InputPrometheusHttp) enableLabel(name, l string) string {
 
 	if l == "" {
 		return l
@@ -151,25 +160,25 @@ func (ti *InputPrometheusHttp) enableLabel(name, l string) string {
 		return arr[0]
 	}
 	return ""
-}
+}*/
 
-func (ti *InputPrometheusHttp) buildTags(name string, labels map[string]string, f string, vars map[string]string) map[string]string {
+func (ti *InputPrometheusHttp) buildTags(labels map[string]string, f string, vars map[string]string) map[string]string {
 
 	r := make(map[string]string)
 
 	for k, l := range labels {
-		lnew := ti.enableLabel(name, l)
-		if utils.IsEmpty(lnew) {
-			continue
-		}
-		r[k] = ti.setVars(lnew, f, vars)
+		r[k] = ti.setVars(l, f, vars)
 	}
 	return r
 }
 
-func (ti *InputPrometheusHttp) buildQualities(s *common.Application, qualities []*common.BaseQuality, tpl string,
+func (ti *InputPrometheusHttp) buildQualities(s *common.Object, qualities []*common.BaseQuality, tpl string,
 	opts InputPrometheusHttpOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
+
+	if utils.IsEmpty(opts.QualityQuery) {
+		return
+	}
 
 	metric := &InputPrometheusHttpMetric{}
 	metric.Name = opts.QualityName
@@ -199,7 +208,7 @@ func (ti *InputPrometheusHttp) buildQualities(s *common.Application, qualities [
 	}
 
 	metric.Query = qe
-	tags := ti.buildTags(metric.Name, labels, opts.VarFormat, vars)
+	tags := ti.buildTags(labels, opts.VarFormat, vars)
 	tags = ti.renderLabels(metric.Name, tpl, tags, vars, files)
 
 	keys := common.GetStringKeys(tags)
@@ -209,7 +218,7 @@ func (ti *InputPrometheusHttp) buildQualities(s *common.Application, qualities [
 	ti.Metric = append(ti.Metric, metric)
 }
 
-func (ti *InputPrometheusHttp) buildAvailability(s *common.Application, baseAvailability *common.BaseAvailability, tpl string,
+func (ti *InputPrometheusHttp) buildAvailability(s *common.Object, baseAvailability *common.BaseAvailability, tpl string,
 	opts InputPrometheusHttpOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
 
@@ -237,8 +246,8 @@ func (ti *InputPrometheusHttp) buildAvailability(s *common.Application, baseAvai
 		}
 
 		availability.Query = ti.sanitizeQuery(qe)
-		tags1 := ti.buildTags(availability.Name, labels, opts.VarFormat, vars)
-		tags2 := ti.buildTags(availability.Name, a.Labels, opts.VarFormat, vars)
+		tags1 := ti.buildTags(labels, opts.VarFormat, vars)
+		tags2 := ti.buildTags(a.Labels, opts.VarFormat, vars)
 		tags := common.MergeStringMaps(tags1, tags2)
 		tags = ti.renderLabels(availability.Name, tpl, tags, vars, files)
 		keys := common.GetStringKeys(tags)
@@ -250,7 +259,7 @@ func (ti *InputPrometheusHttp) buildAvailability(s *common.Application, baseAvai
 
 }
 
-func (ti *InputPrometheusHttp) buildMetrics(s *common.Application, metrics []*common.BaseMetric, tpl string,
+func (ti *InputPrometheusHttp) buildMetrics(s *common.Object, metrics []*common.BaseMetric, tpl string,
 	opts InputPrometheusHttpOptions,
 	labels map[string]string, vars map[string]string, files map[string]interface{}) {
 
@@ -271,8 +280,8 @@ func (ti *InputPrometheusHttp) buildMetrics(s *common.Application, metrics []*co
 		metric.Query = ti.sanitizeQuery(qe)
 		metric.UniqueBy = m.UniqueBy
 
-		tags1 := ti.buildTags(metric.Name, labels, opts.VarFormat, vars)
-		tags2 := ti.buildTags(metric.Name, m.Labels, opts.VarFormat, vars)
+		tags1 := ti.buildTags(labels, opts.VarFormat, vars)
+		tags2 := ti.buildTags(m.Labels, opts.VarFormat, vars)
 		tags := common.MergeStringMaps(tags1, tags2)
 		tags = ti.renderLabels(metric.Name, tpl, tags, vars, files)
 

@@ -55,7 +55,7 @@ func (tc *Config) CreateIfCheckSumIsDifferent(name, conf string, checksum bool, 
 	tc.CreateWithTemplateIfCheckSumIsDifferent(name, "", conf, checksum, bs, logger)
 }
 
-func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Application, labelsTpl string,
+func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Object, labelsTpl string,
 	opts InputPrometheusHttpOptions, name string) ([]byte, error) {
 
 	input := &InputPrometheusHttp{

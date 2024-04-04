@@ -64,7 +64,7 @@ func (t *Telegraf) Providers() []string {
 	return t.options.Providers
 }
 
-// .telegraf/prefix-{{.namespace}}-discovery-{{.application}}-{{.container_name}}{{.container}}.conf
+// .telegraf/prefix-{{.namespace}}-discovery-{{.object}}-{{.container_name}}{{.container}}.conf
 func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so interface{}) error {
 
 	opts, ok := so.(discovery.SignalOptions)
@@ -72,7 +72,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		return errors.New("no options")
 	}
 
-	m := common.ConvertSyncMapToApplications(sm)
+	m := common.ConvertSyncMapToObjects(sm)
 	source := d.Source()
 
 	for k, s1 := range m {

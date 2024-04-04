@@ -67,7 +67,7 @@ type File struct {
 
 type Files map[string]*File
 
-type Application struct {
+type Object struct {
 	Metrics []string
 	Configs map[string]*BaseConfig
 	//	Labels  Labels
@@ -75,7 +75,7 @@ type Application struct {
 	Files Files
 }
 
-type Applications map[string]*Application
+type Objects map[string]*Object
 
 func (bc *BaseConfig) LabelsExist(c *BaseCondition, labels Labels) bool {
 
@@ -107,7 +107,7 @@ func (bc *BaseConfig) Contains(pattern string) bool {
 		}
 	}
 
-	for _, m := range bc.Qualities {
+	for _, m := range bc.Metrics {
 		if strings.Contains(m.Query, pattern) {
 			return true
 		}

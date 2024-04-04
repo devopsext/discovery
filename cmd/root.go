@@ -73,7 +73,7 @@ var dSignalOptions = discovery.SignalOptions{
 	QueryPeriod:  envGet("SIGNAL_QUERY_PERIOD", "").(string),
 	QueryStep:    envGet("SIGNAL_QUERY_STEP", "").(string),
 	Metric:       envGet("SIGNAL_METRIC", "").(string),
-	Application:  envGet("SIGNAL_APPLICATION", "").(string),
+	Ident:        envFileContentExpand("SIGNAL_IDENT", ""),
 	Field:        envGet("SIGNAL_FIELD", "").(string),
 	Files:        envFileContentExpand("SIGNAL_FILES", ""),
 	Vars:         envFileContentExpand("SIGNAL_VARS", ""),
@@ -198,8 +198,9 @@ var dDumbOptions = discovery.DumbOptions{
 }
 
 var sinkFileOptions = sink.FileOptions{
-	Checksum:  envGet("SINK_FILE_CHECKSUM", false).(bool),
-	Providers: strings.Split(envStringExpand("SINK_FILE_PROVIDERS", ""), ","),
+	Checksum:     envGet("SINK_FILE_CHECKSUM", false).(bool),
+	Providers:    strings.Split(envStringExpand("SINK_FILE_PROVIDERS", ""), ","),
+	Replacements: envGet("SINK_FILE_REPLACEMENTS", "").(string),
 }
 
 var sinkJsonOptions = sink.JsonOptions{
@@ -539,7 +540,7 @@ func Execute() {
 	flags.StringVar(&dSignalOptions.Query, "signal-query", dSignalOptions.Query, "Signal discovery query")
 	flags.StringVar(&dSignalOptions.QueryPeriod, "signal-query-period", dSignalOptions.QueryPeriod, "Signal discovery query period")
 	flags.StringVar(&dSignalOptions.QueryStep, "signal-query-step", dSignalOptions.QueryStep, "Signal discovery query step")
-	flags.StringVar(&dSignalOptions.Application, "signal-application", dSignalOptions.Application, "Signal discovery application label")
+	flags.StringVar(&dSignalOptions.Ident, "signal-object", dSignalOptions.Ident, "Signal discovery ident label")
 	flags.StringVar(&dSignalOptions.Field, "signal-field", dSignalOptions.Field, "Signal discovery field label")
 	flags.StringVar(&dSignalOptions.Metric, "signal-metric", dSignalOptions.Metric, "Signal discovery metric label")
 	flags.StringVar(&dSignalOptions.Files, "signal-files", dSignalOptions.Files, "Signal discovery files")
@@ -639,6 +640,7 @@ func Execute() {
 	// Sink File
 	flags.BoolVar(&sinkFileOptions.Checksum, "sink-file-checksum", sinkFileOptions.Checksum, "File sink checksum")
 	flags.StringSliceVar(&sinkFileOptions.Providers, "sink-file-providers", sinkFileOptions.Providers, "File sink providers through")
+	flags.StringVar(&sinkFileOptions.Replacements, "sink-file-replacements", sinkFileOptions.Replacements, "File sink replacements")
 	// Sink Json
 	flags.StringVar(&sinkJsonOptions.Dir, "sink-json-dir", sinkJsonOptions.Dir, "Json sink directory")
 	flags.StringSliceVar(&sinkJsonOptions.Providers, "sink-json-providers", sinkJsonOptions.Providers, "Json sink providers through")

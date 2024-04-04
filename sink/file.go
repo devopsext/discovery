@@ -1,21 +1,26 @@
 package sink
 
 import (
+	"strings"
+
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
 	sreCommon "github.com/devopsext/sre/common"
+	"github.com/devopsext/utils"
 )
 
 type FileOptions struct {
-	Checksum  bool
-	Providers []string
-	Names     []string
+	Checksum     bool
+	Providers    []string
+	Names        []string
+	Replacements string
 }
 
 type File struct {
 	options       FileOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
+	replacements  map[string]string
 }
 
 func (f *File) Name() string {
@@ -26,19 +31,29 @@ func (f *File) Providers() []string {
 	return f.options.Providers
 }
 
+func (f *File) replace(s string) string {
+
+	r := s
+	for k, v := range f.replacements {
+		r = strings.Replace(r, k, v, 1)
+	}
+	return r
+}
+
 func (f *File) processPubSubPayloadFile(pf *discovery.PubSubMessagePayloadFile) {
 
-	exists, err := common.FileWriteWithCheckSum(pf.Path, pf.Data, f.options.Checksum)
+	path := f.replace(pf.Path)
+	exists, err := common.FileWriteWithCheckSum(path, pf.Data, f.options.Checksum)
 	if err != nil {
-		f.logger.Error("File couldn't be written to %s error: %s", pf.Path, err)
+		f.logger.Error("File couldn't be written to %s error: %s", path, err)
 		return
 	}
 
 	if exists {
-		f.logger.Debug("File exists in %s", pf.Path)
+		f.logger.Debug("File exists in %s", path)
 		return
 	}
-	f.logger.Debug("File created/updated in %s", pf.Path)
+	f.logger.Debug("File created/updated in %s", path)
 }
 
 func (f *File) processPubSub(sm common.SinkMap) {
@@ -71,12 +86,13 @@ func (f *File) Process(d common.Discovery, so common.SinkObject) {
 func NewFile(options FileOptions, observability *common.Observability) *File {
 
 	logger := observability.Logs()
-
 	options.Providers = common.RemoveEmptyStrings(options.Providers)
+	replacements := utils.MapGetKeyValues(options.Replacements)
 
 	return &File{
 		options:       options,
 		logger:        logger,
 		observability: observability,
+		replacements:  replacements,
 	}
 }

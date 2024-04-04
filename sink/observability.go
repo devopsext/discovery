@@ -60,7 +60,7 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 	switch dname {
 	case "Signal":
 
-		ms := common.ConvertSyncMapToApplications(m)
+		ms := common.ConvertSyncMapToObjects(m)
 		if len(ms) == 0 {
 			break
 		}
@@ -79,9 +79,9 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 				lml["path"] = pf.Path
 				lml["kind"] = "file"
 				lml["size"] = fmt.Sprintf("%d", len(pf.Data))
-				bytesHash := common.MD5(pf.Data)
-				if bytesHash != nil {
-					lml["md5"] = fmt.Sprintf("%x", bytesHash)
+				hash := common.Md5ToString(pf.Data)
+				if !utils.IsEmpty(hash) {
+					lml["md5"] = hash
 				}
 				lm[k] = lml
 			}

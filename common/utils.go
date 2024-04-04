@@ -68,10 +68,19 @@ func MergeInterfacegMaps(maps ...map[string]interface{}) map[string]interface{} 
 	return r
 }
 
-func MD5(b []byte) []byte {
+func Md5(b []byte) []byte {
 	h := md5.New()
 	h.Write(b)
 	return h.Sum(nil)
+}
+
+func Md5ToString(b []byte) string {
+
+	hash := Md5(b)
+	if hash != nil {
+		return fmt.Sprintf("%x", hash)
+	}
+	return ""
 }
 
 func FileMD5(path string) []byte {
@@ -87,6 +96,15 @@ func FileMD5(path string) []byte {
 		return nil
 	}
 	return h.Sum(nil)
+}
+
+func FileMd5ToString(path string) string {
+
+	hash := FileMD5(path)
+	if hash != nil {
+		return fmt.Sprintf("%x", hash)
+	}
+	return ""
 }
 
 func IfDef(v, def interface{}) interface{} {
@@ -323,7 +341,7 @@ func ConvertSyncMapToLabelsMap(m SinkMap) LabelsMap {
 	return r
 }
 
-func ConvertApplicationsToSinkMap(m Applications) SinkMap {
+func ConvertObjectsToSinkMap(m Objects) SinkMap {
 
 	r := make(SinkMap)
 	for k, v := range m {
@@ -332,11 +350,11 @@ func ConvertApplicationsToSinkMap(m Applications) SinkMap {
 	return r
 }
 
-func ConvertSyncMapToApplications(m SinkMap) Applications {
+func ConvertSyncMapToObjects(m SinkMap) Objects {
 
-	r := make(Applications)
+	r := make(Objects)
 	for k, v := range m {
-		s, ok := v.(*Application)
+		s, ok := v.(*Object)
 		if ok {
 			r[k] = s
 		}
@@ -372,11 +390,7 @@ func StringSliceToMap(lines []string) map[string]string {
 
 func FileWriteWithCheckSum(path string, data []byte, checksum bool) (bool, error) {
 
-	bytesHashString := ""
-	bytesHash := MD5(data)
-	if bytesHash != nil {
-		bytesHashString = fmt.Sprintf("%x", bytesHash)
-	}
+	bytesHashString := Md5ToString(data)
 
 	if checksum {
 
