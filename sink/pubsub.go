@@ -38,24 +38,33 @@ func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
 
 	switch d.Name() {
 	case "K8s":
-		data, err := json.Marshal(PubSubPublishObject{
-			Source:  d.Name(),
-			Type:    "json",
-			Cluster: so.Options().(discovery.K8sOptions).ClusterName,
-			Data:    so.Map(),
-		})
-		if err != nil {
-			ps.logger.Error("PubSub Sink: %v", err)
-			return
+		for kind, table := range so.Map() {
+			switch kind {
+			case "workload":
+				t, ok := table.(common.SinkMap)
+				if ok {
+					data, err := json.Marshal(PubSubPublishObject{
+						Source:  d.Name(),
+						Type:    "json",
+						Cluster: so.Options().(discovery.K8sOptions).ClusterName,
+						Data:    t,
+					})
+					if err != nil {
+						ps.logger.Error("PubSub Sink: %v", err)
+						return
+					}
+
+					ps.logger.Debug("PubSub has to publish %d bytes...", len(data))
+
+					err = ps.publish(context.Background(), data)
+					if err != nil {
+						ps.logger.Error("PubSub Sink: %v", err)
+						return
+					}
+				}
+			}
 		}
 
-		ps.logger.Debug("PubSub has to publish %d bytes...", len(data))
-
-		err = ps.publish(context.Background(), data)
-		if err != nil {
-			ps.logger.Error("PubSub Sink: %v", err)
-			return
-		}
 	default:
 		ps.logger.Debug("PubSub Sink: %s is not supported", d.Name())
 		return

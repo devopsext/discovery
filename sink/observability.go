@@ -87,6 +87,17 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 			}
 		}
 
+	case "K8s":
+		lm = make(map[string]common.Labels)
+		for k, v := range m {
+			ks, ok := v.(common.SinkMap)
+			if ok {
+				for s, i := range ks {
+					lm[s] = common.MergeLabels(i.(common.Labels), common.Labels{"kind": k})
+				}
+			}
+		}
+
 	default:
 		lm = common.ConvertSyncMapToLabelsMap(m)
 	}
