@@ -18,6 +18,7 @@ type InputPrometheusHttpFile struct {
 
 type InputPrometheusHttpMetric struct {
 	Name     string            `toml:"name"`
+	Round    *int              `toml:"round,omitempty"`
 	Query    string            `toml:"query"`
 	UniqueBy []string          `toml:"unique_by,omitempty"`
 	Tags     map[string]string `toml:"tags,omitempty"`
@@ -25,6 +26,7 @@ type InputPrometheusHttpMetric struct {
 
 type InputPrometheusHttpAvailability struct {
 	Name     string            `toml:"name"`
+	Round    *int              `toml:"round,omitempty"`
 	Query    string            `toml:"query"`
 	UniqueBy []string          `toml:"unique_by,omitempty"`
 	Tags     map[string]string `toml:"tags,omitempty"`
@@ -140,28 +142,6 @@ func (ti *InputPrometheusHttp) renderLabels(name, tpl string, tags map[string]st
 	return common.MergeStringMaps(tags, kv)
 }
 
-/*func (ti *InputPrometheusHttp) enableLabel(name, l string) string {
-
-	if l == "" {
-		return l
-	}
-
-	arr := strings.Split(l, "=")
-	if len(arr) == 0 {
-		return l
-	}
-
-	if len(arr) == 1 {
-		return arr[0]
-	}
-
-	match, _ := regexp.MatchString(arr[1], name)
-	if match {
-		return arr[0]
-	}
-	return ""
-}*/
-
 func (ti *InputPrometheusHttp) buildTags(labels map[string]string, f string, vars map[string]string) map[string]string {
 
 	r := make(map[string]string)
@@ -245,6 +225,7 @@ func (ti *InputPrometheusHttp) buildAvailability(s *common.Object, baseAvailabil
 			availability.Name = opts.AvailabilityName
 		}
 
+		availability.Round = a.Round
 		availability.Query = ti.sanitizeQuery(qe)
 		tags1 := ti.buildTags(labels, opts.VarFormat, vars)
 		tags2 := ti.buildTags(a.Labels, opts.VarFormat, vars)
@@ -277,6 +258,7 @@ func (ti *InputPrometheusHttp) buildMetrics(s *common.Object, metrics []*common.
 
 		metric := &InputPrometheusHttpMetric{}
 		metric.Name = common.IfDef(m.Name, opts.MetricName).(string)
+		metric.Round = m.Round
 		metric.Query = ti.sanitizeQuery(qe)
 		metric.UniqueBy = m.UniqueBy
 

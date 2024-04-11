@@ -21,6 +21,7 @@ type BaseMetric struct {
 	Disabled bool     `yaml:"disabled"`
 	Query    string   `yaml:"query"`
 	Name     string   `yaml:"name"`
+	Round    *int     `yaml:"round"`
 	UniqueBy []string `yaml:"unique_by"`
 	Labels   Labels   `yaml:"labels"`
 }
@@ -34,6 +35,7 @@ type BaseAvailability struct {
 
 type BaseAvailabilityQuery struct {
 	Query     string      `yaml:"query"`
+	Round     *int        `yaml:"round"`
 	Suffix    string      `yaml:"suffix"`
 	Weight    interface{} `yaml:"weight"`
 	Labels    Labels      `yaml:"labels"`
