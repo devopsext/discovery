@@ -217,8 +217,9 @@ var sinkTelegrafOptions = sink.TelegrafOptions{
 	Providers: strings.Split(envStringExpand("SINK_TELEGRAF_PROVIDERS", ""), ","),
 	Checksum:  envGet("SINK_TELEGRAF_CHECKSUM", false).(bool),
 	Signal: sink.TelegrafSignalOptions{
-		Template: envFileContentExpand("SINK_TELEGRAF_SIGNAL_TEMPLATE", ""),
-		Tags:     envFileContentExpand("SINK_TELEGRAF_SIGNAL_TAGS", ""),
+		Dir:  envGet("SINK_TELEGRAF_SIGNAL_DIR", "").(string),
+		File: envFileContentExpand("SINK_TELEGRAF_SIGNAL_FILE", ""),
+		Tags: envFileContentExpand("SINK_TELEGRAF_SIGNAL_TAGS", ""),
 		InputPrometheusHttpOptions: telegraf.InputPrometheusHttpOptions{
 			Interval:         envGet("SINK_TELEGRAF_SIGNAL_INTERVAL", "10s").(string),
 			Version:          envGet("SINK_TELEGRAF_SIGNAL_VERSION", "v1").(string),
@@ -651,7 +652,8 @@ func Execute() {
 	flags.StringSliceVar(&sinkTelegrafOptions.Providers, "sink-telegraf-providers", sinkTelegrafOptions.Providers, "Telegraf sink providers through")
 	flags.BoolVar(&sinkTelegrafOptions.Checksum, "sink-telegraf-checksum", sinkTelegrafOptions.Checksum, "Telegraf sink checksum")
 	// Sink Telegraf Signal
-	flags.StringVar(&sinkTelegrafOptions.Signal.Template, "sink-telegraf-signal-template", sinkTelegrafOptions.Signal.Template, "Telegraf sink Signal template")
+	flags.StringVar(&sinkTelegrafOptions.Signal.Dir, "sink-telegraf-signal-dir", sinkTelegrafOptions.Signal.Dir, "Telegraf sink Signal dir")
+	flags.StringVar(&sinkTelegrafOptions.Signal.File, "sink-telegraf-signal-file", sinkTelegrafOptions.Signal.File, "Telegraf sink Signal file")
 	flags.StringVar(&sinkTelegrafOptions.Signal.Tags, "sink-telegraf-signal-tags", sinkTelegrafOptions.Signal.Tags, "Telegraf sink Signal tags")
 	flags.StringVar(&sinkTelegrafOptions.Signal.Version, "sink-telegraf-signal-version", sinkTelegrafOptions.Signal.Version, "Telegraf sink Signal version")
 	flags.StringVar(&sinkTelegrafOptions.Signal.Params, "sink-telegraf-signal-params", sinkTelegrafOptions.Signal.Params, "Telegraf sink Signal params")

@@ -2,6 +2,9 @@ package sink
 
 import (
 	"errors"
+	"os"
+	"path"
+	"slices"
 
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
@@ -12,8 +15,9 @@ import (
 
 type TelegrafSignalOptions struct {
 	telegraf.InputPrometheusHttpOptions
-	Template string
-	Tags     string
+	Dir  string
+	File string
+	Tags string
 }
 
 type TelegrafCertOptions struct {
@@ -75,9 +79,24 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 	m := common.ConvertSyncMapToObjects(sm)
 	source := d.Source()
 
+	old := []string{}
+	files, _ := os.ReadDir(t.options.Signal.Dir)
+	for _, f := range files {
+		if !f.IsDir() {
+			name := path.Join(t.options.Signal.Dir, f.Name())
+			old = append(old, name)
+		}
+	}
+
 	for k, s1 := range m {
 
-		path := common.Render(t.options.Signal.Template, s1.Vars, t.observability)
+		file := common.Render(t.options.Signal.File, s1.Vars, t.observability)
+		path := path.Join(t.options.Signal.Dir, file)
+
+		old = slices.DeleteFunc(old, func(s string) bool {
+			return s == path
+		})
+
 		t.logger.Debug("%s: Processing application: %s for path: %s", source, k, path)
 		t.logger.Debug("%s: Found metrics: %v", source, s1.Metrics)
 
@@ -97,6 +116,10 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 			continue
 		}
 		telegrafConfig.CreateIfCheckSumIsDifferent(source, path, t.options.Checksum, bytes, t.logger)
+	}
+
+	for _, s := range old {
+		os.Remove(s)
 	}
 
 	return nil
