@@ -10,6 +10,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"path"
+	"regexp"
 )
 
 type K8sOptions struct {
@@ -56,10 +58,15 @@ func (k *K8s) Discover() {
 		return
 	}
 
+	m := common.SinkMap{}
+	//m["workload"] = k.podsToSinkMap(testPods())
+	//m["image"] = k.podImagesToSinkMap(testPods())
+	m["workload"] = k.podsToSinkMap(pods.Items)
+	m["image"] = k.podImagesToSinkMap(pods.Items)
+
 	k.sinks.Process(k, &K8sSinkObject{
-		sinkMap: k.podsToSinkMap(pods.Items),
-		//sinkMap: k.podsToSinkMap(testPods()),
-		k8s: k,
+		sinkMap: m,
+		k8s:     k,
 	})
 }
 
@@ -104,8 +111,63 @@ func (k *K8s) podsToSinkMap(pods []v1.Pod) common.SinkMap {
 			"ip":          pod.Status.PodIP,
 			"environment": k.options.Environment,
 			"type":        "container",
-			"kind":        "workload",
 		}, k.options.CommonLabels)
+	}
+
+	return r
+}
+
+// extractImageNameAndTag takes a Docker image URL and returns the image name and tag.
+func extractImageNameAndTag(url string) (string, string, error) {
+	re := regexp.MustCompile(`^(?:([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)(?::(\d+))?\/)?((?:[a-zA-Z0-9_-]*\/)*?)([a-zA-Z0-9_-]+)(?::([\w.-]+))?$`)
+
+	matches := re.FindStringSubmatch(url)
+	if matches == nil {
+		return "", "", fmt.Errorf("invalid Docker image URL")
+	}
+
+	imageName := path.Join(matches[1], matches[3], matches[4])
+	tag := matches[5]
+	if tag == "" {
+		tag = "latest" // Default tag if none is specified
+	}
+
+	return imageName, tag, nil
+}
+
+func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
+	r := make(common.SinkMap)
+
+	for _, pod := range pods {
+
+		if !utils.IsEmpty(k.options.NsInclude) && !utils.Contains(k.options.NsInclude, pod.Namespace) {
+			continue
+		}
+
+		if !utils.IsEmpty(k.options.NsExclude) && utils.Contains(k.options.NsExclude, pod.Namespace) {
+			continue
+		}
+
+		for _, c := range pod.Spec.Containers {
+
+			// resolve repo and tag from image uri "git.example.org:5000/namespace/image:tag" -> "git.example.org/namespace/image", "tag"
+			repo, tag, err := extractImageNameAndTag(c.Image)
+			if err != nil {
+				k.logger.Error(err)
+				continue
+			}
+
+			r[fmt.Sprintf("%s.%s.%s.%s", c.Name, pod.Name, pod.Namespace, k.options.ClusterName)] = common.MergeLabels(common.Labels{
+				"environment": k.options.Environment,
+				"cluster":     k.options.ClusterName,
+				"namespace":   pod.Namespace,
+				"pod":         pod.Name,
+				"container":   c.Name,
+				"repo":        repo,
+				"version":     tag,
+				"type":        "container",
+			}, k.options.CommonLabels)
+		}
 	}
 
 	return r
@@ -124,6 +186,12 @@ func testPods() []v1.Pod {
 			},
 			Spec: v1.PodSpec{
 				NodeName: "test-node-1",
+				Containers: []v1.Container{
+					{
+						Name:  "test-container-1",
+						Image: "test-image-1",
+					},
+				},
 			},
 			Status: v1.PodStatus{
 				PodIP: "10.0.0.1",
@@ -139,6 +207,16 @@ func testPods() []v1.Pod {
 			},
 			Spec: v1.PodSpec{
 				NodeName: "test-node-2",
+				Containers: []v1.Container{
+					{
+						Name:  "test-container-1",
+						Image: "test-image-1:1.1",
+					},
+					{
+						Name:  "test-container-2",
+						Image: "test-image-1:notask-21",
+					},
+				},
 			},
 			Status: v1.PodStatus{
 				PodIP: "10.0.0.2",
@@ -154,6 +232,16 @@ func testPods() []v1.Pod {
 			},
 			Spec: v1.PodSpec{
 				NodeName: "test-node-3",
+				Containers: []v1.Container{
+					{
+						Name:  "test-container-1",
+						Image: "bla-bla.com/test-image-1:1.1",
+					},
+					{
+						Name:  "test-container-2",
+						Image: "bla-bla.com:5000/test-image-1:notask-21",
+					},
+				},
 			},
 			Status: v1.PodStatus{
 				PodIP: "10.0.0.3",
