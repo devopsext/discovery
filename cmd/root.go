@@ -217,7 +217,7 @@ var sinkTelegrafOptions = sink.TelegrafOptions{
 	Providers: strings.Split(envStringExpand("SINK_TELEGRAF_PROVIDERS", ""), ","),
 	Checksum:  envGet("SINK_TELEGRAF_CHECKSUM", false).(bool),
 	Signal: sink.TelegrafSignalOptions{
-		Dir:  envGet("SINK_TELEGRAF_SIGNAL_DIR", "").(string),
+		Dir:  envStringExpand("SINK_TELEGRAF_SIGNAL_DIR", ""),
 		File: envFileContentExpand("SINK_TELEGRAF_SIGNAL_FILE", ""),
 		Tags: envFileContentExpand("SINK_TELEGRAF_SIGNAL_TAGS", ""),
 		InputPrometheusHttpOptions: telegraf.InputPrometheusHttpOptions{
