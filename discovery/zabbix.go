@@ -41,7 +41,7 @@ type Zabbix struct {
 
 type ZabbixSinkObject struct {
 	sinkMap common.SinkMap
-	Zabbix  *Zabbix
+	zabbix  *Zabbix
 }
 
 func (os *ZabbixSinkObject) Map() common.SinkMap {
@@ -49,7 +49,7 @@ func (os *ZabbixSinkObject) Map() common.SinkMap {
 }
 
 func (os *ZabbixSinkObject) Options() interface{} {
-	return os.Zabbix.options
+	return os.zabbix.options
 }
 
 func (o *Zabbix) Name() string {
@@ -164,7 +164,7 @@ func (o *Zabbix) Discover() {
 
 	o.sinks.Process(o, &ZabbixSinkObject{
 		sinkMap: hosts,
-		Zabbix:  o,
+		zabbix:  o,
 	})
 }
 

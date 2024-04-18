@@ -24,7 +24,7 @@ type File struct {
 }
 
 func (f *File) Name() string {
-	return "Json"
+	return "File"
 }
 
 func (f *File) Providers() []string {

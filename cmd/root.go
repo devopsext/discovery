@@ -192,6 +192,10 @@ var dPubSubOptions = discovery.PubSubOptions{
 	Retention:    envGet("PUBSUB_RETENTION", 86400).(int),
 }
 
+var dDirOptions = discovery.DirOptions{
+	Folder: envStringExpand("DIR_FOLDER", ""),
+}
+
 var dDumbOptions = discovery.DumbOptions{
 	Enabled:  envGet("DUMB_ENABLED", false).(bool),
 	Schedule: envGet("DUMB_SCHEDULE", "10s").(string),
@@ -311,6 +315,18 @@ var sinkPubSubOptions = sink.PubSubOptions{
 	Providers:   strings.Split(envStringExpand("SINK_PUBSUB_PROVIDERS", ""), ","),
 }
 
+var sinkWebServerOptions = sink.WebServerOptions{
+	ServerName: envGet("SINK_WEBSERVER_SERVER_NAME", "").(string),
+	Listen:     envGet("SINK_WEBSERVER_LISTEN", ":8090").(string),
+	Tls:        envGet("SINK_WEBSERVER_TLS", false).(bool),
+	Insecure:   envGet("SINK_WEBSERVER_INSECURE", false).(bool),
+	Cert:       envGet("SINK_WEBSERVER_CERT", "").(string),
+	Key:        envGet("SINK_WEBSERVER_KEY", "").(string),
+	Chain:      envGet("SINK_WEBSERVER_CHAIN", "").(string),
+
+	Providers: strings.Split(envStringExpand("SINK_WEBSERVER_PROVIDERS", ""), ","),
+}
+
 func getOnlyEnv(key string) string {
 	value, ok := os.LookupEnv(key)
 	if ok {
@@ -359,7 +375,6 @@ func runSchedule(s *gocron.Scheduler, schedule string, wait bool, jobFun interfa
 	if wait {
 		ss = ss.WaitForSchedule()
 	}
-
 	ss.Do(jobFun)
 }
 
@@ -455,6 +470,12 @@ func Execute() {
 			sinks.Add(sink.NewObservability(sinkObservabilityOptions, obs))
 			sinks.Add(sink.NewPubSub(sinkPubSubOptions, obs))
 
+			ws := sink.NewWebServer(sinkWebServerOptions, obs)
+			if ws != nil {
+				sinks.Add(ws)
+				ws.Start(&mainWG)
+			}
+
 			// define scheduler
 			scheduler := gocron.NewScheduler(time.UTC)
 			wg := &sync.WaitGroup{}
@@ -490,6 +511,7 @@ func Execute() {
 				runPrometheusDiscovery(wg, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
 				runPrometheusDiscovery(wg, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
 			}
+
 			// run simple discoveries
 			runSimpleDiscovery(wg, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
 			runSimpleDiscovery(wg, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
@@ -503,6 +525,7 @@ func Execute() {
 			// run supportive discoveries without scheduler
 			if !rootOptions.RunOnce {
 				runStandAloneDiscovery(wg, discovery.NewPubSub(dPubSubOptions, obs, sinks), logger)
+				runStandAloneDiscovery(wg, discovery.NewDir(dDirOptions, obs, sinks), logger)
 			}
 			wg.Wait()
 
@@ -638,6 +661,9 @@ func Execute() {
 	flags.IntVar(&dPubSubOptions.AckDeadline, "pubsub-ack-deadline", dPubSubOptions.AckDeadline, "PubSub subscription ack deadline duration seconds")
 	flags.IntVar(&dPubSubOptions.Retention, "pubsub-retention", dPubSubOptions.Retention, "PubSub subscription retention duration seconds")
 
+	// Dir
+	flags.StringVar(&dDirOptions.Folder, "dir-folder", dDirOptions.Folder, "Dir folder")
+
 	// Sink File
 	flags.BoolVar(&sinkFileOptions.Checksum, "sink-file-checksum", sinkFileOptions.Checksum, "File sink checksum")
 	flags.StringSliceVar(&sinkFileOptions.Providers, "sink-file-providers", sinkFileOptions.Providers, "File sink providers through")
@@ -719,6 +745,15 @@ func Execute() {
 	flags.StringVar(&sinkObservabilityOptions.TotalName, "sink-observability-total-name", sinkObservabilityOptions.TotalName, "Observability sink total name")
 	flags.StringSliceVar(&sinkObservabilityOptions.Providers, "sink-observability-providers", sinkObservabilityOptions.Providers, "Observability sink providers through")
 	flags.StringSliceVar(&sinkObservabilityOptions.Labels, "sink-observability-labels", sinkObservabilityOptions.Labels, "Observability sink labels through")
+	// Sink WebServer
+	flags.StringVar(&sinkWebServerOptions.ServerName, "sink-webserver-name", sinkWebServerOptions.ServerName, "WebServer sink server name")
+	flags.StringVar(&sinkWebServerOptions.Listen, "sink-webserver-listen", sinkWebServerOptions.Listen, "WebServer sink listen")
+	flags.BoolVar(&sinkWebServerOptions.Tls, "sink-webserver-tls", sinkWebServerOptions.Tls, "WebServer sink TLS")
+	flags.BoolVar(&sinkWebServerOptions.Insecure, "sink-webserver-insecure", sinkWebServerOptions.Insecure, "WebServer sink insecure skip verify")
+	flags.StringVar(&sinkWebServerOptions.Cert, "sink-webserver-cert", sinkWebServerOptions.Cert, "WebServer sink cert file or content")
+	flags.StringVar(&sinkWebServerOptions.Key, "sink-webserver-key", sinkWebServerOptions.Key, "WebServer sink key file or content")
+	flags.StringVar(&sinkWebServerOptions.Chain, "sink-webserver-chain", sinkWebServerOptions.Chain, "WebServer sink CA chain file or content")
+	flags.StringSliceVar(&sinkWebServerOptions.Providers, "sink-webserver-providers", sinkWebServerOptions.Providers, "WebServer sink providers through")
 
 	interceptSyscall()
 
