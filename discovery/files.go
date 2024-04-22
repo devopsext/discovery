@@ -86,6 +86,9 @@ func (d *Files) Discover() {
 			d.logger.Debug("Files watcher event (%d): %s", event.Op, event.Name)
 			if (event.Op == fsnotify.Create) || (event.Op == fsnotify.Write) || (event.Op == fsnotify.Chmod) {
 
+				if !utils.FileExists(event.Name) {
+					return
+				}
 				name := filepath.Base(event.Name)
 				m := make(common.SinkMap)
 				m[name] = event.Name
