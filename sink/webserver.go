@@ -90,9 +90,9 @@ func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error
 	return nil
 }
 
-func (ws *WebServer) processDir(w http.ResponseWriter, r *http.Request) error {
+func (ws *WebServer) processFiles(w http.ResponseWriter, r *http.Request) error {
 
-	base := strings.ToLower("Dir")
+	base := strings.ToLower("Files")
 	path := ws.getPath(base, r.URL.Path)
 	name := fmt.Sprintf("%s%s", base, path)
 
@@ -233,7 +233,7 @@ func (ws *WebServer) getProcessors() map[string]WebServerProcessor {
 
 	m := make(map[string]WebServerProcessor)
 	m["/pubsub/*"] = ws.processPubSub
-	m["/dir/*"] = ws.processDir
+	m["/files/*"] = ws.processFiles
 	return m
 }
 

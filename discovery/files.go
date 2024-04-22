@@ -12,43 +12,43 @@ import (
 	"gopkg.in/fsnotify.v1"
 )
 
-type DirOptions struct {
+type FilesOptions struct {
 	toolsVendors.ZabbixOptions
 	Folder string
 }
 
-type Dir struct {
-	options       DirOptions
+type Files struct {
+	options       FilesOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
 	sinks         *common.Sinks
 	watcher       *fsnotify.Watcher
 }
 
-type DirSinkObject struct {
+type FilesSinkObject struct {
 	sinkMap common.SinkMap
-	dir     *Dir
+	Files   *Files
 }
 
-func (do *DirSinkObject) Map() common.SinkMap {
+func (do *FilesSinkObject) Map() common.SinkMap {
 	return do.sinkMap
 }
 
-func (do *DirSinkObject) Options() interface{} {
-	return do.dir.options
+func (do *FilesSinkObject) Options() interface{} {
+	return do.Files.options
 }
 
-func (d *Dir) Name() string {
-	return "Dir"
+func (d *Files) Name() string {
+	return "Files"
 }
 
-func (d *Dir) Source() string {
+func (d *Files) Source() string {
 	return ""
 }
 
-func (d *Dir) Discover() {
+func (d *Files) Discover() {
 
-	d.logger.Debug("Dir discovery by folder: %s", d.options.Folder)
+	d.logger.Debug("Files discovery by folder: %s", d.options.Folder)
 
 	m := make(common.SinkMap)
 
@@ -56,7 +56,7 @@ func (d *Dir) Discover() {
 	for _, v := range folders {
 		err := d.watcher.Add(v)
 		if err != nil {
-			d.logger.Error("Dir couldn't watch folder: %s due to error: %s", v, err)
+			d.logger.Error("Files couldn't watch folder: %s due to error: %s", v, err)
 		}
 		filepath.Walk(v, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -71,9 +71,9 @@ func (d *Dir) Discover() {
 	}
 
 	if len(m) > 0 {
-		d.sinks.Process(d, &DirSinkObject{
+		d.sinks.Process(d, &FilesSinkObject{
 			sinkMap: m,
-			dir:     d,
+			Files:   d,
 		})
 	}
 
@@ -83,42 +83,42 @@ func (d *Dir) Discover() {
 			if !ok {
 				return
 			}
-			d.logger.Debug("Dir watcher event (%d): %s", event.Op, event.Name)
+			d.logger.Debug("Files watcher event (%d): %s", event.Op, event.Name)
 			if (event.Op == fsnotify.Create) || (event.Op == fsnotify.Write) || (event.Op == fsnotify.Chmod) {
 
 				name := filepath.Base(event.Name)
 				m := make(common.SinkMap)
 				m[name] = event.Name
-				d.sinks.Process(d, &DirSinkObject{
+				d.sinks.Process(d, &FilesSinkObject{
 					sinkMap: m,
-					dir:     d,
+					Files:   d,
 				})
 			}
 		case err, ok := <-d.watcher.Errors:
 			if !ok {
 				return
 			}
-			d.logger.Error("Dir watcher has error: %s", err)
+			d.logger.Error("Files watcher has error: %s", err)
 		}
 	}
 }
 
-func NewDir(options DirOptions, observability *common.Observability, sinks *common.Sinks) *Dir {
+func NewFiles(options FilesOptions, observability *common.Observability, sinks *common.Sinks) *Files {
 
 	logger := observability.Logs()
 
 	if utils.IsEmpty(options.Folder) {
-		logger.Debug("Dir has no folder. Skipped")
+		logger.Debug("Files has no folder. Skipped")
 		return nil
 	}
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		logger.Error("Dir couldn't create watcher: %s", err)
+		logger.Error("Files couldn't create watcher: %s", err)
 		return nil
 	}
 
-	return &Dir{
+	return &Files{
 		options:       options,
 		logger:        logger,
 		observability: observability,

@@ -192,8 +192,8 @@ var dPubSubOptions = discovery.PubSubOptions{
 	Retention:    envGet("PUBSUB_RETENTION", 86400).(int),
 }
 
-var dDirOptions = discovery.DirOptions{
-	Folder: envStringExpand("DIR_FOLDER", ""),
+var dFilesOptions = discovery.FilesOptions{
+	Folder: envStringExpand("FILES_FOLDER", ""),
 }
 
 var dDumbOptions = discovery.DumbOptions{
@@ -525,7 +525,7 @@ func Execute() {
 			// run supportive discoveries without scheduler
 			if !rootOptions.RunOnce {
 				runStandAloneDiscovery(wg, discovery.NewPubSub(dPubSubOptions, obs, sinks), logger)
-				runStandAloneDiscovery(wg, discovery.NewDir(dDirOptions, obs, sinks), logger)
+				runStandAloneDiscovery(wg, discovery.NewFiles(dFilesOptions, obs, sinks), logger)
 			}
 			wg.Wait()
 
@@ -662,7 +662,7 @@ func Execute() {
 	flags.IntVar(&dPubSubOptions.Retention, "pubsub-retention", dPubSubOptions.Retention, "PubSub subscription retention duration seconds")
 
 	// Dir
-	flags.StringVar(&dDirOptions.Folder, "dir-folder", dDirOptions.Folder, "Dir folder")
+	flags.StringVar(&dFilesOptions.Folder, "files-folder", dFilesOptions.Folder, "Files folder")
 
 	// Sink File
 	flags.BoolVar(&sinkFileOptions.Checksum, "sink-file-checksum", sinkFileOptions.Checksum, "File sink checksum")
