@@ -240,6 +240,12 @@ func (ws *WebServer) getProcessors() map[string]WebServerProcessor {
 func NewWebServer(options WebServerOptions, observability *common.Observability) *WebServer {
 
 	logger := observability.Logs()
+
+	if utils.IsEmpty(options.Listen) {
+		logger.Debug("WebServer sink is not enabled. Skipped")
+		return nil
+	}
+
 	options.Providers = common.RemoveEmptyStrings(options.Providers)
 
 	return &WebServer{

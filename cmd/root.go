@@ -317,7 +317,7 @@ var sinkPubSubOptions = sink.PubSubOptions{
 
 var sinkWebServerOptions = sink.WebServerOptions{
 	ServerName: envGet("SINK_WEBSERVER_SERVER_NAME", "").(string),
-	Listen:     envGet("SINK_WEBSERVER_LISTEN", ":8090").(string),
+	Listen:     envGet("SINK_WEBSERVER_LISTEN", "").(string),
 	Tls:        envGet("SINK_WEBSERVER_TLS", false).(bool),
 	Insecure:   envGet("SINK_WEBSERVER_INSECURE", false).(bool),
 	Cert:       envGet("SINK_WEBSERVER_CERT", "").(string),
