@@ -56,7 +56,7 @@ func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
 
 					ps.logger.Debug("PubSub has to publish %d bytes...", len(data))
 
-					err = ps.publish(context.Background(), data)
+					err = ps.publish(context.Background(), data, map[string]string{"kind": "workload"})
 					if err != nil {
 						ps.logger.Error("PubSub Sink: %v", err)
 						return
@@ -88,13 +88,20 @@ func (ps *PubSub) Close() {
 	}
 }
 
-func (ps *PubSub) publish(ctx context.Context, data []byte) error {
+func (ps *PubSub) publish(ctx context.Context, data []byte, attributes ...map[string]string) error {
 
 	msg := &pubsub.Message{
 		Data: data,
 		Attributes: map[string]string{
 			"source": "discovery",
 		},
+	}
+	if len(attributes) > 0 {
+		for _, a := range attributes {
+			for k, v := range a {
+				msg.Attributes[k] = v
+			}
+		}
 	}
 
 	_, err := ps.topic.Publish(ctx, msg).Get(ctx)
