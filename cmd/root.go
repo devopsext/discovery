@@ -221,9 +221,10 @@ var sinkTelegrafOptions = sink.TelegrafOptions{
 	Providers: strings.Split(envStringExpand("SINK_TELEGRAF_PROVIDERS", ""), ","),
 	Checksum:  envGet("SINK_TELEGRAF_CHECKSUM", false).(bool),
 	Signal: sink.TelegrafSignalOptions{
-		Dir:  envStringExpand("SINK_TELEGRAF_SIGNAL_DIR", ""),
-		File: envFileContentExpand("SINK_TELEGRAF_SIGNAL_FILE", ""),
-		Tags: envFileContentExpand("SINK_TELEGRAF_SIGNAL_TAGS", ""),
+		Dir:       envStringExpand("SINK_TELEGRAF_SIGNAL_DIR", ""),
+		File:      envFileContentExpand("SINK_TELEGRAF_SIGNAL_FILE", ""),
+		Tags:      envFileContentExpand("SINK_TELEGRAF_SIGNAL_TAGS", ""),
+		Exclusion: envStringExpand("SINK_TELEGRAF_SIGNAL_EXCLUSION", ""),
 		InputPrometheusHttpOptions: telegraf.InputPrometheusHttpOptions{
 			Interval:         envGet("SINK_TELEGRAF_SIGNAL_INTERVAL", "10s").(string),
 			Version:          envGet("SINK_TELEGRAF_SIGNAL_VERSION", "v1").(string),

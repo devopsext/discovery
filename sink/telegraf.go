@@ -4,20 +4,23 @@ import (
 	"errors"
 	"os"
 	"path"
+	"regexp"
 	"slices"
 
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
 	telegraf "github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
+	"github.com/devopsext/utils"
 	"github.com/jinzhu/copier"
 )
 
 type TelegrafSignalOptions struct {
 	telegraf.InputPrometheusHttpOptions
-	Dir  string
-	File string
-	Tags string
+	Dir       string
+	File      string
+	Tags      string
+	Exclusion string
 }
 
 type TelegrafCertOptions struct {
@@ -118,8 +121,29 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		telegrafConfig.CreateIfCheckSumIsDifferent(source, path, t.options.Checksum, bytes, t.logger)
 	}
 
-	for _, s := range old {
-		os.Remove(s)
+	if len(old) > 0 {
+
+		var reExclusion *regexp.Regexp
+		exclusion := t.options.Signal.Exclusion
+		if !utils.IsEmpty(exclusion) {
+			re, err := regexp.Compile(exclusion)
+			if err != nil {
+				t.logger.Error("%s: exclusion %s error: %s", source, exclusion, err)
+			} else {
+				reExclusion = re
+			}
+		}
+
+		for _, s := range old {
+
+			remove := true
+			if reExclusion != nil {
+				remove = !reExclusion.MatchString(s)
+			}
+			if remove {
+				os.Remove(s)
+			}
+		}
 	}
 
 	return nil
