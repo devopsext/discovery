@@ -3,6 +3,9 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"path"
+	"regexp"
+
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
@@ -10,8 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"path"
-	"regexp"
 )
 
 type K8sOptions struct {
@@ -275,7 +276,7 @@ func NewK8s(options K8sOptions, obs *common.Observability, sinks *common.Sinks) 
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		logger.Error(err)
+		logger.Debug(err)
 		return nil
 	}
 
