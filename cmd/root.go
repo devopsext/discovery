@@ -221,10 +221,11 @@ var sinkTelegrafOptions = sink.TelegrafOptions{
 	Providers: strings.Split(envStringExpand("SINK_TELEGRAF_PROVIDERS", ""), ","),
 	Checksum:  envGet("SINK_TELEGRAF_CHECKSUM", false).(bool),
 	Signal: sink.TelegrafSignalOptions{
-		Dir:       envStringExpand("SINK_TELEGRAF_SIGNAL_DIR", ""),
-		File:      envFileContentExpand("SINK_TELEGRAF_SIGNAL_FILE", ""),
-		Tags:      envFileContentExpand("SINK_TELEGRAF_SIGNAL_TAGS", ""),
-		Exclusion: envStringExpand("SINK_TELEGRAF_SIGNAL_EXCLUSION", ""),
+		Dir:            envStringExpand("SINK_TELEGRAF_SIGNAL_DIR", ""),
+		File:           envFileContentExpand("SINK_TELEGRAF_SIGNAL_FILE", ""),
+		Tags:           envFileContentExpand("SINK_TELEGRAF_SIGNAL_TAGS", ""),
+		PersistMetrics: envGet("SINK_TELEGRAF_SIGNAL_PERSIST_METRICS", false).(bool),
+		Exclusion:      envStringExpand("SINK_TELEGRAF_SIGNAL_EXCLUSION", ""),
 		InputPrometheusHttpOptions: telegraf.InputPrometheusHttpOptions{
 			Interval:         envGet("SINK_TELEGRAF_SIGNAL_INTERVAL", "10s").(string),
 			Version:          envGet("SINK_TELEGRAF_SIGNAL_VERSION", "v1").(string),
@@ -697,6 +698,7 @@ func Execute() {
 	flags.StringVar(&sinkTelegrafOptions.Signal.MetricName, "sink-telegraf-signal-metric-name", sinkTelegrafOptions.Signal.MetricName, "Telegraf sink Signal metric name")
 	flags.StringSliceVar(&sinkTelegrafOptions.Signal.DefaultTags, "sink-telegraf-signal-default-tags", sinkTelegrafOptions.Signal.DefaultTags, "Telegraf sink Signal default tags")
 	flags.StringVar(&sinkTelegrafOptions.Signal.VarFormat, "sink-telegraf-signal-var-format", sinkTelegrafOptions.Signal.VarFormat, "Telegraf sink Signal var format")
+	flags.BoolVar(&sinkTelegrafOptions.Signal.PersistMetrics, "sink-telegraf-signal-persist-metrics", sinkTelegrafOptions.Signal.PersistMetrics, "Telegraf sink Signal persist metrics")
 	// Sink Telegraf Cert
 	flags.StringVar(&sinkTelegrafOptions.Cert.Conf, "cert-telegraf-conf", sinkTelegrafOptions.Cert.Conf, "Telegraf sink Cert conf")
 	flags.StringVar(&sinkTelegrafOptions.Cert.Template, "cert-telegraf-template", sinkTelegrafOptions.Cert.Template, "Telegraf sink Cert template")

@@ -154,7 +154,7 @@ func (ti *InputPrometheusHttp) buildTags(labels map[string]string, f string, var
 
 func (ti *InputPrometheusHttp) buildQualities(s *common.Object, qualities []*common.BaseQuality, tpl string,
 	opts InputPrometheusHttpOptions,
-	labels map[string]string, vars map[string]string, files map[string]interface{}) {
+	labels map[string]string, vars map[string]string, files map[string]interface{}, persistMetrics bool) {
 
 	if utils.IsEmpty(opts.QualityQuery) {
 		return
@@ -183,7 +183,7 @@ func (ti *InputPrometheusHttp) buildQualities(s *common.Object, qualities []*com
 	}
 
 	qe := fmt.Sprintf("(%s)/%d", strings.Join(queries, " + "), len(queries))
-	if !common.StringContainsAny(qe, s.Metrics) {
+	if !persistMetrics && !common.StringContainsAny(qe, s.Metrics) {
 		return
 	}
 
@@ -200,7 +200,7 @@ func (ti *InputPrometheusHttp) buildQualities(s *common.Object, qualities []*com
 
 func (ti *InputPrometheusHttp) buildAvailability(s *common.Object, baseAvailability *common.BaseAvailability, tpl string,
 	opts InputPrometheusHttpOptions,
-	labels map[string]string, vars map[string]string, files map[string]interface{}) {
+	labels map[string]string, vars map[string]string, files map[string]interface{}, persistMetrics bool) {
 
 	if baseAvailability == nil {
 		return
@@ -213,7 +213,7 @@ func (ti *InputPrometheusHttp) buildAvailability(s *common.Object, baseAvailabil
 	for _, a := range baseAvailability.Queries {
 
 		qe := ti.setVars(a.Query, opts.VarFormat, vars)
-		if !common.StringContainsAny(qe, s.Metrics) {
+		if !persistMetrics && !common.StringContainsAny(qe, s.Metrics) {
 			continue
 		}
 
@@ -242,7 +242,7 @@ func (ti *InputPrometheusHttp) buildAvailability(s *common.Object, baseAvailabil
 
 func (ti *InputPrometheusHttp) buildMetrics(s *common.Object, metrics []*common.BaseMetric, tpl string,
 	opts InputPrometheusHttpOptions,
-	labels map[string]string, vars map[string]string, files map[string]interface{}) {
+	labels map[string]string, vars map[string]string, files map[string]interface{}, persistMetrics bool) {
 
 	for _, m := range metrics {
 
@@ -252,7 +252,7 @@ func (ti *InputPrometheusHttp) buildMetrics(s *common.Object, metrics []*common.
 
 		qe := ti.setVars(m.Query, opts.VarFormat, vars)
 
-		if !common.StringContainsAny(qe, s.Metrics) {
+		if !persistMetrics && !common.StringContainsAny(qe, s.Metrics) {
 			continue
 		}
 

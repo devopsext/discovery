@@ -56,7 +56,7 @@ func (tc *Config) CreateIfCheckSumIsDifferent(name, conf string, checksum bool, 
 }
 
 func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Object, labelsTpl string,
-	opts InputPrometheusHttpOptions, name string) ([]byte, error) {
+	opts InputPrometheusHttpOptions, name string, persistMetrics bool) ([]byte, error) {
 
 	input := &InputPrometheusHttp{
 		observability: tc.Observability,
@@ -100,9 +100,9 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Object, labelsTpl s
 		labels := c.Labels
 		vars := common.MergeStringMaps(c.Vars, s.Vars)
 
-		input.buildQualities(s, c.Qualities, labelsTpl, opts, labels, vars, fl)
-		input.buildAvailability(s, c.Availability, labelsTpl, opts, labels, vars, fl)
-		input.buildMetrics(s, c.Metrics, labelsTpl, opts, labels, vars, fl)
+		input.buildQualities(s, c.Qualities, labelsTpl, opts, labels, vars, fl, persistMetrics)
+		input.buildAvailability(s, c.Availability, labelsTpl, opts, labels, vars, fl, persistMetrics)
+		input.buildMetrics(s, c.Metrics, labelsTpl, opts, labels, vars, fl, persistMetrics)
 	}
 
 	if len(input.Metric) == 0 {
