@@ -5,7 +5,6 @@ import (
 	"os"
 	"path"
 	"regexp"
-	"slices"
 
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
@@ -72,7 +71,6 @@ func (t *Telegraf) Providers() []string {
 	return t.options.Providers
 }
 
-// .telegraf/prefix-{{.namespace}}-discovery-{{.object}}-{{.container_name}}{{.container}}.conf
 func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so interface{}) error {
 
 	opts, ok := so.(discovery.SignalOptions)
@@ -83,23 +81,31 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 	m := common.ConvertSyncMapToObjects(sm)
 	source := d.Source()
 
-	old := []string{}
-	files, _ := os.ReadDir(t.options.Signal.Dir)
-	for _, f := range files {
-		if !f.IsDir() {
-			name := path.Join(t.options.Signal.Dir, f.Name())
-			old = append(old, name)
+	files := make(map[string]string)
+	dirs := []string{}
+
+	for _, s1 := range m {
+		dir := common.Render(t.options.Signal.Dir, s1.Vars, t.observability)
+		if !utils.Contains(dirs, dir) {
+			dirs = append(dirs, dir)
+			fls, _ := os.ReadDir(dir)
+			for _, f := range fls {
+				if f.IsDir() {
+					continue
+				}
+				path := path.Join(dir, f.Name())
+				files[path] = dir
+			}
 		}
 	}
 
 	for k, s1 := range m {
 
+		dir := common.Render(t.options.Signal.Dir, s1.Vars, t.observability)
 		file := common.Render(t.options.Signal.File, s1.Vars, t.observability)
-		path := path.Join(t.options.Signal.Dir, file)
+		path := path.Join(dir, file)
 
-		old = slices.DeleteFunc(old, func(s string) bool {
-			return s == path
-		})
+		delete(files, path)
 
 		t.logger.Debug("%s: Processing application: %s for path: %s", source, k, path)
 		t.logger.Debug("%s: Found metrics: %v", source, s1.Metrics)
@@ -122,7 +128,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		telegrafConfig.CreateIfCheckSumIsDifferent(source, path, t.options.Checksum, bytes, t.logger)
 	}
 
-	if len(old) > 0 {
+	if len(files) > 0 {
 
 		var reExclusion *regexp.Regexp
 		exclusion := t.options.Signal.Exclusion
@@ -135,14 +141,14 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 			}
 		}
 
-		for _, s := range old {
+		for k := range files {
 
 			remove := true
 			if reExclusion != nil {
-				remove = !reExclusion.MatchString(s)
+				remove = !reExclusion.MatchString(k)
 			}
 			if remove {
-				os.Remove(s)
+				os.Remove(k)
 			}
 		}
 	}
