@@ -16,10 +16,11 @@ import (
 
 type TelegrafSignalOptions struct {
 	telegraf.InputPrometheusHttpOptions
-	Dir       string
-	File      string
-	Tags      string
-	Exclusion string
+	Dir            string
+	File           string
+	Tags           string
+	Exclusion      string
+	PersistMetrics bool
 }
 
 type TelegrafCertOptions struct {
@@ -119,7 +120,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		inputOpts.User = opts.User
 		inputOpts.Password = opts.Password
 
-		bytes, err := telegrafConfig.GenerateInputPrometheusHttpBytes(s1, t.options.Signal.Tags, inputOpts, path)
+		bytes, err := telegrafConfig.GenerateInputPrometheusHttpBytes(s1, t.options.Signal.Tags, inputOpts, path, t.options.Signal.PersistMetrics)
 		if err != nil {
 			t.logger.Error("%s: application %s error: %s", source, k, err)
 			continue
