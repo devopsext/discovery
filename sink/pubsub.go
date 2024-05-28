@@ -1,14 +1,15 @@
 package sink
 
 import (
-	"cloud.google.com/go/pubsub"
 	"context"
 	"encoding/json"
+	"os"
+
+	"cloud.google.com/go/pubsub"
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
 	sreCommon "github.com/devopsext/sre/common"
 	"google.golang.org/api/option"
-	"os"
 )
 
 type PubSubOptions struct {
@@ -36,7 +37,8 @@ type PubSubPublishObject struct {
 
 func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
 
-	switch d.Name() {
+	name := d.Name()
+	switch name {
 	case "K8s":
 		for kind, table := range so.Map() {
 			switch kind {
@@ -44,7 +46,7 @@ func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
 				t, ok := table.(common.SinkMap)
 				if ok {
 					data, err := json.Marshal(PubSubPublishObject{
-						Source:  d.Name(),
+						Source:  name,
 						Type:    "json",
 						Cluster: so.Options().(discovery.K8sOptions).ClusterName,
 						Data:    t,
@@ -66,7 +68,7 @@ func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
 		}
 
 	default:
-		ps.logger.Debug("PubSub Sink: %s is not supported", d.Name())
+		ps.logger.Debug("PubSub Sink: %s is not supported", name)
 		return
 	}
 }

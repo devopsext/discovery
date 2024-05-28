@@ -196,6 +196,14 @@ var dFilesOptions = discovery.FilesOptions{
 	Folder: envStringExpand("FILES_FOLDER", ""),
 }
 
+var dLabelsOptions = discovery.LabelsOptions{
+	Schedule:    envGet("LABELS_SCHEDULE", "").(string),
+	Query:       envFileContentExpand("LABELS_QUERY", ""),
+	QueryPeriod: envGet("LABELS_QUERY_PERIOD", "").(string),
+	QueryStep:   envGet("LABELS_QUERY_STEP", "").(string),
+	Name:        envFileContentExpand("LABELS_NAME", ""),
+}
+
 var dDumbOptions = discovery.DumbOptions{
 	Enabled:  envGet("DUMB_ENABLED", false).(bool),
 	Schedule: envGet("DUMB_SCHEDULE", "10s").(string),
@@ -512,6 +520,7 @@ func Execute() {
 				runPrometheusDiscovery(wg, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, sinks), logger)
 				runPrometheusDiscovery(wg, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
 				runPrometheusDiscovery(wg, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, scheduler, dLabelsOptions.Schedule, prom.Name, opts.URL, discovery.NewLabels(prom.Name, opts, dLabelsOptions, obs, sinks), logger)
 			}
 
 			// run simple discoveries
@@ -665,6 +674,13 @@ func Execute() {
 
 	// Dir
 	flags.StringVar(&dFilesOptions.Folder, "files-folder", dFilesOptions.Folder, "Files folder")
+
+	// Labels
+	flags.StringVar(&dLabelsOptions.Schedule, "labels-schedule", dLabelsOptions.Schedule, "Labels discovery schedule")
+	flags.StringVar(&dLabelsOptions.Query, "labels-query", dLabelsOptions.Query, "Labels discovery query")
+	flags.StringVar(&dLabelsOptions.QueryPeriod, "labels-query-period", dLabelsOptions.QueryPeriod, "Labels discovery query period")
+	flags.StringVar(&dLabelsOptions.QueryStep, "labels-query-step", dLabelsOptions.QueryStep, "Labels discovery query step")
+	flags.StringVar(&dLabelsOptions.Name, "labels-name", dLabelsOptions.Name, "Labels discovery name")
 
 	// Sink File
 	flags.BoolVar(&sinkFileOptions.Checksum, "sink-file-checksum", sinkFileOptions.Checksum, "File sink checksum")
