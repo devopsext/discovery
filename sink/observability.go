@@ -74,17 +74,18 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 		lm = make(map[string]common.Labels)
 		for k, v := range m {
 			pf, ok := v.(*discovery.PubSubMessagePayloadFile)
-			if ok {
-				lml := make(common.Labels)
-				lml["path"] = pf.Path
-				lml["kind"] = "file"
-				lml["size"] = fmt.Sprintf("%d", len(pf.Data))
-				hash := common.Md5ToString(pf.Data)
-				if !utils.IsEmpty(hash) {
-					lml["md5"] = hash
-				}
-				lm[k] = lml
+			if !ok {
+				continue
 			}
+			lml := make(common.Labels)
+			lml["path"] = pf.Path
+			lml["kind"] = "file"
+			lml["size"] = fmt.Sprintf("%d", len(pf.Data))
+			/*hash := common.Md5ToString(pf.Data)
+			if !utils.IsEmpty(hash) {
+				lml["md5"] = hash
+			}*/
+			lm[k] = lml
 		}
 
 	case "K8s":
