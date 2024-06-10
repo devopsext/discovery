@@ -161,16 +161,21 @@ var dVCenterOptions = discovery.VCenterOptions{
 	},
 }
 
-var dAWSOptions = discovery.AWSOptions{
-	AWSKeys: vendors.AWSKeys{
-		AccessKey: envGet("AWS_ACCESS_KEY", "").(string),
-		SecretKey: envGet("AWS_SECRET_KEY", "").(string),
+var dAWSOptions = discovery.AWSDiscoveryOptions{
+	AWSOptions: vendors.AWSOptions{
+		Accounts:    envGet("AWS_ACCOUNTS", "").(string),
+		Role:        envGet("AWS_ROLE", "").(string),
+		RoleTimeout: envGet("AWS_ROLE_TIMEOUT", "300").(string),
+		AWSKeys: vendors.AWSKeys{
+			AccessKey: envGet("AWS_ACCESS_KEY", "").(string),
+			SecretKey: envGet("AWS_SECRET_KEY", "").(string),
+		},
 	},
 }
 
 var dAWSEC2Options = discovery.AWSEC2Options{
-	Schedule:   envGet("AWS_EC2_SCHEDULE", "").(string),
-	AWSOptions: dAWSOptions,
+	Schedule:            envGet("AWS_EC2_SCHEDULE", "").(string),
+	AWSDiscoveryOptions: dAWSOptions,
 }
 
 var dK8sOptions = discovery.K8sOptions{
@@ -678,9 +683,12 @@ func Execute() {
 	flags.StringVar(&dVCenterOptions.Session, "vcenter-session", dVCenterOptions.Session, "VCenter discovery session")
 
 	// AWS EC2
-	flags.StringVar(&dAWSEC2Options.Schedule, "ec2-schedule", dAWSEC2Options.Schedule, "AWS EC2 discovery schedule")
-	flags.StringVar(&dAWSEC2Options.AccessKey, "ec2-access-key", dAWSEC2Options.AccessKey, "AWS EC2 discovery access key")
-	flags.StringVar(&dAWSEC2Options.SecretKey, "ec2-secret-key", dAWSEC2Options.SecretKey, "AWS EC2 discovery secret key")
+	flags.StringVar(&dAWSEC2Options.Accounts, "aws-accounts", dAWSEC2Options.Accounts, "AWS discovery accounts")
+	flags.StringVar(&dAWSEC2Options.Role, "aws-role", dAWSEC2Options.Role, "AWS discovery role")
+	flags.StringVar(&dAWSEC2Options.RoleTimeout, "aws-role-timeout", dAWSEC2Options.RoleTimeout, "AWS discovery role timeout seconds")
+	flags.StringVar(&dAWSEC2Options.AccessKey, "aws-access-key", dAWSEC2Options.AccessKey, "AWS discovery access key")
+	flags.StringVar(&dAWSEC2Options.SecretKey, "aws-secret-key", dAWSEC2Options.SecretKey, "AWS discovery secret key")
+	flags.StringVar(&dAWSEC2Options.Schedule, "aws-ec2-schedule", dAWSEC2Options.Schedule, "AWS discovery schedule")
 
 	// K8s
 	flags.StringVar(&dK8sOptions.Schedule, "k8s-schedule", dK8sOptions.Schedule, "K8s discovery schedule")
