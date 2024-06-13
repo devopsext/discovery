@@ -1,20 +1,37 @@
 package discovery
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
-	toolsVendors "github.com/devopsext/tools/vendors"
 	"github.com/devopsext/utils"
 	"gopkg.in/fsnotify.v1"
+
+	gojq "github.com/itchyny/gojq"
 )
 
+type FileProvider struct {
+	name   string
+	path   string
+	query  string
+	obj    interface{}
+	logger sreCommon.Logger
+}
+
+type FileProviders struct {
+	list       map[string]string
+	converters map[string]string
+}
+
 type FilesOptions struct {
-	toolsVendors.ZabbixOptions
-	Folder string
+	Folder     string
+	Providers  string
+	Converters string
 }
 
 type Files struct {
@@ -23,6 +40,7 @@ type Files struct {
 	observability *common.Observability
 	sinks         *common.Sinks
 	watcher       *fsnotify.Watcher
+	provideres    *FileProviders
 }
 
 type FilesSinkObject struct {
@@ -30,6 +48,150 @@ type FilesSinkObject struct {
 	Files   *Files
 }
 
+// FileProvider
+func (p *FileProvider) Name() string {
+	return p.name
+}
+
+func (p *FileProvider) Source() string {
+	return ""
+}
+
+func (p *FileProvider) Discover() {
+	// dumb method
+}
+
+func (p *FileProvider) filter(obj interface{}, q string) interface{} {
+
+	if utils.IsEmpty(q) {
+		return obj
+	}
+
+	// https://itchyny.medium.com/golang-implementation-of-jq-gojq-ad5bd46a4af2
+	// https://github.com/jqlang/jq/blob/ccc79e592cfe1172db5f2def5a24c2f7cfd418bf/src/builtin.jq
+	//q = "match_keys(\"group|name|tier\")"
+
+	funcs := []string{
+		"def map(f): [.[] | f]",
+		"def select(f): if f then . else empty end",
+		"def with_entries(f): to_entries | map(f) | from_entries",
+		"def map_values(f): .[] |= f",
+		"def match(re; mode): _match(re; mode; false)|.[]",
+		"def match_keys(f): map_values(with_entries(select(.key | match (f))))",
+		q,
+	}
+
+	q1 := strings.Join(funcs, ";\n")
+
+	query, err := gojq.Parse(q1)
+	if err != nil {
+		p.logger.Error("Files couldn't filter object error: %s", err)
+		return obj
+	}
+
+	var arr []interface{}
+	iter := query.Run(obj)
+	for {
+		v, ok := iter.Next()
+		if !ok {
+			if len(arr) == 1 {
+				return arr[0]
+			}
+			break
+		}
+		if err, ok := v.(error); ok {
+			if err, ok := err.(*gojq.HaltError); ok && err.Value() == nil {
+				break
+			}
+			p.logger.Error("Files couldn't filter object error: %s", err)
+		}
+		arr = append(arr, v)
+	}
+	return arr
+}
+
+func (p *FileProvider) Map() common.SinkMap {
+
+	def := make(common.SinkMap)
+	if p.obj == nil {
+		return def
+	}
+
+	m, ok := p.obj.(map[string]interface{})
+	if !ok {
+		return def
+	}
+
+	obj := p.filter(m, p.query)
+	m2, ok := obj.(map[string]interface{})
+	if !ok {
+		return def
+	}
+
+	lbsm := make(common.LabelsMap)
+	for k, v := range m2 {
+
+		mv, ok := v.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		lbs := make(common.Labels)
+		for k1, v1 := range mv {
+			lbs[k1] = fmt.Sprintf("%v", v1)
+		}
+		lbsm[k] = lbs
+	}
+
+	return common.ConvertLabelsMapToSinkMap(lbsm)
+}
+
+func (p *FileProvider) Options() interface{} {
+	return nil
+}
+
+// FileProviders
+func (fp *FileProviders) readJson(bytes []byte) (interface{}, error) {
+
+	var v interface{}
+	err := json.Unmarshal(bytes, &v)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func (fp *FileProviders) discover(provider, path string, logger sreCommon.Logger) (*FileProvider, error) {
+
+	tp := strings.Replace(filepath.Ext(path), ".", "", 1)
+
+	var bytes []byte
+	var err error
+
+	switch tp {
+	case "json":
+		bytes, err = os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	obj, err := fp.readJson(bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	p := &FileProvider{
+		name:   provider,
+		path:   path,
+		query:  fp.converters[provider],
+		obj:    obj,
+		logger: logger,
+	}
+	return p, nil
+}
+
+// FilesSinkObject
 func (do *FilesSinkObject) Map() common.SinkMap {
 	return do.sinkMap
 }
@@ -38,12 +200,29 @@ func (do *FilesSinkObject) Options() interface{} {
 	return do.Files.options
 }
 
+// Files
 func (d *Files) Name() string {
 	return "Files"
 }
 
 func (d *Files) Source() string {
 	return ""
+}
+
+func (d *Files) discoverProviders(m map[string]interface{}) {
+
+	for provider, file := range d.provideres.list {
+		path := m[file]
+		if path == nil {
+			continue
+		}
+		fp, err := d.provideres.discover(provider, path.(string), d.logger)
+		if err != nil {
+			d.logger.Error("Files couldn't discover provider by %s due to error: %s", file, err)
+			continue
+		}
+		d.sinks.Process(fp, fp)
+	}
 }
 
 func (d *Files) Discover() {
@@ -70,11 +249,13 @@ func (d *Files) Discover() {
 		})
 	}
 
+	// run it first
 	if len(m) > 0 {
 		d.sinks.Process(d, &FilesSinkObject{
 			sinkMap: m,
 			Files:   d,
 		})
+		d.discoverProviders(m)
 	}
 
 	for {
@@ -96,6 +277,7 @@ func (d *Files) Discover() {
 					sinkMap: m,
 					Files:   d,
 				})
+				d.discoverProviders(m)
 			}
 		case err, ok := <-d.watcher.Errors:
 			if !ok {
@@ -127,5 +309,9 @@ func NewFiles(options FilesOptions, observability *common.Observability, sinks *
 		observability: observability,
 		sinks:         sinks,
 		watcher:       watcher,
+		provideres: &FileProviders{
+			list:       utils.MapGetKeyValues(options.Providers),
+			converters: utils.MapGetKeyValues(options.Converters),
+		},
 	}
 }

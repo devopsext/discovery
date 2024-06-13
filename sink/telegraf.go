@@ -78,7 +78,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		return errors.New("no options")
 	}
 
-	m := common.ConvertSyncMapToObjects(sm)
+	m := common.ConvertSinkMapToObjects(sm)
 	source := d.Source()
 
 	files := make(map[string]string)
@@ -161,7 +161,7 @@ func (t *Telegraf) processCert(d common.Discovery, sm common.SinkMap) error {
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
-	m := common.ConvertSyncMapToLabelsMap(sm)
+	m := common.ConvertSinkMapToLabelsMap(sm)
 	bs, err := telegrafConfig.GenerateInputX509CertBytes(t.options.Cert.InputX509CertOptions, m)
 	if err != nil {
 		return err
@@ -175,7 +175,7 @@ func (t *Telegraf) processDNS(d common.Discovery, sm common.SinkMap) error {
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
-	m := common.ConvertSyncMapToLabelsMap(sm)
+	m := common.ConvertSinkMapToLabelsMap(sm)
 	bs, err := telegrafConfig.GenerateInputDNSQueryBytes(t.options.DNS.InputDNSQueryOptions, m)
 	if err != nil {
 		return err
@@ -189,7 +189,7 @@ func (t *Telegraf) processHTTP(d common.Discovery, sm common.SinkMap) error {
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
-	m := common.ConvertSyncMapToLabelsMap(sm)
+	m := common.ConvertSinkMapToLabelsMap(sm)
 	bs, err := telegrafConfig.GenerateInputHTTPResponseBytes(t.options.HTTP.InputHTTPResponseOptions, m)
 	if err != nil {
 		return err
@@ -203,7 +203,7 @@ func (t *Telegraf) processTCP(d common.Discovery, sm common.SinkMap) error {
 	telegrafConfig := &telegraf.Config{
 		Observability: t.observability,
 	}
-	m := common.ConvertSyncMapToLabelsMap(sm)
+	m := common.ConvertSinkMapToLabelsMap(sm)
 	bs, err := telegrafConfig.GenerateInputNETResponseBytes(t.options.TCP.InputNetResponseOptions, m, "tcp")
 	if err != nil {
 		return err

@@ -193,7 +193,9 @@ var dPubSubOptions = discovery.PubSubOptions{
 }
 
 var dFilesOptions = discovery.FilesOptions{
-	Folder: envStringExpand("FILES_FOLDER", ""),
+	Folder:     envStringExpand("FILES_FOLDER", ""),
+	Providers:  envStringExpand("FILES_PROVIDERS", ""),
+	Converters: envStringExpand("FILES_CONVERTERS", ""),
 }
 
 var dLabelsOptions = discovery.LabelsOptions{
@@ -672,8 +674,10 @@ func Execute() {
 	flags.IntVar(&dPubSubOptions.AckDeadline, "pubsub-ack-deadline", dPubSubOptions.AckDeadline, "PubSub subscription ack deadline duration seconds")
 	flags.IntVar(&dPubSubOptions.Retention, "pubsub-retention", dPubSubOptions.Retention, "PubSub subscription retention duration seconds")
 
-	// Dir
+	// Files
 	flags.StringVar(&dFilesOptions.Folder, "files-folder", dFilesOptions.Folder, "Files folder")
+	flags.StringVar(&dFilesOptions.Providers, "files-providers", dFilesOptions.Providers, "Files providers")
+	flags.StringVar(&dFilesOptions.Converters, "files-coverters", dFilesOptions.Converters, "Files filters")
 
 	// Labels
 	flags.StringVar(&dLabelsOptions.Schedule, "labels-schedule", dLabelsOptions.Schedule, "Labels discovery schedule")

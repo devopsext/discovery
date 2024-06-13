@@ -37,7 +37,7 @@ type WebServer struct {
 }
 
 func (ws *WebServer) Name() string {
-	return "File"
+	return "WebServer"
 }
 
 func (ws *WebServer) Providers() []string {

@@ -329,7 +329,7 @@ func ConvertLabelsMapToSinkMap(m LabelsMap) SinkMap {
 	return r
 }
 
-func ConvertSyncMapToLabelsMap(m SinkMap) LabelsMap {
+func ConvertSinkMapToLabelsMap(m SinkMap) LabelsMap {
 
 	r := make(LabelsMap)
 	for k, v := range m {
@@ -350,7 +350,7 @@ func ConvertObjectsToSinkMap(m Objects) SinkMap {
 	return r
 }
 
-func ConvertSyncMapToObjects(m SinkMap) Objects {
+func ConvertSinkMapToObjects(m SinkMap) Objects {
 
 	r := make(Objects)
 	for k, v := range m {
@@ -374,6 +374,22 @@ func MergeLabels(labels ...Labels) Labels {
 	}
 	return r
 }
+
+/*func ConvertMapToLabels(m map[string]interface{}, lbs Labels) Labels {
+}
+
+func ConvertInterfaceToSinkMap(o interface{}) SinkMap {
+
+	r := make(SinkMap)
+	m, ok := o.(map[string]interface{})
+	if !ok {
+		return r
+	}
+	for k, v := range m {
+		r[k] = v
+	}
+	return r
+}*/
 
 func StringSliceToMap(lines []string) map[string]string {
 	l := make(map[string]string)

@@ -2,6 +2,7 @@ package sink
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/devopsext/discovery/common"
@@ -57,10 +58,12 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 
 	var lm common.LabelsMap
 
+	o.meter.Group(dname).Clear()
+
 	switch dname {
 	case "Signal":
 
-		ms := common.ConvertSyncMapToObjects(m)
+		ms := common.ConvertSinkMapToObjects(m)
 		if len(ms) == 0 {
 			break
 		}
@@ -81,14 +84,33 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 			lml["path"] = pf.Path
 			lml["kind"] = "file"
 			lml["size"] = fmt.Sprintf("%d", len(pf.Data))
-			/*hash := common.Md5ToString(pf.Data)
-			if !utils.IsEmpty(hash) {
-				lml["md5"] = hash
-			}*/
+			lm[k] = lml
+		}
+
+	case "Files":
+
+		lm = make(map[string]common.Labels)
+		for k, v := range m {
+			pf, ok := v.(string)
+			if !ok {
+				continue
+			}
+			lml := make(common.Labels)
+			lml["path"] = pf
+
+			fi, err := os.Stat(pf)
+			if err == nil {
+				lml["size"] = fmt.Sprintf("%d", fi.Size())
+			}
+
+			if err != nil {
+				lml["error"] = err.Error()
+			}
 			lm[k] = lml
 		}
 
 	case "K8s":
+
 		lm = make(map[string]common.Labels)
 		for k, v := range m {
 			ks, ok := v.(common.SinkMap)
@@ -100,7 +122,7 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 		}
 
 	default:
-		lm = common.ConvertSyncMapToLabelsMap(m)
+		lm = common.ConvertSinkMapToLabelsMap(m)
 	}
 
 	if len(lm) == 0 {
@@ -110,7 +132,7 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 
 	labels := make(sreCommon.Labels)
 	labels["provider"] = dname
-	c := o.meter.Counter(o.getTotalName(), "Discovered total", labels)
+	c := o.meter.Counter(dname, o.getTotalName(), "Discovered total", labels)
 
 	dn := o.getDiscoveryName()
 
@@ -120,11 +142,10 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 		labels["name"] = k
 		labels["provider"] = dname
 		labels = common.MergeStringMaps(labels, common.FilterStringMap(v, o.options.Labels))
-		g := o.meter.Gauge(dn, "Discovery existence", labels)
+		g := o.meter.Gauge(dname, dn, "Discovery existence", labels)
 		g.Set(1)
 	}
 	c.Add(len(lm))
-
 }
 
 func NewObservability(options ObservabilityOptions, observability *common.Observability) *Observability {
