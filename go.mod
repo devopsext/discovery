@@ -125,4 +125,4 @@ require (
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => github.com/devopsext/dd-trace-go v1.31.2
 
-replace github.com/devopsext/sre => ../sre/
+//replace github.com/devopsext/sre => ../sre/
