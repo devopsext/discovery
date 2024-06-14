@@ -135,6 +135,8 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 	c := o.meter.Counter(dname, o.getTotalName(), "Discovered total", labels)
 
 	dn := o.getDiscoveryName()
+	wrong := make(map[string]string)
+	wrong["\""] = ""
 
 	for k, v := range lm {
 
@@ -142,6 +144,7 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 		labels["name"] = k
 		labels["provider"] = dname
 		labels = common.MergeStringMaps(labels, common.FilterStringMap(v, o.options.Labels))
+		labels = common.ReplaceLabelValues(labels, wrong)
 		g := o.meter.Gauge(dname, dn, "Discovery existence", labels)
 		g.Set(1)
 	}

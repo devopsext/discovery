@@ -271,7 +271,6 @@ func (d *Files) Discover() {
 					return
 				}
 				name := filepath.Base(event.Name)
-				m := make(common.SinkMap)
 				m[name] = event.Name
 				d.sinks.Process(d, &FilesSinkObject{
 					sinkMap: m,

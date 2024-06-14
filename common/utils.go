@@ -375,22 +375,6 @@ func MergeLabels(labels ...Labels) Labels {
 	return r
 }
 
-/*func ConvertMapToLabels(m map[string]interface{}, lbs Labels) Labels {
-}
-
-func ConvertInterfaceToSinkMap(o interface{}) SinkMap {
-
-	r := make(SinkMap)
-	m, ok := o.(map[string]interface{})
-	if !ok {
-		return r
-	}
-	for k, v := range m {
-		r[k] = v
-	}
-	return r
-}*/
-
 func StringSliceToMap(lines []string) map[string]string {
 	l := make(map[string]string)
 	for _, line := range lines {
@@ -442,4 +426,16 @@ func FileWriteWithCheckSum(path string, data []byte, checksum bool) (bool, error
 		return false, err
 	}
 	return false, nil
+}
+
+func ReplaceLabelValues(labels Labels, replacements map[string]string) Labels {
+
+	lbs := make(Labels)
+
+	for k, v := range labels {
+		for k2, v2 := range replacements {
+			lbs[k] = strings.ReplaceAll(v, k2, v2)
+		}
+	}
+	return lbs
 }
