@@ -13,6 +13,7 @@ import (
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
 	sreCommon "github.com/devopsext/sre/common"
+	toolsRender "github.com/devopsext/tools/render"
 	"github.com/devopsext/utils"
 )
 
@@ -61,6 +62,16 @@ func (ws *WebServer) getPath(base, url string) string {
 	return strings.Replace(path, base, "", 1)
 }
 
+func (ws *WebServer) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
+
+	s1, err := common.RenderTemplate(tpl, def, obj)
+	if err != nil {
+		ws.logger.Error(err)
+		return def
+	}
+	return s1
+}
+
 func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error {
 
 	base := strings.ToLower("PubSub")
@@ -107,6 +118,55 @@ func (ws *WebServer) processFiles(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	http.ServeFile(w, r, fpath)
+	return nil
+}
+
+func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error {
+
+	var content []byte
+
+	base := strings.ToLower("Files")
+	path := ws.getPath("configs", r.URL.Path)
+	name := fmt.Sprintf("%s%s", base, path)
+
+	obj, _ := ws.objects.Load(name)
+	if utils.IsEmpty(obj) {
+		return fmt.Errorf("WebServer couldn't load %s for %s", base, name)
+	}
+
+	fpath, ok := obj.(string)
+	if !ok {
+		return fmt.Errorf("WebServer %s has wrong path: %s", base, name)
+	}
+
+	params := r.URL.Query()
+
+	fileInfo, err := os.Stat(fpath)
+	if err != nil {
+		return fmt.Errorf("WebServer couldn't get info about the config file %s", fpath)
+	} else {
+		content, err = os.ReadFile(fpath)
+		if err != nil {
+			return fmt.Errorf("WebServer couldn't read the config file %s", fpath)
+		}
+	}
+
+	configOpts := toolsRender.TemplateOptions{
+		Content: string(content),
+		Name:    "telegraf-config",
+	}
+	telegrafConfigTemplate, err := toolsRender.NewTextTemplate(configOpts, ws.observability)
+	if err != nil {
+		return fmt.Errorf("WebServer couldn't template the config file %s, error: %s", fpath, err)
+	}
+	telegrafConfig := ws.render(telegrafConfigTemplate, "Don't have a template", params)
+
+	modTime := fileInfo.ModTime().UTC()
+	w.Header().Set("Last-Modified", modTime.Format(http.TimeFormat))
+	if _, err := w.Write([]byte(telegrafConfig)); err != nil {
+		msg := fmt.Sprintf("WebServer couldn't write the config file: %s", name)
+		return fmt.Errorf(msg)
+	}
 	return nil
 }
 
@@ -234,6 +294,7 @@ func (ws *WebServer) getProcessors() map[string]WebServerProcessor {
 	m := make(map[string]WebServerProcessor)
 	m["/pubsub/*"] = ws.processPubSub
 	m["/files/*"] = ws.processFiles
+	m["/configs/*"] = ws.processConfig
 	return m
 }
 
