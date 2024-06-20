@@ -2,6 +2,7 @@ package common
 
 import (
 	"crypto/md5"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -11,9 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	"github.com/devopsext/utils"
+	"gopkg.in/yaml.v2"
 )
 
 func ReadFiles(pattern string) ([]string, error) {
@@ -438,4 +441,67 @@ func ReplaceLabelValues(labels Labels, replacements map[string]string) Labels {
 		}
 	}
 	return lbs
+}
+
+func ReadJson(bytes []byte) (interface{}, error) {
+
+	var v interface{}
+	err := json.Unmarshal(bytes, &v)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func ReadToml(bytes []byte) (interface{}, error) {
+
+	var v interface{}
+	err := toml.Unmarshal(bytes, &v)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func ReadYaml(bytes []byte) (interface{}, error) {
+
+	var v interface{}
+	err := yaml.Unmarshal(bytes, &v)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func ReadFile(path, typ string) (interface{}, error) {
+
+	if _, err := os.Stat(path); err != nil {
+		return nil, err
+	}
+
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	tp := strings.Replace(filepath.Ext(path), ".", "", 1)
+	if typ != "" {
+		tp = typ
+	}
+
+	var obj interface{}
+	switch {
+	case tp == "json":
+		obj, err = ReadJson(bytes)
+	case tp == "toml":
+		obj, err = ReadToml(bytes)
+	case (tp == "yaml") || (tp == "yml"):
+		obj, err = ReadYaml(bytes)
+	default:
+		obj, err = ReadJson(bytes)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
 }

@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
@@ -124,72 +123,6 @@ func (s *Signal) readBaseConfigs() map[string]*common.BaseConfig {
 	return configs
 }
 
-func (s *Signal) readJson(bytes []byte) (interface{}, error) {
-
-	var v interface{}
-	err := json.Unmarshal(bytes, &v)
-	if err != nil {
-		return nil, err
-	}
-	return v, nil
-}
-
-func (s *Signal) readToml(bytes []byte) (interface{}, error) {
-
-	var v interface{}
-	err := toml.Unmarshal(bytes, &v)
-	if err != nil {
-		return nil, err
-	}
-	return v, nil
-}
-
-func (s *Signal) readYaml(bytes []byte) (interface{}, error) {
-
-	var v interface{}
-	err := yaml.Unmarshal(bytes, &v)
-	if err != nil {
-		return nil, err
-	}
-	return v, nil
-}
-
-func (s *Signal) readFile(path, typ string) interface{} {
-
-	if _, err := os.Stat(path); err != nil {
-		s.logger.Error(err)
-		return nil
-	}
-
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		s.logger.Error(err)
-		return nil
-	}
-
-	tp := strings.Replace(filepath.Ext(path), ".", "", 1)
-	if typ != "" {
-		tp = typ
-	}
-
-	var obj interface{}
-	switch {
-	case tp == "json":
-		obj, err = s.readJson(bytes)
-	case tp == "toml":
-		obj, err = s.readToml(bytes)
-	case (tp == "yaml") || (tp == "yml"):
-		obj, err = s.readYaml(bytes)
-	default:
-		obj, err = s.readJson(bytes)
-	}
-	if err != nil {
-		s.logger.Error(err)
-		return nil
-	}
-	return obj
-}
-
 func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 
 	files := make(map[string]*common.File)
@@ -219,7 +152,11 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 			}
 
 			if obj == nil {
-				obj = s.readFile(v, typ)
+				obj, err = common.ReadFile(v, typ)
+				if err != nil {
+					s.logger.Error(err)
+					continue
+				}
 				s.files.Store(md5, obj)
 			}
 

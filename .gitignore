@@ -44,3 +44,4 @@ signal.vars.tpl
 pubsub-catalog.json
 .assets
 .pubsub
+catalog.tpl

@@ -15,6 +15,7 @@ type Processor interface {
 
 type Processors struct {
 	list   []Processor
+	sinks  *Sinks
 	logger sreCommon.Logger
 }
 
@@ -37,13 +38,15 @@ func (ps *Processors) Process(d Discovery, so SinkObject) {
 		}
 		p.Process(d, so)
 	}
+	ps.sinks.Process(d, so)
 }
 
-func NewProcessors(observability *Observability) *Processors {
+func NewProcessors(observability *Observability, sinks *Sinks) *Processors {
 
 	logger := observability.Logs()
 
 	return &Processors{
 		logger: logger,
+		sinks:  sinks,
 	}
 }

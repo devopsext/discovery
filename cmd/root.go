@@ -213,7 +213,11 @@ var dDumbOptions = discovery.DumbOptions{
 	Schedule: envGet("DUMB_SCHEDULE", "10s").(string),
 }
 
-var pTemplateOptions = processor.TemplateOptions{}
+var pTemplateOptions = processor.TemplateOptions{
+	Content:   envFileContentExpand("PROCESSOR_TEMPLATE_CONTENT", ""),
+	Files:     envFileContentExpand("PROCESSOR_TEMPLATE_FILES", ""),
+	Providers: strings.Split(envStringExpand("PROCESSOR_TEMPLATE_PROVIDERS", ""), ","),
+}
 
 var sinkFileOptions = sink.FileOptions{
 	Checksum:     envGet("SINK_FILE_CHECKSUM", false).(bool),
@@ -492,7 +496,7 @@ func Execute() {
 				ws.Start(&mainWG)
 			}
 
-			processors := common.NewProcessors(obs)
+			processors := common.NewProcessors(obs, sinks)
 			processors.Add(processor.NewTemplate(pTemplateOptions, obs, sinks))
 
 			// define scheduler
@@ -693,6 +697,11 @@ func Execute() {
 	flags.StringVar(&dLabelsOptions.QueryPeriod, "labels-query-period", dLabelsOptions.QueryPeriod, "Labels discovery query period")
 	flags.StringVar(&dLabelsOptions.QueryStep, "labels-query-step", dLabelsOptions.QueryStep, "Labels discovery query step")
 	flags.StringVar(&dLabelsOptions.Name, "labels-name", dLabelsOptions.Name, "Labels discovery name")
+
+	// Processor Template
+	flags.StringVar(&pTemplateOptions.Content, "processor-template-content", pTemplateOptions.Content, "Processor template content or file")
+	flags.StringVar(&pTemplateOptions.Files, "processor-template-files", pTemplateOptions.Files, "Processor template files")
+	flags.StringSliceVar(&pTemplateOptions.Providers, "processor-template-providers", pTemplateOptions.Providers, "Processor template providers")
 
 	// Sink File
 	flags.BoolVar(&sinkFileOptions.Checksum, "sink-file-checksum", sinkFileOptions.Checksum, "File sink checksum")
