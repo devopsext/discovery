@@ -11,12 +11,12 @@ type DumbOptions struct {
 	Schedule  string
 }
 
-// Dumb is a discovery that sends test data to sinks
+// Dumb is a discovery that sends test data to processors
 type Dumb struct {
 	options       DumbOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
-	sinks         *common.Sinks
+	processors    *common.Processors
 }
 
 type DumbSinkObject struct {
@@ -32,7 +32,7 @@ func (d *DumbSinkObject) Options() interface{} {
 }
 
 func (d *Dumb) Discover() {
-	d.sinks.Process(d, &DumbSinkObject{dumb: d})
+	d.processors.Process(d, &DumbSinkObject{dumb: d})
 }
 
 func (d *Dumb) Name() string {
@@ -43,7 +43,7 @@ func (d *Dumb) Source() string {
 	return "dumb"
 }
 
-func NewDumb(options DumbOptions, obs *common.Observability, sinks *common.Sinks) *Dumb {
+func NewDumb(options DumbOptions, obs *common.Observability, processors *common.Processors) *Dumb {
 	if !options.Enabled {
 		return nil
 	}
@@ -71,7 +71,7 @@ func NewDumb(options DumbOptions, obs *common.Observability, sinks *common.Sinks
 
 	return &Dumb{
 		options:       options,
-		sinks:         sinks,
+		processors:    processors,
 		logger:        logger,
 		observability: obs,
 	}

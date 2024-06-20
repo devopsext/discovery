@@ -38,7 +38,7 @@ type Files struct {
 	options       FilesOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
-	sinks         *common.Sinks
+	processors    *common.Processors
 	watcher       *fsnotify.Watcher
 	provideres    *FileProviders
 }
@@ -221,7 +221,7 @@ func (d *Files) discoverProviders(m map[string]interface{}) {
 			d.logger.Error("Files couldn't discover provider by %s due to error: %s", file, err)
 			continue
 		}
-		d.sinks.Process(fp, fp)
+		d.processors.Process(fp, fp)
 	}
 }
 
@@ -251,7 +251,7 @@ func (d *Files) Discover() {
 
 	// run it first
 	if len(m) > 0 {
-		d.sinks.Process(d, &FilesSinkObject{
+		d.processors.Process(d, &FilesSinkObject{
 			sinkMap: m,
 			Files:   d,
 		})
@@ -272,7 +272,7 @@ func (d *Files) Discover() {
 				}
 				name := filepath.Base(event.Name)
 				m[name] = event.Name
-				d.sinks.Process(d, &FilesSinkObject{
+				d.processors.Process(d, &FilesSinkObject{
 					sinkMap: m,
 					Files:   d,
 				})
@@ -287,7 +287,7 @@ func (d *Files) Discover() {
 	}
 }
 
-func NewFiles(options FilesOptions, observability *common.Observability, sinks *common.Sinks) *Files {
+func NewFiles(options FilesOptions, observability *common.Observability, processors *common.Processors) *Files {
 
 	logger := observability.Logs()
 
@@ -306,7 +306,7 @@ func NewFiles(options FilesOptions, observability *common.Observability, sinks *
 		options:       options,
 		logger:        logger,
 		observability: observability,
-		sinks:         sinks,
+		processors:    processors,
 		watcher:       watcher,
 		provideres: &FileProviders{
 			list:       utils.MapGetKeyValues(options.Providers),

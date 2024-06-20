@@ -49,7 +49,7 @@ type Signal struct {
 	varsTemplate   *toolsRender.TextTemplate
 	files          *sync.Map
 	disables       map[string]*toolsRender.TextTemplate
-	sinks          *common.Sinks
+	processors     *common.Processors
 }
 
 type SignalSinkObject struct {
@@ -515,13 +515,13 @@ func (s *Signal) Discover() {
 	}
 	s.logger.Debug("%s: Signal found %d objects according query. Processing...", s.source, len(objects))
 
-	s.sinks.Process(s, &SignalSinkObject{
+	s.processors.Process(s, &SignalSinkObject{
 		sinkMap: common.ConvertObjectsToSinkMap(objects),
 		signal:  s,
 	})
 }
 
-func NewSignal(source string, prometheusOptions common.PrometheusOptions, options SignalOptions, observability *common.Observability, sinks *common.Sinks) *Signal {
+func NewSignal(source string, prometheusOptions common.PrometheusOptions, options SignalOptions, observability *common.Observability, processors *common.Processors) *Signal {
 
 	logger := observability.Logs()
 
@@ -597,6 +597,6 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 		varsTemplate:   varsTemplate,
 		files:          &sync.Map{},
 		disables:       make(map[string]*toolsRender.TextTemplate),
-		sinks:          sinks,
+		processors:     processors,
 	}
 }

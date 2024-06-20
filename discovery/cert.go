@@ -33,7 +33,7 @@ type Cert struct {
 	logger         sreCommon.Logger
 	observability  *common.Observability
 	namesTemplate  *toolsRender.TextTemplate
-	sinks          *common.Sinks
+	processors     *common.Processors
 }
 
 type CertSinkObject struct {
@@ -216,13 +216,13 @@ func (c *Cert) Discover() {
 	}
 	c.logger.Debug("%s: cert found %d urls according query. Processing...", c.source, len(urls))
 
-	c.sinks.Process(c, &CertSinkObject{
+	c.processors.Process(c, &CertSinkObject{
 		sinkMap: common.ConvertLabelsMapToSinkMap(urls),
 		cert:    c,
 	})
 }
 
-func NewCert(source string, prometheusOptions common.PrometheusOptions, options CertOptions, observability *common.Observability, sinks *common.Sinks) *Cert {
+func NewCert(source string, prometheusOptions common.PrometheusOptions, options CertOptions, observability *common.Observability, processors *common.Processors) *Cert {
 
 	logger := observability.Logs()
 
@@ -263,6 +263,6 @@ func NewCert(source string, prometheusOptions common.PrometheusOptions, options 
 		logger:         logger,
 		observability:  observability,
 		namesTemplate:  namesTemplate,
-		sinks:          sinks,
+		processors:     processors,
 	}
 }

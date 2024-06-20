@@ -29,7 +29,7 @@ type PubSub struct {
 	options       PubSubOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
-	sinks         *common.Sinks
+	processors    *common.Processors
 	client        *pubsub.Client
 }
 
@@ -191,7 +191,7 @@ func (ps *PubSub) Discover() {
 		}
 		msg.Ack()
 
-		ps.sinks.Process(ps, &PubSubSinkObject{
+		ps.processors.Process(ps, &PubSubSinkObject{
 			sinkMap: m,
 			pubsub:  ps,
 		})
@@ -203,7 +203,7 @@ func (ps *PubSub) Discover() {
 	}
 }
 
-func NewPubSub(options PubSubOptions, observability *common.Observability, sinks *common.Sinks) *PubSub {
+func NewPubSub(options PubSubOptions, observability *common.Observability, processors *common.Processors) *PubSub {
 
 	logger := observability.Logs()
 
@@ -231,7 +231,7 @@ func NewPubSub(options PubSubOptions, observability *common.Observability, sinks
 		options:       options,
 		logger:        logger,
 		observability: observability,
-		sinks:         sinks,
+		processors:    processors,
 		client:        client,
 	}
 }

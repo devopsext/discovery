@@ -27,7 +27,7 @@ type Labels struct {
 	options        LabelsOptions
 	logger         sreCommon.Logger
 	observability  *common.Observability
-	sinks          *common.Sinks
+	processors     *common.Processors
 	nameTemplate   *toolsRender.TextTemplate
 }
 
@@ -139,13 +139,13 @@ func (l *Labels) Discover() {
 	}
 	l.logger.Debug("%s: Labels found %d labels according query. Processing...", l.source, len(labels))
 
-	l.sinks.Process(l, &LabelsSinkObject{
+	l.processors.Process(l, &LabelsSinkObject{
 		sinkMap: common.ConvertLabelsMapToSinkMap(labels),
 		labels:  l,
 	})
 }
 
-func NewLabels(source string, prometheusOptions common.PrometheusOptions, options LabelsOptions, observability *common.Observability, sinks *common.Sinks) *Labels {
+func NewLabels(source string, prometheusOptions common.PrometheusOptions, options LabelsOptions, observability *common.Observability, processors *common.Processors) *Labels {
 
 	logger := observability.Logs()
 
@@ -190,7 +190,7 @@ func NewLabels(source string, prometheusOptions common.PrometheusOptions, option
 		options:        options,
 		logger:         logger,
 		observability:  observability,
-		sinks:          sinks,
+		processors:     processors,
 		nameTemplate:   nameTemplate,
 	}
 }

@@ -21,7 +21,7 @@ type AWSEC2 struct {
 	options       AWSEC2Options
 	logger        sreCommon.Logger
 	observability *common.Observability
-	sinks         *common.Sinks
+	processors    *common.Processors
 }
 
 type AWSEC2SinkObject struct {
@@ -78,13 +78,13 @@ func (o *AWSEC2) Discover() {
 	hosts := o.makeHostsSinkMap(instances)
 	o.logger.Debug("EC2 found %d instances. Processing...", len(hosts))
 
-	o.sinks.Process(o, &AWSEC2SinkObject{
+	o.processors.Process(o, &AWSEC2SinkObject{
 		sinkMap: hosts,
 		EC2:     o,
 	})
 }
 
-func NewAWSEC2(options AWSEC2Options, observability *common.Observability, sinks *common.Sinks) *AWSEC2 {
+func NewAWSEC2(options AWSEC2Options, observability *common.Observability, processors *common.Processors) *AWSEC2 {
 	logger := observability.Logs()
 	if utils.IsEmpty(options.AccessKey) || utils.IsEmpty(options.SecretKey) {
 		logger.Debug("AWS keys not present. Skipped")
@@ -103,6 +103,6 @@ func NewAWSEC2(options AWSEC2Options, observability *common.Observability, sinks
 		options:       options,
 		logger:        logger,
 		observability: observability,
-		sinks:         sinks,
+		processors:    processors,
 	}
 }

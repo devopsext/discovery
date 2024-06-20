@@ -12,7 +12,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 type K8sOptions struct {
@@ -26,6 +26,7 @@ type K8sOptions struct {
 	CommonLabels   map[string]string
 	SkipUnknown    bool
 	Environment    string
+	Config         string
 }
 
 type K8s struct {
@@ -33,7 +34,7 @@ type K8s struct {
 	options       K8sOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
-	sinks         *common.Sinks
+	processors    *common.Processors
 }
 
 type K8sSinkObject struct {
@@ -65,7 +66,7 @@ func (k *K8s) Discover() {
 	m["workload"] = k.podsToSinkMap(pods.Items)
 	m["image"] = k.podImagesToSinkMap(pods.Items)
 
-	k.sinks.Process(k, &K8sSinkObject{
+	k.processors.Process(k, &K8sSinkObject{
 		sinkMap: m,
 		k8s:     k,
 	})
@@ -166,6 +167,7 @@ func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
 				"container":   c.Name,
 				"repo":        repo,
 				"version":     tag,
+				"host":        pod.Spec.NodeName,
 				"type":        "container",
 			}, k.options.CommonLabels)
 		}
@@ -271,10 +273,12 @@ func (k *K8s) Source() string {
 	return k.options.ClusterName
 }
 
-func NewK8s(options K8sOptions, obs *common.Observability, sinks *common.Sinks) *K8s {
+func NewK8s(options K8sOptions, obs *common.Observability, processors *common.Processors) *K8s {
+
 	logger := obs.Logs()
 
-	config, err := rest.InClusterConfig()
+	// https://github.com/kubernetes/client-go/blob/master/examples/out-of-cluster-client-configuration/main.go
+	config, err := clientcmd.BuildConfigFromFlags("", options.Config)
 	if err != nil {
 		logger.Debug(err)
 		return nil
@@ -291,6 +295,6 @@ func NewK8s(options K8sOptions, obs *common.Observability, sinks *common.Sinks) 
 		options:       options,
 		logger:        logger,
 		observability: obs,
-		sinks:         sinks,
+		processors:    processors,
 	}
 }

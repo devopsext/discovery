@@ -36,7 +36,7 @@ type HTTP struct {
 	observability  *common.Observability
 	namesTemplate  *toolsRender.TextTemplate
 	pathTemplate   *toolsRender.TextTemplate
-	sinks          *common.Sinks
+	processors     *common.Processors
 }
 
 type HTTPSinkObject struct {
@@ -232,13 +232,13 @@ func (h *HTTP) Discover() {
 	}
 	h.logger.Debug("%s: HTTP found %d urls according query. Processing...", h.source, len(urls))
 
-	h.sinks.Process(h, &HTTPSinkObject{
+	h.processors.Process(h, &HTTPSinkObject{
 		sinkMap: common.ConvertLabelsMapToSinkMap(urls),
 		http:    h,
 	})
 }
 
-func NewHTTP(source string, prometheusOptions common.PrometheusOptions, options HTTPOptions, observability *common.Observability, sinks *common.Sinks) *HTTP {
+func NewHTTP(source string, prometheusOptions common.PrometheusOptions, options HTTPOptions, observability *common.Observability, processors *common.Processors) *HTTP {
 
 	logger := observability.Logs()
 
@@ -290,6 +290,6 @@ func NewHTTP(source string, prometheusOptions common.PrometheusOptions, options 
 		observability:  observability,
 		namesTemplate:  namesTemplate,
 		pathTemplate:   pathTemplate,
-		sinks:          sinks,
+		processors:     processors,
 	}
 }

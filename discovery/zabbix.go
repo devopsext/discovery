@@ -36,7 +36,7 @@ type Zabbix struct {
 	options       ZabbixOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
-	sinks         *common.Sinks
+	processors    *common.Processors
 }
 
 type ZabbixSinkObject struct {
@@ -162,13 +162,13 @@ func (o *Zabbix) Discover() {
 	hosts := o.makeHostsSinkMap(res.Result)
 	o.logger.Debug("Zabbix found %d hosts. Processing...", len(hosts))
 
-	o.sinks.Process(o, &ZabbixSinkObject{
+	o.processors.Process(o, &ZabbixSinkObject{
 		sinkMap: hosts,
 		zabbix:  o,
 	})
 }
 
-func NewZabbix(options ZabbixOptions, observability *common.Observability, sinks *common.Sinks) *Zabbix {
+func NewZabbix(options ZabbixOptions, observability *common.Observability, processors *common.Processors) *Zabbix {
 
 	logger := observability.Logs()
 
@@ -182,6 +182,6 @@ func NewZabbix(options ZabbixOptions, observability *common.Observability, sinks
 		options:       options,
 		logger:        logger,
 		observability: observability,
-		sinks:         sinks,
+		processors:    processors,
 	}
 }

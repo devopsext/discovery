@@ -12,6 +12,7 @@ import (
 
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
+	"github.com/devopsext/discovery/processor"
 	"github.com/devopsext/discovery/sink"
 	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
@@ -181,6 +182,7 @@ var dK8sOptions = discovery.K8sOptions{
 	CommonLabels:   common.StringSliceToMap(common.RemoveEmptyStrings(strings.Split(envGet("K8S_COMMON_LABELS", "").(string), ","))),
 	SkipUnknown:    envGet("K8S_SKIP_UNKNOWN", true).(bool),
 	Environment:    envGet("K8S_ENV", "undefined").(string),
+	Config:         envStringExpand("K8S_CONFIG", ""),
 }
 
 var dPubSubOptions = discovery.PubSubOptions{
@@ -210,6 +212,8 @@ var dDumbOptions = discovery.DumbOptions{
 	Enabled:  envGet("DUMB_ENABLED", false).(bool),
 	Schedule: envGet("DUMB_SCHEDULE", "10s").(string),
 }
+
+var pTemplateOptions = processor.TemplateOptions{}
 
 var sinkFileOptions = sink.FileOptions{
 	Checksum:     envGet("SINK_FILE_CHECKSUM", false).(bool),
@@ -488,6 +492,9 @@ func Execute() {
 				ws.Start(&mainWG)
 			}
 
+			processors := common.NewProcessors(obs)
+			processors.Add(processor.NewTemplate(pTemplateOptions, obs, sinks))
+
 			// define scheduler
 			scheduler := gocron.NewScheduler(time.UTC)
 			wg := &sync.WaitGroup{}
@@ -517,28 +524,28 @@ func Execute() {
 				opts.User = prom.User
 				opts.Password = prom.Password
 
-				runPrometheusDiscovery(wg, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, sinks), logger)
-				runPrometheusDiscovery(wg, scheduler, dLabelsOptions.Schedule, prom.Name, opts.URL, discovery.NewLabels(prom.Name, opts, dLabelsOptions, obs, sinks), logger)
+				runPrometheusDiscovery(wg, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, processors), logger)
+				runPrometheusDiscovery(wg, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, processors), logger)
+				runPrometheusDiscovery(wg, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, processors), logger)
+				runPrometheusDiscovery(wg, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, processors), logger)
+				runPrometheusDiscovery(wg, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, processors), logger)
+				runPrometheusDiscovery(wg, scheduler, dLabelsOptions.Schedule, prom.Name, opts.URL, discovery.NewLabels(prom.Name, opts, dLabelsOptions, obs, processors), logger)
 			}
 
 			// run simple discoveries
-			runSimpleDiscovery(wg, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, sinks), logger)
-			runSimpleDiscovery(wg, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, sinks), logger)
-			runSimpleDiscovery(wg, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, sinks), logger)
-			runSimpleDiscovery(wg, scheduler, dVCenterOptions.Schedule, discovery.NewVCenter(dVCenterOptions, obs, sinks), logger)
-			runSimpleDiscovery(wg, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, sinks), logger)
-			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, sinks), logger)
+			runSimpleDiscovery(wg, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, processors), logger)
+			runSimpleDiscovery(wg, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, processors), logger)
+			runSimpleDiscovery(wg, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, processors), logger)
+			runSimpleDiscovery(wg, scheduler, dVCenterOptions.Schedule, discovery.NewVCenter(dVCenterOptions, obs, processors), logger)
+			runSimpleDiscovery(wg, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, processors), logger)
+			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
 
 			scheduler.StartAsync()
 
 			// run supportive discoveries without scheduler
 			if !rootOptions.RunOnce {
-				runStandAloneDiscovery(wg, discovery.NewPubSub(dPubSubOptions, obs, sinks), logger)
-				runStandAloneDiscovery(wg, discovery.NewFiles(dFilesOptions, obs, sinks), logger)
+				runStandAloneDiscovery(wg, discovery.NewPubSub(dPubSubOptions, obs, processors), logger)
+				runStandAloneDiscovery(wg, discovery.NewFiles(dFilesOptions, obs, processors), logger)
 			}
 			wg.Wait()
 
@@ -665,6 +672,7 @@ func Execute() {
 	flags.StringToStringVarP(&dK8sOptions.CommonLabels, "k8s-common-labels", "", dK8sOptions.CommonLabels, "K8s discovery common labels")
 	flags.BoolVar(&dK8sOptions.SkipUnknown, "k8s-skip-unknown", dK8sOptions.SkipUnknown, "K8s discovery skip unknown applications")
 	flags.StringVar(&dK8sOptions.Environment, "k8s-env", dK8sOptions.Environment, "K8s discovery environment (test/prod/etc…)")
+	flags.StringVar(&dK8sOptions.Config, "k8s-config", dK8sOptions.Config, "K8s discovery kube config")
 
 	// PubSub
 	flags.StringVar(&dPubSubOptions.Credentials, "pubsub-credentials", dPubSubOptions.Credentials, "Credentials for PubSub")

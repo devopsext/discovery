@@ -32,7 +32,7 @@ type Observium struct {
 	options       ObserviumOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
-	sinks         *common.Sinks
+	processors    *common.Processors
 }
 
 type ObserviumSinkObject struct {
@@ -100,13 +100,13 @@ func (o *Observium) Discover() {
 	devices := o.makeDevicesSinkMap(res.Devices)
 	o.logger.Debug("Observium found %d devices. Processing...", len(devices))
 
-	o.sinks.Process(o, &ObserviumSinkObject{
+	o.processors.Process(o, &ObserviumSinkObject{
 		sinkMap:   devices,
 		observium: o,
 	})
 }
 
-func NewObservium(options ObserviumOptions, observability *common.Observability, sinks *common.Sinks) *Observium {
+func NewObservium(options ObserviumOptions, observability *common.Observability, processors *common.Processors) *Observium {
 
 	logger := observability.Logs()
 
@@ -120,6 +120,6 @@ func NewObservium(options ObserviumOptions, observability *common.Observability,
 		options:       options,
 		logger:        logger,
 		observability: observability,
-		sinks:         sinks,
+		processors:    processors,
 	}
 }

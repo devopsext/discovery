@@ -65,7 +65,7 @@ type VCenter struct {
 	options       VCenterOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
-	sinks         *common.Sinks
+	processors    *common.Processors
 }
 
 type VCenterSinkObject struct {
@@ -277,13 +277,13 @@ func (vc *VCenter) Discover() {
 	m := vc.makeSinkMap(clusters)
 	vc.logger.Debug("VCenter found %d entries. Processing...", len(m))
 
-	vc.sinks.Process(vc, &VCenterSinkObject{
+	vc.processors.Process(vc, &VCenterSinkObject{
 		sinkMap: m,
 		VCenter: vc,
 	})
 }
 
-func NewVCenter(options VCenterOptions, observability *common.Observability, sinks *common.Sinks) *VCenter {
+func NewVCenter(options VCenterOptions, observability *common.Observability, processors *common.Processors) *VCenter {
 
 	logger := observability.Logs()
 
@@ -297,6 +297,6 @@ func NewVCenter(options VCenterOptions, observability *common.Observability, sin
 		options:       options,
 		logger:        logger,
 		observability: observability,
-		sinks:         sinks,
+		processors:    processors,
 	}
 }

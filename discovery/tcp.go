@@ -34,7 +34,7 @@ type TCP struct {
 	logger         sreCommon.Logger
 	observability  *common.Observability
 	namesTemplate  *toolsRender.TextTemplate
-	sinks          *common.Sinks
+	processors     *common.Processors
 }
 
 type TCPSinkObject struct {
@@ -199,13 +199,13 @@ func (t *TCP) Discover() {
 	}
 	t.logger.Debug("%s: TCP found %d addresses according query. Processing...", t.source, len(addresses))
 
-	t.sinks.Process(t, &TCPSinkObject{
+	t.processors.Process(t, &TCPSinkObject{
 		sinkMap: common.ConvertLabelsMapToSinkMap(addresses),
 		tcp:     t,
 	})
 }
 
-func NewTCP(source string, prometheusOptions common.PrometheusOptions, options TCPOptions, observability *common.Observability, sinks *common.Sinks) *TCP {
+func NewTCP(source string, prometheusOptions common.PrometheusOptions, options TCPOptions, observability *common.Observability, processors *common.Processors) *TCP {
 
 	logger := observability.Logs()
 
@@ -246,6 +246,6 @@ func NewTCP(source string, prometheusOptions common.PrometheusOptions, options T
 		logger:         logger,
 		observability:  observability,
 		namesTemplate:  namesTemplate,
-		sinks:          sinks,
+		processors:     processors,
 	}
 }

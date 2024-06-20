@@ -33,7 +33,7 @@ type DNS struct {
 	logger              sreCommon.Logger
 	observability       *common.Observability
 	domainNamesTemplate *toolsRender.TextTemplate
-	sinks               *common.Sinks
+	processors          *common.Processors
 }
 
 type DNSSinkObject struct {
@@ -194,13 +194,13 @@ func (d *DNS) Discover() {
 	}
 	d.logger.Debug("%s: DNS found %d domains according query. Processing...", d.source, len(domains))
 
-	d.sinks.Process(d, &DNSSinkObject{
+	d.processors.Process(d, &DNSSinkObject{
 		sinkMap: common.ConvertLabelsMapToSinkMap(domains),
 		dns:     d,
 	})
 }
 
-func NewDNS(source string, prometheusOptions common.PrometheusOptions, options DNSOptions, observability *common.Observability, sinks *common.Sinks) *DNS {
+func NewDNS(source string, prometheusOptions common.PrometheusOptions, options DNSOptions, observability *common.Observability, processors *common.Processors) *DNS {
 
 	logger := observability.Logs()
 
@@ -241,6 +241,6 @@ func NewDNS(source string, prometheusOptions common.PrometheusOptions, options D
 		logger:              logger,
 		observability:       observability,
 		domainNamesTemplate: domainNamesTemplate,
-		sinks:               sinks,
+		processors:          processors,
 	}
 }
