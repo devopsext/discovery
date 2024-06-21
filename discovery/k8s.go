@@ -167,7 +167,7 @@ func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
 				"container":   c.Name,
 				"repo":        repo,
 				"version":     tag,
-				"host":        pod.Spec.NodeName,
+				"node":        pod.Spec.NodeName,
 				"type":        "container",
 			}, k.options.CommonLabels)
 		}
