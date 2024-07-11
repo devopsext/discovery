@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/allegro/bigcache"
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
@@ -36,6 +37,12 @@ type SignalOptions struct {
 	Files        string
 }
 
+type SignalCache struct {
+	logger   sreCommon.Logger
+	cache    *bigcache.BigCache
+	template *toolsRender.TextTemplate
+}
+
 type Signal struct {
 	source         string
 	prometheus     *toolsVendors.Prometheus
@@ -45,7 +52,7 @@ type Signal struct {
 	observability  *common.Observability
 	objectTemplate *toolsRender.TextTemplate
 	fieldTemplate  *toolsRender.TextTemplate
-	varsTemplate   *toolsRender.TextTemplate
+	filesTemplate  *toolsRender.TextTemplate
 	files          *sync.Map
 	disables       map[string]*toolsRender.TextTemplate
 	processors     *common.Processors
@@ -127,13 +134,11 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 
 	files := make(map[string]*common.File)
 
-	tpl, err := toolsRender.NewTextTemplate(toolsRender.TemplateOptions{Content: s.options.Files}, s.observability)
-	if err != nil {
-		s.logger.Error(err)
+	if s.filesTemplate == nil {
 		return files
 	}
 
-	fs := s.render(tpl, s.options.Files, vars)
+	fs := s.render(s.filesTemplate, s.options.Files, vars)
 	kv := utils.MapGetKeyValues(fs)
 	for k, v := range kv {
 
@@ -141,7 +146,7 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 			typ := strings.Replace(filepath.Ext(v), ".", "", 1)
 
 			var obj interface{}
-			md5 := common.FileMd5ToString(v)
+			md5 := common.Md5ToString([]byte(v))
 			if utils.IsEmpty(md5) {
 				continue
 			}
@@ -152,12 +157,13 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 			}
 
 			if obj == nil {
-				obj, err = common.ReadFile(v, typ)
+				o, err := common.ReadFile(v, typ)
 				if err != nil {
 					s.logger.Error(err)
 					continue
 				}
-				s.files.Store(md5, obj)
+				s.files.Store(md5, o)
+				obj = o
 			}
 
 			if obj != nil {
@@ -261,12 +267,76 @@ func (s *Signal) filterVectors(name string, configs map[string]*common.BaseConfi
 	return r
 }
 
-func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map[string]*common.Object {
+func (sc *SignalCache) fCacheRegexMatchFindKey(obj interface{}, field, value string) string {
 
-	s.files.Range(func(key any, value any) bool {
-		s.files.Delete(key)
-		return true
-	})
+	if obj == nil || utils.IsEmpty(field) || utils.IsEmpty(value) {
+		return ""
+	}
+	if sc.cache == nil || sc.template == nil {
+		return ""
+	}
+	key := fmt.Sprintf("%s.%s", field, value)
+
+	entry, err := sc.cache.Get(key)
+	if err == nil {
+		v1 := string(entry)
+		if !utils.IsEmpty(v1) {
+			return v1
+		}
+	}
+
+	v2 := sc.template.RegexMatchFindKey(obj, field, value)
+	if !utils.IsEmpty(v2) {
+		v1 := fmt.Sprintf("%v", v2)
+		sc.cache.Set(key, []byte(v1))
+		return v1
+	}
+	return ""
+}
+
+func (sc *SignalCache) fCacheRegexMatchObjectByField(obj interface{}, field, value string) interface{} {
+
+	if obj == nil {
+		return nil
+	}
+	if sc.cache == nil || sc.template == nil {
+		return ""
+	}
+	key := sc.fCacheRegexMatchFindKey(obj, field, value)
+	if utils.IsEmpty(key) {
+		return nil
+	}
+
+	a, ok := obj.([]interface{})
+	ka, err := strconv.Atoi(key)
+	if ok && err == nil {
+		return a[ka]
+	}
+
+	m, ok := obj.(map[string]interface{})
+	if ok {
+		return m[key]
+	}
+	return nil
+}
+
+func NewSignalCache(logger sreCommon.Logger) *SignalCache {
+
+	config := bigcache.DefaultConfig(time.Duration(time.Second * 60))
+
+	cache, err := bigcache.NewBigCache(config)
+	if err != nil {
+		logger.Error(err)
+		return nil
+	}
+
+	return &SignalCache{
+		logger: logger,
+		cache:  cache,
+	}
+}
+
+func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map[string]*common.Object {
 
 	configs := s.readBaseConfigs()
 	matched := make(map[string]*common.Object)
@@ -284,16 +354,57 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map
 		return matched
 	}
 
+	cache := NewSignalCache(s.logger)
+
+	funcs := make(map[string]any)
+	funcs["regexMatchFindKey"] = cache.fCacheRegexMatchFindKey
+	funcs["regexMatchObjectByField"] = cache.fCacheRegexMatchObjectByField
+
+	varsOpts := toolsRender.TemplateOptions{
+		Content:     s.options.Vars,
+		Name:        "signal-vars",
+		Funcs:       funcs,
+		FilterFuncs: true,
+	}
+	varsTemplate, err := toolsRender.NewTextTemplate(varsOpts, s.observability)
+	if err != nil {
+		s.logger.Error(err)
+		return nil
+	}
+
+	cache.template = varsTemplate
+
+	s.files.Range(func(key any, value any) bool {
+		s.files.Delete(key)
+		return true
+	})
+
 	vectors = s.filterVectors(name, configs, vectors)
 	s.logger.Debug("[%d] %s: %d series filtered to %d", gid, s.source, l, len(vectors))
 
 	when := time.Now()
 	max := len(vectors) / 100
 
+	var t0 time.Duration
+	var t1 time.Duration
+	var t2 time.Duration
+	var t3 time.Duration
+	var t4 time.Duration
+	var tdiff time.Duration
+
 	for i, v := range vectors {
 
+		w := time.Now()
+
 		if max > 0 && i%max == 0 && i > 0 {
-			s.logger.Debug("[%d] %s: %d out of %d [%s]", gid, s.source, i, len(vectors), time.Since(when))
+			tsince := time.Since(when)
+			s.logger.Debug("[%d] %s: %d out of %d [%s: %s, t0=%s t1=%s t2=%s t3=%s t4=%s]", gid, s.source, i, len(vectors), tsince, tsince-tdiff, t0, t1, t2, t3, t4)
+			t0 = 0
+			t1 = 0
+			t2 = 0
+			t3 = 0
+			t4 = 0
+			tdiff = tsince
 		}
 
 		if len(v.Labels) < 2 {
@@ -313,9 +424,15 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map
 		m["files"] = files
 		m["source"] = s.source
 
-		vars := s.render(s.varsTemplate, s.options.Vars, m)
+		t0 = t0 + time.Since(w)
+		tt := time.Since(w)
+
+		vars := s.render(varsTemplate, s.options.Vars, m)
 		objectVars := utils.MapGetKeyValues(vars)
 		mergedVars := common.MergeStringMaps(v.Labels, objectVars)
+
+		t1 = t1 + time.Since(w) - tt
+		tt = time.Since(w)
 
 		ident := ""
 		field := ""
@@ -338,6 +455,9 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map
 			}
 		}
 
+		t2 = t2 + time.Since(w) - tt
+		tt = time.Since(w)
+
 		temp := s.render(s.fieldTemplate, s.options.Field, mergedVars)
 		if temp == s.options.Field {
 			field = mergedVars[temp]
@@ -352,6 +472,9 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map
 			continue
 		}
 
+		t3 = t3 + time.Since(w) - tt
+		tt = time.Since(w)
+
 		// find objects in files
 		// if it's disabled, skip it with warning
 		fieldAndIdent := fmt.Sprintf("%s/%s", field, ident)
@@ -362,6 +485,8 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map
 			//s.logger.Trace("%s: %s disabled by pattern: %s", s.source, fieldAndIdent, pattern)
 			continue
 		}
+
+		t4 = t4 + time.Since(w) - tt
 
 		for path, config := range configs {
 
@@ -483,19 +608,10 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 		options.Password = prometheusOptions.Password
 	}
 
-	varsOpts := toolsRender.TemplateOptions{
-		Content: options.Vars,
-		Name:    "signal-vars",
-	}
-	varsTemplate, err := toolsRender.NewTextTemplate(varsOpts, observability)
-	if err != nil {
-		logger.Error(err)
-		return nil
-	}
-
 	objectOpts := toolsRender.TemplateOptions{
-		Content: options.Ident,
-		Name:    "signal-ident",
+		Content:     options.Ident,
+		Name:        "signal-ident",
+		FilterFuncs: true,
 	}
 	objectTemplate, err := toolsRender.NewTextTemplate(objectOpts, observability)
 	if err != nil {
@@ -504,13 +620,24 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 	}
 
 	fieldOpts := toolsRender.TemplateOptions{
-		Content: options.Field,
-		Name:    "signal-field",
+		Content:     options.Field,
+		Name:        "signal-field",
+		FilterFuncs: true,
 	}
 	fieldTemplate, err := toolsRender.NewTextTemplate(fieldOpts, observability)
 	if err != nil {
 		logger.Error(err)
 		return nil
+	}
+
+	filesOpts := toolsRender.TemplateOptions{
+		Content:     options.Files,
+		Name:        "signal-fiels",
+		FilterFuncs: true,
+	}
+	filesTemplate, err := toolsRender.NewTextTemplate(filesOpts, observability)
+	if err != nil {
+		logger.Error(err)
 	}
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
@@ -522,7 +649,7 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 		Query:    options.Query,
 	}
 
-	return &Signal{
+	signal := &Signal{
 		source:         source,
 		prometheus:     toolsVendors.NewPrometheus(prometheusOpts),
 		prometheusOpts: prometheusOpts,
@@ -531,9 +658,11 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 		observability:  observability,
 		objectTemplate: objectTemplate,
 		fieldTemplate:  fieldTemplate,
-		varsTemplate:   varsTemplate,
+		filesTemplate:  filesTemplate,
 		files:          &sync.Map{},
 		disables:       make(map[string]*toolsRender.TextTemplate),
 		processors:     processors,
 	}
+
+	return signal
 }
