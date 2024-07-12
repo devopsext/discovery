@@ -35,6 +35,7 @@ type SignalOptions struct {
 	BaseTemplate string
 	Vars         string
 	Files        string
+	CacheSize    int
 }
 
 type SignalCache struct {
@@ -316,9 +317,14 @@ func (sc *SignalCache) fRegexMatchObjectByFieldCached(obj interface{}, field, va
 	return nil
 }
 
-func NewSignalCache(logger sreCommon.Logger) *SignalCache {
+func NewSignalCache(logger sreCommon.Logger, s *Signal) *SignalCache {
 
-	config := bigcache.DefaultConfig(time.Duration(time.Second * 60))
+	config := bigcache.DefaultConfig(time.Duration(time.Second * 10))
+	config.MaxEntriesInWindow = 2000
+	config.MaxEntrySize = 100
+	if s.options.CacheSize > 0 {
+		config.HardMaxCacheSize = s.options.CacheSize
+	}
 
 	cache, err := bigcache.NewBigCache(config)
 	if err != nil {
@@ -350,7 +356,7 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map
 		return matched
 	}
 
-	cache := NewSignalCache(s.logger)
+	cache := NewSignalCache(s.logger, s)
 
 	funcs := make(map[string]any)
 	funcs["regexMatchObjectByFieldCached"] = cache.fRegexMatchObjectByFieldCached

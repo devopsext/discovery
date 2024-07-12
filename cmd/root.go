@@ -79,6 +79,7 @@ var dSignalOptions = discovery.SignalOptions{
 	Files:        envFileContentExpand("SIGNAL_FILES", ""),
 	Vars:         envFileContentExpand("SIGNAL_VARS", ""),
 	BaseTemplate: envStringExpand("SIGNAL_BASE_TEMPLATE", ""),
+	CacheSize:    envGet("SIGNAL_CACHE_SIZE", 0).(int),
 }
 
 var dDNSOptions = discovery.DNSOptions{
