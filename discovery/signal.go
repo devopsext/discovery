@@ -267,55 +267,51 @@ func (s *Signal) filterVectors(name string, configs map[string]*common.BaseConfi
 	return r
 }
 
-func (sc *SignalCache) fCacheRegexMatchFindKey(obj interface{}, field, value string) string {
+func (sc *SignalCache) fRegexMatchObjectByFieldCached(obj interface{}, field, value, cacheKey string) interface{} {
 
 	if obj == nil || utils.IsEmpty(field) || utils.IsEmpty(value) {
-		return ""
+		return nil
 	}
 	if sc.cache == nil || sc.template == nil {
 		return ""
 	}
-	key := fmt.Sprintf("%s.%s", field, value)
+	key := fmt.Sprintf("%s.%s.%s", field, value, cacheKey)
 
 	entry, err := sc.cache.Get(key)
 	if err == nil {
-		v1 := string(entry)
-		if !utils.IsEmpty(v1) {
-			return v1
+
+		ks := string(entry)
+
+		a, ok := obj.([]interface{})
+		ka, err := strconv.Atoi(ks)
+		if ok && err == nil {
+			return a[ka]
+		}
+
+		m, ok := obj.(map[string]interface{})
+		if ok {
+			return m[ks]
 		}
 	}
 
-	v2 := sc.template.RegexMatchFindKey(obj, field, value)
-	if !utils.IsEmpty(v2) {
-		v1 := fmt.Sprintf("%v", v2)
-		sc.cache.Set(key, []byte(v1))
-		return v1
-	}
-	return ""
-}
-
-func (sc *SignalCache) fCacheRegexMatchObjectByField(obj interface{}, field, value string) interface{} {
-
-	if obj == nil {
+	ki := sc.template.RegexMatchFindKey(obj, field, value)
+	if ki == nil {
 		return nil
 	}
-	if sc.cache == nil || sc.template == nil {
-		return ""
-	}
-	key := sc.fCacheRegexMatchFindKey(obj, field, value)
-	if utils.IsEmpty(key) {
-		return nil
-	}
+
+	ks := fmt.Sprintf("%v", ki)
 
 	a, ok := obj.([]interface{})
-	ka, err := strconv.Atoi(key)
+	ka, err := strconv.Atoi(ks)
 	if ok && err == nil {
+		sc.cache.Set(key, []byte(ks))
 		return a[ka]
 	}
 
 	m, ok := obj.(map[string]interface{})
 	if ok {
-		return m[key]
+		sc.cache.Set(key, []byte(ks))
+		return m[ks]
 	}
 	return nil
 }
@@ -357,8 +353,7 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map
 	cache := NewSignalCache(s.logger)
 
 	funcs := make(map[string]any)
-	funcs["regexMatchFindKey"] = cache.fCacheRegexMatchFindKey
-	funcs["regexMatchObjectByField"] = cache.fCacheRegexMatchObjectByField
+	funcs["regexMatchObjectByFieldCached"] = cache.fRegexMatchObjectByFieldCached
 
 	varsOpts := toolsRender.TemplateOptions{
 		Content:     s.options.Vars,
