@@ -1,5 +1,6 @@
 .vscode
 .git
+.run/
 bin/
 pkg/
 src/

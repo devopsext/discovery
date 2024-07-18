@@ -56,6 +56,7 @@ type BaseConfig struct {
 	Vars         map[string]string `yaml:"vars"`
 	Labels       Labels            `yaml:"labels"`
 	Conditions   []*BaseCondition  `yaml:"if"`
+	Filters      []*BaseCondition  `yaml:"not"`
 	Qualities    []*BaseQuality    `yaml:"quality"`
 	Metrics      []*BaseMetric     `yaml:"metrics"`
 	Availability *BaseAvailability `yaml:"availability"`
@@ -126,6 +127,20 @@ func (bc *BaseConfig) Contains(pattern string) bool {
 }
 
 func (bc *BaseConfig) MetricExists(query string, labels Labels) bool {
+
+	if len(bc.Filters) > 0 {
+
+		for _, v := range bc.Filters {
+
+			r, err := regexp.Compile(v.Metric)
+			if err != nil {
+				continue
+			}
+			if r.MatchString(query) && bc.LabelsExist(v, labels) {
+				return false
+			}
+		}
+	}
 
 	if len(bc.Conditions) > 0 {
 
