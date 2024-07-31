@@ -186,6 +186,13 @@ var dK8sOptions = discovery.K8sOptions{
 	Config:         envStringExpand("K8S_CONFIG", ""),
 }
 
+var dLdapOptions = discovery.LdapGlobalOptions{
+	ConfigString:    envStringExpand("LDAP_CONFIGSTRING", ""),
+	Timeout:         envGet("LDAP_TIMEOUT", 30).(int),
+	Insecure:        envGet("LDAP_INSECURE", false).(bool),
+	Schedule:        envGet("LDAP_SCHEDULE", "").(string),
+}
+
 var dPubSubOptions = discovery.PubSubOptions{
 	Credentials:  envGet("PUBSUB_CREDENTIALS", "").(string),
 	Topic:        envGet("PUBSUB_TOPIC", "").(string),
@@ -544,6 +551,14 @@ func Execute() {
 			runSimpleDiscovery(wg, scheduler, dVCenterOptions.Schedule, discovery.NewVCenter(dVCenterOptions, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
+			//get list of ldap discovery targets
+			ldapTargets, err := discovery.GetLdapDiscoveryTargets(dLdapOptions,obs.Logs())
+			if err == nil {
+				for _, ldapTarget := range ldapTargets {
+					runSimpleDiscovery(wg, scheduler, ldapTarget.Schedule, discovery.NewLdap(ldapTarget, obs, processors), logger)
+				}
+			}
+			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
 
 			scheduler.StartAsync()
 
@@ -678,6 +693,8 @@ func Execute() {
 	flags.BoolVar(&dK8sOptions.SkipUnknown, "k8s-skip-unknown", dK8sOptions.SkipUnknown, "K8s discovery skip unknown applications")
 	flags.StringVar(&dK8sOptions.Environment, "k8s-env", dK8sOptions.Environment, "K8s discovery environment (test/prod/etc…)")
 	flags.StringVar(&dK8sOptions.Config, "k8s-config", dK8sOptions.Config, "K8s discovery kube config")
+
+	//TODO flags for LDAP discovery
 
 	// PubSub
 	flags.StringVar(&dPubSubOptions.Credentials, "pubsub-credentials", dPubSubOptions.Credentials, "Credentials for PubSub")

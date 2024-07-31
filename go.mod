@@ -10,6 +10,7 @@ require (
 	github.com/devopsext/tools v0.14.7
 	github.com/devopsext/utils v0.4.2
 	github.com/go-co-op/gocron v1.18.0
+	github.com/go-ldap/ldap v3.0.3+incompatible
 	github.com/itchyny/gojq v0.12.16
 	github.com/jinzhu/copier v0.3.5
 	github.com/pkg/errors v0.9.1
@@ -115,6 +116,7 @@ require (
 	google.golang.org/grpc v1.42.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/DataDog/dd-trace-go.v1 v1.31.1 // indirect
+	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/klog/v2 v2.110.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
