@@ -48,3 +48,4 @@ pubsub-catalog.json
 processor.tpl
 _signal.telegraf.tags copy.tpl
 _signal.vars copy.tpl
+*tpl

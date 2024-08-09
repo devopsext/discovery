@@ -100,6 +100,7 @@ var dHTTPOptions = discovery.HTTPOptions{
 	Pattern:     envGet("HTTP_PATTERN", "").(string),
 	Names:       envFileContentExpand("HTTP_NAMES", ""),
 	Exclusion:   envGet("HTTP_EXCLUSION", "").(string),
+	Files:       envFileContentExpand("HTTP_FILES", ""),
 	NoSSL:       envGet("HTTP_NO_SSL", "").(string),
 	Path:        envFileContentExpand("HTTP_PATH", ""),
 }
@@ -613,6 +614,7 @@ func Execute() {
 	flags.StringVar(&dHTTPOptions.QueryStep, "http-query-step", dHTTPOptions.QueryStep, "HTTP discovery query step")
 	flags.StringVar(&dHTTPOptions.Pattern, "http-pattern", dHTTPOptions.Pattern, "HTTP discovery pattern")
 	flags.StringVar(&dHTTPOptions.Names, "http-names", dHTTPOptions.Names, "HTTP discovery names")
+	flags.StringVar(&dHTTPOptions.Files, "http-files", dHTTPOptions.Files, "Http files")
 	flags.StringVar(&dHTTPOptions.Exclusion, "http-exclusion", dHTTPOptions.Exclusion, "HTTP discovery exclusion")
 	flags.StringVar(&dHTTPOptions.NoSSL, "http-no-ssl", dHTTPOptions.NoSSL, "HTTP no SSL pattern")
 
