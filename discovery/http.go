@@ -76,7 +76,7 @@ func (h *HTTP) render(tpl *toolsRender.TextTemplate, def string, obj interface{}
 	return s1
 }
 
-func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[string]string, rExclusion, rNoSSL *regexp.Regexp) {
+func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[string]string, rExclusion, rNoSSL *regexp.Regexp, fls map[string]*common.File) {
 	proto := "https"
 	if rNoSSL != nil && rNoSSL.MatchString(name) {
 		proto = "http"
@@ -107,8 +107,6 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 	if !utils.IsEmpty(port) {
 		port = fmt.Sprintf(":%s", port)
 	}
-
-	fls := h.getFiles(labels)
 
 	labelsWithFiles := make(map[string]interface{})
 	for key, value := range labels {
@@ -212,6 +210,8 @@ func (h *HTTP) findURLs(vectors []*common.PrometheusResponseDataVector) common.L
 		rNoSSL = regexp.MustCompile(h.options.NoSSL)
 	}
 
+	fls := h.getFiles(map[string]string{})
+
 	for _, v := range vectors {
 		if len(v.Labels) < 1 {
 			h.logger.Debug("[%d] %s: No labels, min requirements (1): %v", gid, h.source, v.Labels)
@@ -236,12 +236,12 @@ func (h *HTTP) findURLs(vectors []*common.PrometheusResponseDataVector) common.L
 
 		names := rPattern.FindAllString(name, -1)
 		if len(names) == 0 {
-			h.appendURL(name, ret, v.Labels, rExclusion, rNoSSL)
+			h.appendURL(name, ret, v.Labels, rExclusion, rNoSSL, fls)
 			continue
 		}
 
 		for _, k := range names {
-			h.appendURL(k, ret, v.Labels, rExclusion, rNoSSL)
+			h.appendURL(k, ret, v.Labels, rExclusion, rNoSSL, fls)
 		}
 	}
 	return ret
