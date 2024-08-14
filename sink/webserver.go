@@ -18,14 +18,16 @@ import (
 )
 
 type WebServerOptions struct {
-	ServerName string
-	Listen     string
-	Tls        bool
-	Insecure   bool
-	Cert       string
-	Key        string
-	Chain      string
-	Providers  []string
+	ServerName           string
+	Listen               string
+	Tls                  bool
+	Insecure             bool
+	Cert                 string
+	Key                  string
+	Chain                string
+	ConfigMetricsLinux   string
+	ConfigMetricsWindows string
+	Providers            []string
 }
 
 type WebServerProcessor = func(w http.ResponseWriter, r *http.Request) error
@@ -127,6 +129,18 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 
 	base := strings.ToLower("Files")
 	path := ws.getPath("configs", r.URL.Path)
+
+	if ext := strings.LastIndex(path, "."); ext == -1 {
+		switch path {
+		case "/metrics-linux":
+			path = "/" + ws.options.ConfigMetricsLinux
+		case "/metrics-windows":
+			path = "/" + ws.options.ConfigMetricsWindows
+		default:
+			return fmt.Errorf("WebServer couldn't find a config file for this path: %s", path)
+		}
+	}
+
 	name := fmt.Sprintf("%s%s", base, path)
 
 	obj, _ := ws.objects.Load(name)
