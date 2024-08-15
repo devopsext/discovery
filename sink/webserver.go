@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -18,16 +19,14 @@ import (
 )
 
 type WebServerOptions struct {
-	ServerName           string
-	Listen               string
-	Tls                  bool
-	Insecure             bool
-	Cert                 string
-	Key                  string
-	Chain                string
-	ConfigMetricsLinux   string
-	ConfigMetricsWindows string
-	Providers            []string
+	ServerName string
+	Listen     string
+	Tls        bool
+	Insecure   bool
+	Cert       string
+	Key        string
+	Chain      string
+	Providers  []string
 }
 
 type WebServerProcessor = func(w http.ResponseWriter, r *http.Request) error
@@ -86,19 +85,16 @@ func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error
 	}
 
 	if utils.IsEmpty(obj) {
-		msg := fmt.Sprintf("WebServer couldn't find %s file: %s", base, name)
-		return fmt.Errorf(msg)
+		return fmt.Errorf("WebServer couldn't find %s file: %s", base, name)
 	}
 
 	file, ok := obj.(*discovery.PubSubMessagePayloadFile)
 	if !ok {
-		msg := fmt.Sprintf("WebServer %s has wrong file: %s", base, name)
-		return fmt.Errorf(msg)
+		return fmt.Errorf("WebServer %s has wrong file: %s", base, name)
 	}
 
 	if _, err := w.Write(file.Data); err != nil {
-		msg := fmt.Sprintf("WebServer couldn't write %s file: %s", base, name)
-		return fmt.Errorf(msg)
+		return fmt.Errorf("WebServer couldn't write %s file: %s", base, name)
 	}
 	return nil
 }
@@ -127,24 +123,22 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 
 	var content []byte
 
-	base := strings.ToLower("Files")
+	base := "files"
 	path := ws.getPath("configs", r.URL.Path)
+	path = strings.TrimLeft(path, "/")
 
-	if ext := strings.LastIndex(path, "."); ext == -1 {
-		switch path {
-		case "/metrics-linux":
-			path = "/" + ws.options.ConfigMetricsLinux
-		case "/metrics-windows":
-			path = "/" + ws.options.ConfigMetricsWindows
-		default:
-			return fmt.Errorf("WebServer couldn't find a config file for this path: %s", path)
-		}
+	// if path is a directory and default.conf
+	if path[len(path)-1] == '/' {
+		path = filepath.Join(path, "default.conf")
 	}
 
-	name := fmt.Sprintf("%s%s", base, path)
+	// convert path like /metrics/windows/telegraf.conf -> /metrics-windows-telegraf.conf
+	path = strings.ReplaceAll(path, "/", "-")
 
-	obj, _ := ws.objects.Load(name)
-	if utils.IsEmpty(obj) {
+	name := filepath.Join(base, path)
+
+	obj, ok := ws.objects.Load(name)
+	if !ok || utils.IsEmpty(obj) {
 		return fmt.Errorf("WebServer couldn't load %s for %s", base, name)
 	}
 
