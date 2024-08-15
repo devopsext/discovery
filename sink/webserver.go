@@ -59,8 +59,8 @@ func (ws *WebServer) Process(d common.Discovery, so common.SinkObject) {
 }
 
 func (ws *WebServer) getPath(base, url string) string {
-	path := strings.TrimLeft(url, "/")
-	return strings.Replace(path, base, "", 1)
+	upath := strings.TrimLeft(url, "/")
+	return strings.Replace(upath, base, "", 1)
 }
 
 func (ws *WebServer) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
@@ -76,8 +76,8 @@ func (ws *WebServer) render(tpl *toolsRender.TextTemplate, def string, obj inter
 func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error {
 
 	base := strings.ToLower("PubSub")
-	path := ws.getPath(base, r.URL.Path)
-	name := fmt.Sprintf("%s%s", base, path)
+	upath := ws.getPath(base, r.URL.Path)
+	name := path.Join(base, upath)
 
 	obj, _ := ws.objects.Load(name)
 	if utils.IsEmpty(obj) {
@@ -102,8 +102,8 @@ func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error
 func (ws *WebServer) processFiles(w http.ResponseWriter, r *http.Request) error {
 
 	base := strings.ToLower("Files")
-	path := ws.getPath(base, r.URL.Path)
-	name := fmt.Sprintf("%s%s", base, path)
+	upath := ws.getPath(base, r.URL.Path)
+	name := path.Join(base, upath)
 
 	obj, _ := ws.objects.Load(name)
 	if utils.IsEmpty(obj) {
@@ -124,18 +124,18 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 	var content []byte
 
 	base := "files"
-	p := ws.getPath("configs", r.URL.Path)
-	p = strings.TrimLeft(p, "/")
+	upath := ws.getPath("configs", r.URL.Path)
+	upath = strings.TrimLeft(upath, "/")
 
-	// if path is a directory and default.conf
-	if p[len(p)-1] == '/' {
-		p = path.Join(p, "default.conf")
+	// if path is not a file - return the default config
+	if ext := strings.LastIndex(upath, "."); ext == -1 {
+		upath = path.Join(upath, "default.conf.tmpl")
 	}
 
-	// convert path like /metrics/windows/telegraf.conf -> /metrics-windows-telegraf.conf
-	p = strings.ReplaceAll(p, "/", "-")
+	// convert path like /metrics/windows/telegraf.conf -> /metrics_windows_telegraf.conf
+	upath = strings.ReplaceAll(upath, "/", "_")
 
-	name := path.Join(base, p)
+	name := path.Join(base, upath)
 
 	obj, ok := ws.objects.Load(name)
 	if !ok || utils.IsEmpty(obj) {
