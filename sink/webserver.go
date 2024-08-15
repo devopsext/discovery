@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"sync"
 
@@ -18,16 +19,14 @@ import (
 )
 
 type WebServerOptions struct {
-	ServerName           string
-	Listen               string
-	Tls                  bool
-	Insecure             bool
-	Cert                 string
-	Key                  string
-	Chain                string
-	ConfigMetricsLinux   string
-	ConfigMetricsWindows string
-	Providers            []string
+	ServerName string
+	Listen     string
+	Tls        bool
+	Insecure   bool
+	Cert       string
+	Key        string
+	Chain      string
+	Providers  []string
 }
 
 type WebServerProcessor = func(w http.ResponseWriter, r *http.Request) error
@@ -60,8 +59,8 @@ func (ws *WebServer) Process(d common.Discovery, so common.SinkObject) {
 }
 
 func (ws *WebServer) getPath(base, url string) string {
-	path := strings.TrimLeft(url, "/")
-	return strings.Replace(path, base, "", 1)
+	upath := strings.TrimLeft(url, "/")
+	return strings.Replace(upath, base, "", 1)
 }
 
 func (ws *WebServer) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
@@ -77,8 +76,8 @@ func (ws *WebServer) render(tpl *toolsRender.TextTemplate, def string, obj inter
 func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error {
 
 	base := strings.ToLower("PubSub")
-	path := ws.getPath(base, r.URL.Path)
-	name := fmt.Sprintf("%s%s", base, path)
+	upath := ws.getPath(base, r.URL.Path)
+	name := path.Join(base, upath)
 
 	obj, _ := ws.objects.Load(name)
 	if utils.IsEmpty(obj) {
@@ -86,19 +85,16 @@ func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error
 	}
 
 	if utils.IsEmpty(obj) {
-		msg := fmt.Sprintf("WebServer couldn't find %s file: %s", base, name)
-		return fmt.Errorf(msg)
+		return fmt.Errorf("WebServer couldn't find %s file: %s", base, name)
 	}
 
 	file, ok := obj.(*discovery.PubSubMessagePayloadFile)
 	if !ok {
-		msg := fmt.Sprintf("WebServer %s has wrong file: %s", base, name)
-		return fmt.Errorf(msg)
+		return fmt.Errorf("WebServer %s has wrong file: %s", base, name)
 	}
 
 	if _, err := w.Write(file.Data); err != nil {
-		msg := fmt.Sprintf("WebServer couldn't write %s file: %s", base, name)
-		return fmt.Errorf(msg)
+		return fmt.Errorf("WebServer couldn't write %s file: %s", base, name)
 	}
 	return nil
 }
@@ -106,8 +102,8 @@ func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error
 func (ws *WebServer) processFiles(w http.ResponseWriter, r *http.Request) error {
 
 	base := strings.ToLower("Files")
-	path := ws.getPath(base, r.URL.Path)
-	name := fmt.Sprintf("%s%s", base, path)
+	upath := ws.getPath(base, r.URL.Path)
+	name := path.Join(base, upath)
 
 	obj, _ := ws.objects.Load(name)
 	if utils.IsEmpty(obj) {
@@ -127,24 +123,22 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 
 	var content []byte
 
-	base := strings.ToLower("Files")
-	path := ws.getPath("configs", r.URL.Path)
+	base := "files"
+	upath := ws.getPath("configs", r.URL.Path)
+	upath = strings.TrimLeft(upath, "/")
 
-	if ext := strings.LastIndex(path, "."); ext == -1 {
-		switch path {
-		case "/metrics-linux":
-			path = "/" + ws.options.ConfigMetricsLinux
-		case "/metrics-windows":
-			path = "/" + ws.options.ConfigMetricsWindows
-		default:
-			return fmt.Errorf("WebServer couldn't find a config file for this path: %s", path)
-		}
+	// if path is not a file - return the default config
+	if ext := strings.LastIndex(upath, "."); ext == -1 {
+		upath = path.Join(upath, "default.conf.tmpl")
 	}
 
-	name := fmt.Sprintf("%s%s", base, path)
+	// convert path like /metrics/windows/telegraf.conf -> /metrics_windows_telegraf.conf
+	upath = strings.ReplaceAll(upath, "/", "_")
 
-	obj, _ := ws.objects.Load(name)
-	if utils.IsEmpty(obj) {
+	name := path.Join(base, upath)
+
+	obj, ok := ws.objects.Load(name)
+	if !ok || utils.IsEmpty(obj) {
 		return fmt.Errorf("WebServer couldn't load %s for %s", base, name)
 	}
 
@@ -178,8 +172,7 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 	modTime := fileInfo.ModTime().UTC()
 	w.Header().Set("Last-Modified", modTime.Format(http.TimeFormat))
 	if _, err := w.Write([]byte(telegrafConfig)); err != nil {
-		msg := fmt.Sprintf("WebServer couldn't write the config file: %s", name)
-		return fmt.Errorf(msg)
+		return fmt.Errorf("WebServer couldn't write the config file: %s", name)
 	}
 	return nil
 }

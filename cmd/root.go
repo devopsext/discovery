@@ -338,15 +338,13 @@ var sinkPubSubOptions = sink.PubSubOptions{
 }
 
 var sinkWebServerOptions = sink.WebServerOptions{
-	ServerName:           envGet("SINK_WEBSERVER_SERVER_NAME", "").(string),
-	Listen:               envGet("SINK_WEBSERVER_LISTEN", "").(string),
-	Tls:                  envGet("SINK_WEBSERVER_TLS", false).(bool),
-	Insecure:             envGet("SINK_WEBSERVER_INSECURE", false).(bool),
-	Cert:                 envGet("SINK_WEBSERVER_CERT", "").(string),
-	Key:                  envGet("SINK_WEBSERVER_KEY", "").(string),
-	Chain:                envGet("SINK_WEBSERVER_CHAIN", "").(string),
-	ConfigMetricsLinux:   envGet("SINK_WEBSERVER_CONFIG_METRICS_LINUX", "").(string),
-	ConfigMetricsWindows: envGet("SINK_WEBSERVER_CONFIG_METRICS_WINDOWS", "").(string),
+	ServerName: envGet("SINK_WEBSERVER_SERVER_NAME", "").(string),
+	Listen:     envGet("SINK_WEBSERVER_LISTEN", "").(string),
+	Tls:        envGet("SINK_WEBSERVER_TLS", false).(bool),
+	Insecure:   envGet("SINK_WEBSERVER_INSECURE", false).(bool),
+	Cert:       envGet("SINK_WEBSERVER_CERT", "").(string),
+	Key:        envGet("SINK_WEBSERVER_KEY", "").(string),
+	Chain:      envGet("SINK_WEBSERVER_CHAIN", "").(string),
 
 	Providers: strings.Split(envStringExpand("SINK_WEBSERVER_PROVIDERS", ""), ","),
 }
@@ -799,8 +797,6 @@ func Execute() {
 	flags.StringVar(&sinkWebServerOptions.Key, "sink-webserver-key", sinkWebServerOptions.Key, "WebServer sink key file or content")
 	flags.StringVar(&sinkWebServerOptions.Chain, "sink-webserver-chain", sinkWebServerOptions.Chain, "WebServer sink CA chain file or content")
 	flags.StringSliceVar(&sinkWebServerOptions.Providers, "sink-webserver-providers", sinkWebServerOptions.Providers, "WebServer sink providers through")
-	flags.StringVar(&sinkWebServerOptions.ConfigMetricsLinux, "sink-webserver-config-metrics-linux", sinkWebServerOptions.ConfigMetricsLinux, "WebServer default config for linux Metrics")
-	flags.StringVar(&sinkWebServerOptions.ConfigMetricsWindows, "sink-webserver-config-metrics-windows", sinkWebServerOptions.ConfigMetricsWindows, "WebServer default config for windows Metrics")
 
 	interceptSyscall()
 

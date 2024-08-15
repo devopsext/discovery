@@ -45,6 +45,7 @@ signal.vars.tpl
 pubsub-catalog.json
 .assets
 .pubsub
+.files
 processor.tpl
 _signal.telegraf.tags copy.tpl
 _signal.vars copy.tpl
