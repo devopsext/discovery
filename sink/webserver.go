@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"sync"
 
@@ -124,18 +124,18 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 	var content []byte
 
 	base := "files"
-	path := ws.getPath("configs", r.URL.Path)
-	path = strings.TrimLeft(path, "/")
+	p := ws.getPath("configs", r.URL.Path)
+	p = strings.TrimLeft(p, "/")
 
 	// if path is a directory and default.conf
-	if path[len(path)-1] == '/' {
-		path = filepath.Join(path, "default.conf")
+	if p[len(p)-1] == '/' {
+		p = path.Join(p, "default.conf")
 	}
 
 	// convert path like /metrics/windows/telegraf.conf -> /metrics-windows-telegraf.conf
-	path = strings.ReplaceAll(path, "/", "-")
+	p = strings.ReplaceAll(p, "/", "-")
 
-	name := filepath.Join(base, path)
+	name := path.Join(base, p)
 
 	obj, ok := ws.objects.Load(name)
 	if !ok || utils.IsEmpty(obj) {
