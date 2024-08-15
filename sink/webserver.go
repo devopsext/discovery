@@ -172,8 +172,7 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 	modTime := fileInfo.ModTime().UTC()
 	w.Header().Set("Last-Modified", modTime.Format(http.TimeFormat))
 	if _, err := w.Write([]byte(telegrafConfig)); err != nil {
-		msg := fmt.Sprintf("WebServer couldn't write the config file: %s", name)
-		return fmt.Errorf(msg)
+		return fmt.Errorf("WebServer couldn't write the config file: %s", name)
 	}
 	return nil
 }
