@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"crypto/tls"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -19,19 +20,21 @@ type LdapGlobalOptions struct {
 }
 
 type LdapOptions struct {
-	Timeout    int
-	Insecure   bool
-	URL        string
-	User       string
-	Password   string
-	Token      string
-	BaseDN     string
-	Domain     string
-	Scope      int //ScopeBaseObject   = 0 ScopeSingleLevel  = 1 ScopeWholeSubtree = 2
-	Filter     string
-	Attributes []string
-	Schedule   string
-	Cert       string
+	Timeout      int
+	Insecure     bool
+	URL          string
+	User         string
+	Password     string
+	Token        string
+	BaseDN       string
+	Domain       string
+	Scope        int //ScopeBaseObject   = 0 ScopeSingleLevel  = 1 ScopeWholeSubtree = 2
+	Filter       string
+	Attributes   []string
+	Fields       map[string]string
+	Schedule     string
+	Cert         string
+	KeepDisabled bool
 }
 
 type Ldap struct {
@@ -64,8 +67,7 @@ func (ld *Ldap) Source() string {
 }
 
 func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.Logger) ([]LdapOptions, error) {
-	//TODO parse config string into array of ldapoptions
-	//user=asdfasdf|pass=asdfasdf|source=asdfsd|country=c|vendor=provider|attributes=asdfasdf!asdasdf!asdfasdf;user=zxcvzxcv|pass=zxcvzxcv|source=zxcvzxv|country=c1|vendor=ven
+	//config is something like: user=asdfasdf|pass=asdfasdf|source=asdfsd|country=c|vendor=provider|attributes=asdfasdf!asdasdf!asdfasdf;user=zxcvzxcv|pass=zxcvzxcv|source=zxcvzxv|country=c1|vendor=ven
 	var optionsArray []LdapOptions
 	for _, target := range strings.Split(strings.TrimSpace(GlobalOptions.ConfigString), ";") {
 		var options LdapOptions
@@ -85,7 +87,22 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 		options.Domain = m["domain"]
 		options.Scope, _ = strconv.Atoi(m["scope"]) //ScopeBaseObject   = 0 ScopeSingleLevel  = 1 ScopeWholeSubtree = 2
 		options.Filter = m["filter"]
-		options.Attributes = strings.Split(m["attributes"], "!")
+		options.Fields = make(map[string]string)
+		options.Fields["Host"] = strings.ToLower(m["host"])
+		options.Fields["Vendor"] = strings.ToLower(m["vendor"])
+		options.Fields["OS"] = strings.ToLower(m["os"])
+		options.Fields["Cluster"] = strings.ToLower(m["cluster"])
+		options.Fields["Server"] = strings.ToLower(m["server"])
+		if keepdisabled, ok := strconv.ParseBool(m["keepdisabled"]); ok != nil { // drop disabled objects (default) or keep them in the output
+			options.KeepDisabled = keepdisabled
+		} else {
+			options.KeepDisabled = false
+		}
+		options.Attributes = []string{"name"} //we always need name
+		for _, v := range options.Fields {    // and all the fields we are using to extract data
+			options.Attributes = append(options.Attributes, v)
+		}
+
 		if schedule, ok := m["schedule"]; ok { // to be able to override schedule for some targets
 			options.Schedule = schedule
 		} else {
@@ -110,10 +127,14 @@ func (ld *Ldap) CustomGetObjects(options LdapOptions) (map[string]map[string]str
 		return nil, err
 	}
 
+	fullFilter := fmt.Sprintf("(&%s(objectClass=computer))", options.Filter) //filter computers only
+	if !options.KeepDisabled {
+		fullFilter = fmt.Sprintf("(&%s(!(userAccountControl:1.2.840.113556.1.4.803:=2))(objectClass=computer))", options.Filter) // this monster after useracccontrol is just OID for "bitwise and". it's how disabled objects are filtered out in AD
+	}
 	query := &ldap.SearchRequest{
 		BaseDN:     options.BaseDN,
 		Scope:      options.Scope,
-		Filter:     options.Filter,
+		Filter:     fullFilter,
 		Attributes: options.Attributes,
 	}
 
@@ -126,9 +147,9 @@ func (ld *Ldap) CustomGetObjects(options LdapOptions) (map[string]map[string]str
 	for _, object := range searchResults.Entries {
 		attrs := make(map[string]string)
 		for _, attr := range object.Attributes {
-			attrs[attr.Name] = strings.Join(attr.Values, ",")
+			attrs[strings.ToLower(attr.Name)] = strings.Join(attr.Values, ",")
 		}
-		objects[object.DN] = attrs
+		objects[object.GetAttributeValue("name")] = attrs
 	}
 	return objects, nil
 }
@@ -137,18 +158,18 @@ func (ld *Ldap) GetObjects() (map[string]map[string]string, error) {
 	return ld.CustomGetObjects(ld.options)
 }
 
-func (ld *Ldap) makeObjectSinkMap(mtsat map[string]map[string]string) common.SinkMap {
+func (ld *Ldap) makeObjectSinkMap(objects map[string]map[string]string) common.SinkMap {
 
 	r := make(common.SinkMap)
 
-	for k, v := range mtsat {
+	for _, v := range objects {
 
-		r[k] = common.MergeLabels(common.Labels{
-			"ParentObject": v["location"], //don't ask why
-			"Vendor":       v["Provider"],
-			"os":           v["operatingSystem"],
-			"country":      v["c"],
-			"location":     v["l"],
+		common.AppendHostSink(r, v["name"], common.HostSink{
+			Host:    v[ld.options.Fields["Host"]],
+			Vendor:  v[ld.options.Fields["Vendor"]],
+			OS:      v[ld.options.Fields["OS"]],
+			Cluster: v[ld.options.Fields["Cluster"]],
+			Server:  v[ld.options.Fields["Server"]],
 		})
 	}
 	return r
@@ -166,7 +187,8 @@ func (ld *Ldap) Discover() {
 
 	l := len(data)
 	if l == 0 {
-		ld.logger.Debug("Ldap %s has no objects according to BaseDN, filter and scope.", ld.options.URL)
+		ld.logger.Debug("Ldap %s@%s has no objects according to BaseDN, filter and scope.", ld.options.Domain, ld.options.URL)
+		return
 	}
 
 	objects := ld.makeObjectSinkMap(data)
