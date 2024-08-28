@@ -103,6 +103,8 @@ func (ps *PubSub) decompress(pl *PubSubMessagePayload) ([]byte, error) {
 			return nil, err
 		}
 		data = d
+	case PubSubMessagePayloadCompressionNone:
+		data = pl.Data
 	}
 	return data, nil
 }
@@ -187,6 +189,8 @@ func (ps *PubSub) Discover() {
 					name := filepath.Base(f.Path)
 					m[name] = f
 				}
+			case PubSubMessagePayloadKindUnknown:
+				ps.logger.Error("PubSub couldn't process unknown payload %s from %s", k, subID)
 			}
 		}
 		msg.Ack()

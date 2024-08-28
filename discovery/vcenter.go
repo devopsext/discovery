@@ -256,7 +256,11 @@ func (vc *VCenter) Discover() {
 
 	// switch to session
 	opts := toolsVendors.VCenterOptions{}
-	copier.CopyWithOption(&opts, &vc.options.VCenterOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+	err = copier.CopyWithOption(&opts, &vc.options.VCenterOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+	if err != nil {
+		vc.logger.Error(err)
+		return
+	}
 	opts.Password = ""
 	opts.User = ""
 	opts.Session = session

@@ -188,10 +188,10 @@ var dK8sOptions = discovery.K8sOptions{
 }
 
 var dLdapOptions = discovery.LdapGlobalOptions{
-	ConfigString:    envStringExpand("LDAP_CONFIGSTRING", ""),
-	Timeout:         envGet("LDAP_TIMEOUT", 30).(int),
-	Insecure:        envGet("LDAP_INSECURE", false).(bool),
-	Schedule:        envGet("LDAP_SCHEDULE", "").(string),
+	ConfigString: envStringExpand("LDAP_CONFIGSTRING", ""),
+	Timeout:      envGet("LDAP_TIMEOUT", 30).(int),
+	Insecure:     envGet("LDAP_INSECURE", false).(bool),
+	Schedule:     envGet("LDAP_SCHEDULE", "").(string),
 }
 
 var dPubSubOptions = discovery.PubSubOptions{
@@ -404,7 +404,10 @@ func runSchedule(s *gocron.Scheduler, schedule string, wait bool, jobFun interfa
 	if wait {
 		ss = ss.WaitForSchedule()
 	}
-	ss.Do(jobFun)
+	_, err := ss.Do(jobFun)
+	if err != nil {
+		logs.Error("Schedule error: %s", err)
+	}
 }
 
 func runStandAloneDiscovery(wg *sync.WaitGroup, discovery common.Discovery, logger *sreCommon.Logs) {
@@ -518,7 +521,11 @@ func Execute() {
 
 				// create opts based on global prometheus options
 				opts := common.PrometheusOptions{}
-				copier.CopyWithOption(&opts, &dPrometheusOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+				err := copier.CopyWithOption(&opts, &dPrometheusOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+				if err != nil {
+					logger.Error("Prometheus copy error: %s", err)
+					continue
+				}
 
 				// render prometheus URL
 				m := make(map[string]string)
@@ -553,7 +560,7 @@ func Execute() {
 			runSimpleDiscovery(wg, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
 			//get list of ldap discovery targets
-			ldapTargets, err := discovery.GetLdapDiscoveryTargets(dLdapOptions,obs.Logs())
+			ldapTargets, err := discovery.GetLdapDiscoveryTargets(dLdapOptions, obs.Logs())
 			if err == nil {
 				for _, ldapTarget := range ldapTargets {
 					runSimpleDiscovery(wg, scheduler, ldapTarget.Schedule, discovery.NewLdap(ldapTarget, obs, processors), logger)

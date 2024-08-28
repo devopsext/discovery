@@ -78,7 +78,7 @@ func (ld *Ldap) PrepareLabels(data map[string]string) common.Labels {
 }
 
 func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.Logger) ([]LdapOptions, error) {
-	//config is something like: 
+	//config is something like:
 	//"url=localhost:8889|kind=DC|user=CN=user,DC=domain,DC=com|password=***|basedn=OU=servers,DC=domain,DC=com|scope=2|filter=(location=*)|f:parent=realdns|f:country=c|f:city=l|f:vendor=Provider|f:os=OperatingSystem|f:host=dnshostname;<second config>;<third config>...",
 
 	var optionsArray []LdapOptions
@@ -92,7 +92,7 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 			if found {
 				if (len(name) > 2) && (name[:2] == "f:") { //if name of conf parameter starts with 'f:' - it's field config (checking that at least 1 symbol will be left after removing 'f:' from name)
 					fieldconf[name[2:]] = value
-				} else {									// just a regular config
+				} else { // just a regular config
 					conf[name] = value
 				}
 			}
@@ -106,7 +106,7 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 		options.Kind = conf["kind"]
 		options.Scope, _ = strconv.Atoi(conf["scope"]) //ScopeBaseObject   = 0 ScopeSingleLevel  = 1 ScopeWholeSubtree = 2
 		options.Filter = conf["filter"]
-		
+
 		// fields and attributes
 		options.Fields = make(map[string]string)
 		for k, v := range fieldconf {
@@ -120,7 +120,7 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 
 		// overriding globals if respective config present
 		if _, ok := conf["discoverdisabled"]; ok { // drop disabled objects (default) or keep them in the output
-			if discoverDisabled, ok := strconv.ParseBool(conf["discoverdisabled"]); ok != nil { 
+			if discoverDisabled, ok := strconv.ParseBool(conf["discoverdisabled"]); ok != nil {
 				options.DiscoverDisabled = discoverDisabled
 			}
 		} else {
@@ -134,7 +134,7 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 		}
 
 		if _, ok := conf["insecure"]; ok { // to be able to override insecure for some targets
-			if insecure, ok := strconv.ParseBool(conf["insecure"]); ok !=nil {
+			if insecure, ok := strconv.ParseBool(conf["insecure"]); ok != nil {
 				options.Insecure = insecure
 			}
 		} else {
@@ -148,6 +148,7 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 
 func (ld *Ldap) CustomGetObjects(options LdapOptions) (map[string]map[string]string, error) {
 	// connect
+	// TODO: Replace with ldap.DialURL
 	conn, err := ldap.DialTLS("tcp", options.URL, &tls.Config{InsecureSkipVerify: ld.options.Insecure})
 	if err != nil {
 		return nil, err
@@ -198,7 +199,7 @@ func (ld *Ldap) makeObjectSinkMap(objects map[string]map[string]string) common.S
 	for k, v := range objects {
 
 		r[k] = ld.PrepareLabels(v)
-		
+
 	}
 	return r
 }

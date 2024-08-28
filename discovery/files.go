@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,7 +13,7 @@ import (
 	"github.com/devopsext/utils"
 	"gopkg.in/fsnotify.v1"
 
-	gojq "github.com/itchyny/gojq"
+	"github.com/itchyny/gojq"
 )
 
 type FileProvider struct {
@@ -100,7 +101,8 @@ func (p *FileProvider) filter(obj interface{}, q string) interface{} {
 			break
 		}
 		if err, ok := v.(error); ok {
-			if err, ok := err.(*gojq.HaltError); ok && err.Value() == nil {
+			var haltErr *gojq.HaltError
+			if errors.As(err, &haltErr) && haltErr.Value() == nil {
 				break
 			}
 			p.logger.Error("Files couldn't filter object error: %s", err)
@@ -237,7 +239,7 @@ func (d *Files) Discover() {
 		if err != nil {
 			d.logger.Error("Files couldn't watch folder: %s due to error: %s", v, err)
 		}
-		filepath.Walk(v, func(path string, info os.FileInfo, err error) error {
+		err = filepath.Walk(v, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
 			}
@@ -247,6 +249,9 @@ func (d *Files) Discover() {
 			}
 			return nil
 		})
+		if err != nil {
+			d.logger.Error("Files couldn't walk folder: %s due to error: %s", v, err)
+		}
 	}
 
 	// run it first

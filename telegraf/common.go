@@ -125,7 +125,7 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Object, labelsTpl s
 
 func (tc *Config) GenerateInputDNSQueryBytes(opts InputDNSQueryOptions, domains map[string]common.Labels) ([]byte, error) {
 
-	servers := []string{}
+	servers := make([]string, 0)
 	arr := strings.Split(opts.Servers, ",")
 	for _, s := range arr {
 		s := strings.TrimSpace(s)
