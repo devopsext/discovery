@@ -187,10 +187,10 @@ var dK8sOptions = discovery.K8sOptions{
 }
 
 var dLdapOptions = discovery.LdapGlobalOptions{
-	ConfigString:    envStringExpand("LDAP_CONFIGSTRING", ""),
-	Timeout:         envGet("LDAP_TIMEOUT", 30).(int),
-	Insecure:        envGet("LDAP_INSECURE", false).(bool),
-	Schedule:        envGet("LDAP_SCHEDULE", "").(string),
+	ConfigString: envStringExpand("LDAP_CONFIGSTRING", ""),
+	Timeout:      envGet("LDAP_TIMEOUT", 30).(int),
+	Insecure:     envGet("LDAP_INSECURE", false).(bool),
+	Schedule:     envGet("LDAP_SCHEDULE", "").(string),
 }
 
 var dPubSubOptions = discovery.PubSubOptions{
@@ -552,7 +552,7 @@ func Execute() {
 			runSimpleDiscovery(wg, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
 			//get list of ldap discovery targets
-			ldapTargets, err := discovery.GetLdapDiscoveryTargets(dLdapOptions,obs.Logs())
+			ldapTargets, err := discovery.GetLdapDiscoveryTargets(dLdapOptions, obs.Logs())
 			if err == nil {
 				for _, ldapTarget := range ldapTargets {
 					runSimpleDiscovery(wg, scheduler, ldapTarget.Schedule, discovery.NewLdap(ldapTarget, obs, processors), logger)
@@ -694,7 +694,11 @@ func Execute() {
 	flags.StringVar(&dK8sOptions.Environment, "k8s-env", dK8sOptions.Environment, "K8s discovery environment (test/prod/etc…)")
 	flags.StringVar(&dK8sOptions.Config, "k8s-config", dK8sOptions.Config, "K8s discovery kube config")
 
-	//TODO flags for LDAP discovery
+	// LDAP
+	flags.StringVar(&dLdapOptions.ConfigString, "ldap-config", dLdapOptions.ConfigString, "LDAP discovery config")
+	flags.StringVar(&dLdapOptions.Schedule, "ldap-schedule", dLdapOptions.Schedule, "LDAP discovery schedule")
+	flags.IntVar(&dLdapOptions.Timeout, "ldap-timeout", dLdapOptions.Timeout, "LDAP discovery timeout")
+	flags.BoolVar(&dLdapOptions.Insecure, "ldap-insecure", dLdapOptions.Insecure, "LDAP discovery insecure")
 
 	// PubSub
 	flags.StringVar(&dPubSubOptions.Credentials, "pubsub-credentials", dPubSubOptions.Credentials, "Credentials for PubSub")
