@@ -189,6 +189,7 @@ var dK8sOptions = discovery.K8sOptions{
 
 var dLdapOptions = discovery.LdapGlobalOptions{
 	ConfigString: envStringExpand("LDAP_CONFIGSTRING", ""),
+	Password:     envStringExpand("LDAP_PASSWORD", ""),
 	Timeout:      envGet("LDAP_TIMEOUT", 30).(int),
 	Insecure:     envGet("LDAP_INSECURE", false).(bool),
 	Schedule:     envGet("LDAP_SCHEDULE", "").(string),
@@ -566,7 +567,6 @@ func Execute() {
 					runSimpleDiscovery(wg, scheduler, ldapTarget.Schedule, discovery.NewLdap(ldapTarget, obs, processors), logger)
 				}
 			}
-			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
 
 			scheduler.StartAsync()
 
@@ -705,6 +705,7 @@ func Execute() {
 
 	// LDAP
 	flags.StringVar(&dLdapOptions.ConfigString, "ldap-config", dLdapOptions.ConfigString, "LDAP discovery config")
+	flags.StringVar(&dLdapOptions.Password, "ldap-password", dLdapOptions.Password, "LDAP discovery password")
 	flags.IntVar(&dLdapOptions.Timeout, "ldap-timeout", dLdapOptions.Timeout, "LDAP discovery timeout")
 	flags.BoolVar(&dLdapOptions.Insecure, "ldap-insecure", dLdapOptions.Insecure, "LDAP discovery insecure")
 	flags.StringVar(&dLdapOptions.Schedule, "ldap-schedule", dLdapOptions.Schedule, "LDAP discovery schedule")
