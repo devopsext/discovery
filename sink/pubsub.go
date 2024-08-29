@@ -79,7 +79,7 @@ func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
 
 	case "Labels":
 
-		arr := []PubSubLabels{}
+		arr := make([]PubSubLabels, 0)
 		for _, v := range so.Map() {
 			ks, ok := v.(common.Labels)
 			if !ok {

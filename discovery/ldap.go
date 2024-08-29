@@ -14,6 +14,7 @@ import (
 
 type LdapGlobalOptions struct {
 	ConfigString string
+	Password     string // get separately
 	Timeout      int
 	Insecure     bool
 	Schedule     string
@@ -78,7 +79,7 @@ func (ld *Ldap) PrepareLabels(data map[string]string) common.Labels {
 }
 
 func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.Logger) ([]LdapOptions, error) {
-	//config is something like: 
+	//config is something like:
 	//"url=localhost:8889|kind=DC|user=CN=user,DC=domain,DC=com|password=***|basedn=OU=servers,DC=domain,DC=com|scope=2|filter=(location=*)|f:parent=realdns|f:country=c|f:city=l|f:vendor=Provider|f:os=OperatingSystem|f:host=dnshostname;<second config>;<third config>...",
 
 	var optionsArray []LdapOptions
@@ -92,7 +93,7 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 			if found {
 				if (len(name) > 2) && (name[:2] == "f:") { //if name of conf parameter starts with 'f:' - it's field config (checking that at least 1 symbol will be left after removing 'f:' from name)
 					fieldconf[name[2:]] = value
-				} else {									// just a regular config
+				} else { // just a regular config
 					conf[name] = value
 				}
 			}
@@ -101,12 +102,12 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 		options.URL = conf["url"]
 		options.Timeout = GlobalOptions.Timeout
 		options.User = conf["user"]
-		options.Password = conf["password"]
+		options.Password = GlobalOptions.Password
 		options.BaseDN = conf["basedn"]
 		options.Kind = conf["kind"]
 		options.Scope, _ = strconv.Atoi(conf["scope"]) //ScopeBaseObject   = 0 ScopeSingleLevel  = 1 ScopeWholeSubtree = 2
 		options.Filter = conf["filter"]
-		
+
 		// fields and attributes
 		options.Fields = make(map[string]string)
 		for k, v := range fieldconf {
@@ -120,7 +121,7 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 
 		// overriding globals if respective config present
 		if _, ok := conf["discoverdisabled"]; ok { // drop disabled objects (default) or keep them in the output
-			if discoverDisabled, ok := strconv.ParseBool(conf["discoverdisabled"]); ok != nil { 
+			if discoverDisabled, ok := strconv.ParseBool(conf["discoverdisabled"]); ok != nil {
 				options.DiscoverDisabled = discoverDisabled
 			}
 		} else {
@@ -134,7 +135,7 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 		}
 
 		if _, ok := conf["insecure"]; ok { // to be able to override insecure for some targets
-			if insecure, ok := strconv.ParseBool(conf["insecure"]); ok !=nil {
+			if insecure, ok := strconv.ParseBool(conf["insecure"]); ok != nil {
 				options.Insecure = insecure
 			}
 		} else {
@@ -146,29 +147,30 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 	return optionsArray, nil //TODO catch possible errors and bail out
 }
 
-func (ld *Ldap) CustomGetObjects(options LdapOptions) (map[string]map[string]string, error) {
+func (ld *Ldap) CustomGetObjects() (map[string]map[string]string, error) {
 	// connect
-	conn, err := ldap.DialTLS("tcp", options.URL, &tls.Config{InsecureSkipVerify: ld.options.Insecure})
+	// TODO: Replace with ldap.DialURL
+	conn, err := ldap.DialTLS("tcp", ld.options.URL, &tls.Config{InsecureSkipVerify: ld.options.Insecure})
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 
 	//bind
-	err = conn.Bind(options.User, options.Password)
+	err = conn.Bind(ld.options.User, ld.options.Password)
 	if err != nil {
 		return nil, err
 	}
 
-	fullFilter := fmt.Sprintf("(&%s(objectClass=computer))", options.Filter) //filter computers only
-	if !options.DiscoverDisabled {
-		fullFilter = fmt.Sprintf("(&%s(!(userAccountControl:1.2.840.113556.1.4.803:=2))(objectClass=computer))", options.Filter) // this monster after useracccontrol is just OID for "bitwise and". it's how disabled objects are filtered out in AD
+	fullFilter := fmt.Sprintf("(&%s(objectClass=computer))", ld.options.Filter) //filter computers only
+	if !ld.options.DiscoverDisabled {
+		fullFilter = fmt.Sprintf("(&%s(!(userAccountControl:1.2.840.113556.1.4.803:=2))(objectClass=computer))", ld.options.Filter) // this monster after useracccontrol is just OID for "bitwise and". it's how disabled objects are filtered out in AD
 	}
 	query := &ldap.SearchRequest{
-		BaseDN:     options.BaseDN,
-		Scope:      options.Scope,
+		BaseDN:     ld.options.BaseDN,
+		Scope:      ld.options.Scope,
 		Filter:     fullFilter,
-		Attributes: options.Attributes,
+		Attributes: ld.options.Attributes,
 	}
 
 	searchResults, err := conn.Search(query)
@@ -188,7 +190,7 @@ func (ld *Ldap) CustomGetObjects(options LdapOptions) (map[string]map[string]str
 }
 
 func (ld *Ldap) GetObjects() (map[string]map[string]string, error) {
-	return ld.CustomGetObjects(ld.options)
+	return ld.CustomGetObjects()
 }
 
 func (ld *Ldap) makeObjectSinkMap(objects map[string]map[string]string) common.SinkMap {
@@ -198,7 +200,7 @@ func (ld *Ldap) makeObjectSinkMap(objects map[string]map[string]string) common.S
 	for k, v := range objects {
 
 		r[k] = ld.PrepareLabels(v)
-		
+
 	}
 	return r
 }
@@ -207,7 +209,7 @@ func (ld *Ldap) Discover() {
 
 	ld.logger.Debug("Ldap discovery of kind %s by URL: %s", ld.options.Kind, ld.options.URL)
 
-	data, err := ld.CustomGetObjects(ld.options)
+	data, err := ld.CustomGetObjects()
 	if err != nil {
 		ld.logger.Error(err)
 		return
