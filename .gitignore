@@ -1,6 +1,7 @@
 .vscode
 .git
 .run/
+**/.DS_Store
 bin/
 pkg/
 src/
