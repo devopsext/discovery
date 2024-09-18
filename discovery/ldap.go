@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -38,8 +39,7 @@ type LdapOptions struct {
 }
 
 type Ldap struct {
-	//client        *toolsVendors.Ldap
-	options       LdapOptions
+	targets       []LdapOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
 	processors    *common.Processors
@@ -50,35 +50,44 @@ type LdapSinkObject struct {
 	ldap    *Ldap
 }
 
+type Credential struct {
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+}
+
+type Credentials map[string]Credential
+
 func (ls *LdapSinkObject) Map() common.SinkMap {
 	return ls.sinkMap
 }
 
 func (ls *LdapSinkObject) Options() interface{} {
-	return ls.ldap.options
+	// there is always at least one target
+	return ls.ldap.targets[0]
 }
 
 func (ld *Ldap) Name() string {
+	// there is always at least one target
 	return "Ldap"
 }
 
 func (ld *Ldap) Source() string {
-	return ld.options.URL
+	return ld.targets[0].URL
 }
 
-func (ld *Ldap) PrepareLabels(data map[string]string) common.Labels {
+func (ldo *LdapOptions) PrepareLabels(data map[string]string) common.Labels {
 
 	labels := make(common.Labels)
-	for k, v := range ld.options.Fields {
+	for k, v := range ldo.Fields {
 		if !utils.IsEmpty(v) { // skip fields for which no mapping is set in config
 			labels[k] = data[v]
 		}
 	}
-	labels["kind"] = ld.options.Kind
+	labels["kind"] = ldo.Kind
 	return labels
 }
 
-func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.Logger) ([]LdapOptions, error) {
+func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, credentials Credentials, logger sreCommon.Logger) ([]LdapOptions, error) {
 	//config is something like:
 	//"url=localhost:8889|kind=DC|user=CN=user,DC=domain,DC=com|password=***|basedn=OU=servers,DC=domain,DC=com|scope=2|filter=(location=*)|f:parent=realdns|f:country=c|f:city=l|f:vendor=Provider|f:os=OperatingSystem|f:host=dnshostname;<second config>;<third config>...",
 
@@ -101,9 +110,12 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 		// common config
 		options.URL = conf["url"]
 		options.Timeout = GlobalOptions.Timeout
-		options.User = conf["user"]
-		options.Password = GlobalOptions.Password
 		options.BaseDN = conf["basedn"]
+		domain := getDomain(options.BaseDN)
+		if cred, ok := credentials[domain]; ok {
+			options.User = cred.Username
+			options.Password = cred.Password
+		}
 		options.Kind = conf["kind"]
 		options.Scope, _ = strconv.Atoi(conf["scope"]) //ScopeBaseObject   = 0 ScopeSingleLevel  = 1 ScopeWholeSubtree = 2
 		options.Filter = conf["filter"]
@@ -147,30 +159,41 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 	return optionsArray, nil //TODO catch possible errors and bail out
 }
 
-func (ld *Ldap) CustomGetObjects() (map[string]map[string]string, error) {
+func getDomain(dn string) string {
+	res := ""
+	parts := strings.Split(dn, ",")
+	for _, part := range parts {
+		if strings.HasPrefix(part, "DC=") {
+			res += strings.Split(part, "=")[1] + "."
+		}
+	}
+	return strings.TrimRight(res, ".")
+}
+
+func (ldo *LdapOptions) CustomGetObjects() (map[string]map[string]string, error) {
 	// connect
 	// TODO: Replace with ldap.DialURL
-	conn, err := ldap.DialTLS("tcp", ld.options.URL, &tls.Config{InsecureSkipVerify: ld.options.Insecure})
+	conn, err := ldap.DialTLS("tcp", ldo.URL, &tls.Config{InsecureSkipVerify: ldo.Insecure})
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 
 	//bind
-	err = conn.Bind(ld.options.User, ld.options.Password)
+	err = conn.Bind(ldo.User, ldo.Password)
 	if err != nil {
 		return nil, err
 	}
 
-	fullFilter := fmt.Sprintf("(&%s(objectClass=computer))", ld.options.Filter) //filter computers only
-	if !ld.options.DiscoverDisabled {
-		fullFilter = fmt.Sprintf("(&%s(!(userAccountControl:1.2.840.113556.1.4.803:=2))(objectClass=computer))", ld.options.Filter) // this monster after useracccontrol is just OID for "bitwise and". it's how disabled objects are filtered out in AD
+	fullFilter := fmt.Sprintf("(&%s(objectClass=computer))", ldo.Filter) //filter computers only
+	if !ldo.DiscoverDisabled {
+		fullFilter = fmt.Sprintf("(&%s(!(userAccountControl:1.2.840.113556.1.4.803:=2))(objectClass=computer))", ldo.Filter) // this monster after useracccontrol is just OID for "bitwise and". it's how disabled objects are filtered out in AD
 	}
 	query := &ldap.SearchRequest{
-		BaseDN:     ld.options.BaseDN,
-		Scope:      ld.options.Scope,
+		BaseDN:     ldo.BaseDN,
+		Scope:      ldo.Scope,
 		Filter:     fullFilter,
-		Attributes: ld.options.Attributes,
+		Attributes: ldo.Attributes,
 	}
 
 	searchResults, err := conn.Search(query)
@@ -189,60 +212,89 @@ func (ld *Ldap) CustomGetObjects() (map[string]map[string]string, error) {
 	return objects, nil
 }
 
-func (ld *Ldap) GetObjects() (map[string]map[string]string, error) {
-	return ld.CustomGetObjects()
+func (ldo *LdapOptions) GetObjects() (map[string]map[string]string, error) {
+	return ldo.CustomGetObjects()
 }
 
-func (ld *Ldap) makeObjectSinkMap(objects map[string]map[string]string) common.SinkMap {
+func (ldo *LdapOptions) makeObjectSinkMap(objects map[string]map[string]string) common.SinkMap {
 
 	r := make(common.SinkMap)
 
 	for k, v := range objects {
 
-		r[k] = ld.PrepareLabels(v)
+		r[k] = ldo.PrepareLabels(v)
 
 	}
 	return r
 }
 
 func (ld *Ldap) Discover() {
+	res := make(common.SinkMap)
+	for _, target := range ld.targets {
+		if utils.IsEmpty(target.URL) {
+			ld.logger.Warn("Ldap target has no URL. Skipped")
+			continue
+		}
 
-	ld.logger.Debug("Ldap discovery of kind %s by URL: %s", ld.options.Kind, ld.options.URL)
+		ld.logger.Debug("Ldap discovery of kind %s by URL: %s", target.Kind, target.URL)
+		data, err := target.CustomGetObjects()
+		if err != nil {
+			ld.logger.Error(err)
+			continue
+		}
 
-	data, err := ld.CustomGetObjects()
-	if err != nil {
-		ld.logger.Error(err)
-		return
+		l := len(data)
+		if l == 0 {
+			ld.logger.Warn("Ldap %s@%s has no objects according to BaseDN, filter and scope.", target.Kind, target.URL)
+			continue
+		}
+
+		objects := target.makeObjectSinkMap(data)
+		ld.logger.Debug("Ldap %s found %d objects. Processing...", target.URL, len(objects))
+		for k, v := range objects {
+			res[k] = v
+		}
 	}
-
-	l := len(data)
-	if l == 0 {
-		ld.logger.Debug("Ldap %s@%s has no objects according to BaseDN, filter and scope.", ld.options.Kind, ld.options.URL)
-		return
-	}
-
-	objects := ld.makeObjectSinkMap(data)
-	ld.logger.Debug("Ldap %s found %d objects. Processing...", ld.options.URL, len(objects))
 
 	ld.processors.Process(ld, &LdapSinkObject{
-		sinkMap: objects,
+		sinkMap: res,
 		ldap:    ld,
 	})
 }
 
-func NewLdap(options LdapOptions, observability *common.Observability, processors *common.Processors) *Ldap {
+func NewLdap(options LdapGlobalOptions, observability *common.Observability, processors *common.Processors) *Ldap {
 
 	logger := observability.Logs()
 
-	if utils.IsEmpty(options.URL) {
-		logger.Debug("Ldap has no URL. Skipped")
+	credentials, err := extractCredentials(options.Password)
+	if err != nil {
+		logger.Warn("Cannot extract credentials from password: %s", err)
+	}
+
+	targets, err := GetLdapDiscoveryTargets(options, credentials, logger)
+	if err != nil {
+		logger.Error(err)
+		return nil
+	}
+
+	if len(targets) == 0 {
+		logger.Warn("No Ldap targets found")
 		return nil
 	}
 
 	return &Ldap{
-		options:       options,
+		targets:       targets,
 		logger:        logger,
 		observability: observability,
 		processors:    processors,
 	}
+}
+
+func extractCredentials(password string) (Credentials, error) {
+	credentials := make(Credentials)
+	err := json.Unmarshal([]byte(password), &credentials)
+	if err != nil {
+		return nil, err
+	}
+	return credentials, nil
 }
