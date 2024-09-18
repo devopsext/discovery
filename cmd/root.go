@@ -560,13 +560,7 @@ func Execute() {
 			runSimpleDiscovery(wg, scheduler, dVCenterOptions.Schedule, discovery.NewVCenter(dVCenterOptions, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
-			//get list of ldap discovery targets
-			ldapTargets, err := discovery.GetLdapDiscoveryTargets(dLdapOptions, obs.Logs())
-			if err == nil {
-				for _, ldapTarget := range ldapTargets {
-					runSimpleDiscovery(wg, scheduler, ldapTarget.Schedule, discovery.NewLdap(ldapTarget, obs, processors), logger)
-				}
-			}
+			runSimpleDiscovery(wg, scheduler, dLdapOptions.Schedule, discovery.NewLdap(dLdapOptions, obs, processors), logger)
 
 			scheduler.StartAsync()
 
@@ -705,7 +699,7 @@ func Execute() {
 
 	// LDAP
 	flags.StringVar(&dLdapOptions.ConfigString, "ldap-config", dLdapOptions.ConfigString, "LDAP discovery config")
-	flags.StringVar(&dLdapOptions.Password, "ldap-password", dLdapOptions.Password, "LDAP discovery password")
+	flags.StringVar(&dLdapOptions.Password, "ldap-password", dLdapOptions.Password, "LDAP discovery password map")
 	flags.IntVar(&dLdapOptions.Timeout, "ldap-timeout", dLdapOptions.Timeout, "LDAP discovery timeout")
 	flags.BoolVar(&dLdapOptions.Insecure, "ldap-insecure", dLdapOptions.Insecure, "LDAP discovery insecure")
 	flags.StringVar(&dLdapOptions.Schedule, "ldap-schedule", dLdapOptions.Schedule, "LDAP discovery schedule")

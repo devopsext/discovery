@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -14,7 +15,7 @@ import (
 
 type LdapGlobalOptions struct {
 	ConfigString string
-	Password     string // get separately
+	Password     string
 	Timeout      int
 	Insecure     bool
 	Schedule     string
@@ -38,8 +39,7 @@ type LdapOptions struct {
 }
 
 type Ldap struct {
-	//client        *toolsVendors.Ldap
-	options       LdapOptions
+	targets       []LdapOptions
 	logger        sreCommon.Logger
 	observability *common.Observability
 	processors    *common.Processors
@@ -50,12 +50,20 @@ type LdapSinkObject struct {
 	ldap    *Ldap
 }
 
+type Credential struct {
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+}
+
+type Credentials map[string]Credential
+
 func (ls *LdapSinkObject) Map() common.SinkMap {
 	return ls.sinkMap
 }
 
 func (ls *LdapSinkObject) Options() interface{} {
-	return ls.ldap.options
+	// there is always at least one target
+	return ls.ldap.targets[0]
 }
 
 func (ld *Ldap) Name() string {
@@ -63,25 +71,22 @@ func (ld *Ldap) Name() string {
 }
 
 func (ld *Ldap) Source() string {
-	return ld.options.URL
+	return ld.targets[0].URL
 }
 
-func (ld *Ldap) PrepareLabels(data map[string]string) common.Labels {
+func (ldo *LdapOptions) PrepareLabels(data map[string]string) common.Labels {
 
 	labels := make(common.Labels)
-	for k, v := range ld.options.Fields {
+	for k, v := range ldo.Fields {
 		if !utils.IsEmpty(v) { // skip fields for which no mapping is set in config
 			labels[k] = data[v]
 		}
 	}
-	labels["kind"] = ld.options.Kind
+	labels["kind"] = ldo.Kind
 	return labels
 }
 
-func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.Logger) ([]LdapOptions, error) {
-	//config is something like:
-	//"url=localhost:8889|kind=DC|user=CN=user,DC=domain,DC=com|password=***|basedn=OU=servers,DC=domain,DC=com|scope=2|filter=(location=*)|f:parent=realdns|f:country=c|f:city=l|f:vendor=Provider|f:os=OperatingSystem|f:host=dnshostname;<second config>;<third config>...",
-
+func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, credentials Credentials, logger sreCommon.Logger) ([]LdapOptions, error) {
 	var optionsArray []LdapOptions
 	for _, target := range strings.Split(strings.TrimSpace(GlobalOptions.ConfigString), ";") {
 		var options LdapOptions
@@ -91,86 +96,65 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, logger sreCommon.L
 		for _, param := range strings.Split(strings.TrimSpace(target), "|") {
 			name, value, found := strings.Cut(strings.TrimSpace(param), "=")
 			if found {
-				if (len(name) > 2) && (name[:2] == "f:") { //if name of conf parameter starts with 'f:' - it's field config (checking that at least 1 symbol will be left after removing 'f:' from name)
-					fieldconf[name[2:]] = value
-				} else { // just a regular config
+				if strings.HasPrefix(name, "f:") {
+					fieldconf[name[2:]] = strings.ToLower(value)
+				} else {
 					conf[name] = value
 				}
 			}
 		}
-		// common config
 		options.URL = conf["url"]
 		options.Timeout = GlobalOptions.Timeout
-		options.User = conf["user"]
-		options.Password = GlobalOptions.Password
 		options.BaseDN = conf["basedn"]
+		domain := getDomain(options.BaseDN)
+		if cred, ok := credentials[domain]; ok {
+			options.User = cred.Username
+			options.Password = cred.Password
+		}
 		options.Kind = conf["kind"]
-		options.Scope, _ = strconv.Atoi(conf["scope"]) //ScopeBaseObject   = 0 ScopeSingleLevel  = 1 ScopeWholeSubtree = 2
+		options.Scope, _ = strconv.Atoi(conf["scope"])
 		options.Filter = conf["filter"]
-
-		// fields and attributes
-		options.Fields = make(map[string]string)
-		for k, v := range fieldconf {
-			options.Fields[k] = strings.ToLower(v)
-		}
-
-		options.Attributes = []string{"name"} //we always need name
-		for _, v := range options.Fields {    // and all the fields we are using to extract data
-			options.Attributes = append(options.Attributes, v)
-		}
-
-		// overriding globals if respective config present
-		if _, ok := conf["discoverdisabled"]; ok { // drop disabled objects (default) or keep them in the output
-			if discoverDisabled, ok := strconv.ParseBool(conf["discoverdisabled"]); ok != nil {
-				options.DiscoverDisabled = discoverDisabled
-			}
-		} else {
-			options.DiscoverDisabled = false
-		}
-
-		if schedule, ok := conf["schedule"]; ok { // to be able to override schedule for some targets
-			options.Schedule = schedule
-		} else {
-			options.Schedule = GlobalOptions.Schedule
-		}
-
-		if _, ok := conf["insecure"]; ok { // to be able to override insecure for some targets
-			if insecure, ok := strconv.ParseBool(conf["insecure"]); ok != nil {
-				options.Insecure = insecure
-			}
-		} else {
-			options.Insecure = GlobalOptions.Insecure
-		}
-
+		options.Fields = fieldconf
+		options.Attributes = append([]string{"name"}, fieldconfToSlice(fieldconf)...)
+		options.DiscoverDisabled = parseBoolOrDefault(conf["discoverdisabled"], false)
+		options.Schedule = confOrDefault(conf["schedule"], GlobalOptions.Schedule)
+		options.Insecure = parseBoolOrDefault(conf["insecure"], GlobalOptions.Insecure)
 		optionsArray = append(optionsArray, options)
 	}
-	return optionsArray, nil //TODO catch possible errors and bail out
+	return optionsArray, nil
 }
 
-func (ld *Ldap) CustomGetObjects() (map[string]map[string]string, error) {
-	// connect
+func getDomain(dn string) string {
+	var res strings.Builder
+	for _, part := range strings.Split(dn, ",") {
+		if strings.HasPrefix(part, "DC=") {
+			res.WriteString(strings.Split(part, "=")[1] + ".")
+		}
+	}
+	return strings.TrimRight(res.String(), ".")
+}
+
+func (ldo *LdapOptions) CustomGetObjects() (map[string]map[string]string, error) {
 	// TODO: Replace with ldap.DialURL
-	conn, err := ldap.DialTLS("tcp", ld.options.URL, &tls.Config{InsecureSkipVerify: ld.options.Insecure})
+	conn, err := ldap.DialTLS("tcp", ldo.URL, &tls.Config{InsecureSkipVerify: ldo.Insecure})
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 
-	//bind
-	err = conn.Bind(ld.options.User, ld.options.Password)
-	if err != nil {
+	if err := conn.Bind(ldo.User, ldo.Password); err != nil {
 		return nil, err
 	}
 
-	fullFilter := fmt.Sprintf("(&%s(objectClass=computer))", ld.options.Filter) //filter computers only
-	if !ld.options.DiscoverDisabled {
-		fullFilter = fmt.Sprintf("(&%s(!(userAccountControl:1.2.840.113556.1.4.803:=2))(objectClass=computer))", ld.options.Filter) // this monster after useracccontrol is just OID for "bitwise and". it's how disabled objects are filtered out in AD
+	fullFilter := fmt.Sprintf("(&%s(objectClass=computer))", ldo.Filter)
+	if !ldo.DiscoverDisabled {
+		fullFilter = fmt.Sprintf("(&%s(!(userAccountControl:1.2.840.113556.1.4.803:=2))(objectClass=computer))", ldo.Filter)
 	}
 	query := &ldap.SearchRequest{
-		BaseDN:     ld.options.BaseDN,
-		Scope:      ld.options.Scope,
+		BaseDN:     ldo.BaseDN,
+		Scope:      ldo.Scope,
 		Filter:     fullFilter,
-		Attributes: ld.options.Attributes,
+		Attributes: ldo.Attributes,
 	}
 
 	searchResults, err := conn.Search(query)
@@ -189,60 +173,101 @@ func (ld *Ldap) CustomGetObjects() (map[string]map[string]string, error) {
 	return objects, nil
 }
 
-func (ld *Ldap) GetObjects() (map[string]map[string]string, error) {
-	return ld.CustomGetObjects()
+func (ldo *LdapOptions) GetObjects() (map[string]map[string]string, error) {
+	return ldo.CustomGetObjects()
 }
 
-func (ld *Ldap) makeObjectSinkMap(objects map[string]map[string]string) common.SinkMap {
-
+func (ldo *LdapOptions) makeObjectSinkMap(objects map[string]map[string]string) common.SinkMap {
 	r := make(common.SinkMap)
-
 	for k, v := range objects {
-
-		r[k] = ld.PrepareLabels(v)
-
+		r[k] = ldo.PrepareLabels(v)
 	}
 	return r
 }
 
 func (ld *Ldap) Discover() {
+	res := make(common.SinkMap)
+	for _, target := range ld.targets {
+		if utils.IsEmpty(target.URL) {
+			ld.logger.Warn("Ldap target has no URL. Skipped")
+			continue
+		}
 
-	ld.logger.Debug("Ldap discovery of kind %s by URL: %s", ld.options.Kind, ld.options.URL)
+		ld.logger.Debug("Ldap discovery of kind %s by URL: %s", target.Kind, target.URL)
+		data, err := target.CustomGetObjects()
+		if err != nil {
+			ld.logger.Error(err)
+			continue
+		}
 
-	data, err := ld.CustomGetObjects()
-	if err != nil {
-		ld.logger.Error(err)
-		return
+		if len(data) == 0 {
+			ld.logger.Warn("Ldap %s@%s has no objects according to BaseDN, filter and scope.", target.Kind, target.URL)
+			continue
+		}
+
+		objects := target.makeObjectSinkMap(data)
+		ld.logger.Debug("Ldap %s found %d objects. Processing...", target.URL, len(objects))
+		for k, v := range objects {
+			res[k] = v
+		}
 	}
-
-	l := len(data)
-	if l == 0 {
-		ld.logger.Debug("Ldap %s@%s has no objects according to BaseDN, filter and scope.", ld.options.Kind, ld.options.URL)
-		return
-	}
-
-	objects := ld.makeObjectSinkMap(data)
-	ld.logger.Debug("Ldap %s found %d objects. Processing...", ld.options.URL, len(objects))
 
 	ld.processors.Process(ld, &LdapSinkObject{
-		sinkMap: objects,
+		sinkMap: res,
 		ldap:    ld,
 	})
 }
 
-func NewLdap(options LdapOptions, observability *common.Observability, processors *common.Processors) *Ldap {
-
+func NewLdap(options LdapGlobalOptions, observability *common.Observability, processors *common.Processors) *Ldap {
 	logger := observability.Logs()
+	credentials, err := extractCredentials(options.Password)
+	if err != nil {
+		logger.Warn("Cannot extract credentials from password: %s", err)
+	}
 
-	if utils.IsEmpty(options.URL) {
-		logger.Debug("Ldap has no URL. Skipped")
+	targets, err := GetLdapDiscoveryTargets(options, credentials, logger)
+	if err != nil {
+		logger.Error(err)
+		return nil
+	}
+
+	if len(targets) == 0 {
+		logger.Warn("No Ldap targets found")
 		return nil
 	}
 
 	return &Ldap{
-		options:       options,
+		targets:       targets,
 		logger:        logger,
 		observability: observability,
 		processors:    processors,
 	}
+}
+
+func extractCredentials(password string) (Credentials, error) {
+	var credentials Credentials
+	err := json.Unmarshal([]byte(password), &credentials)
+	return credentials, err
+}
+
+func fieldconfToSlice(fieldconf map[string]string) []string {
+	var fields []string
+	for _, v := range fieldconf {
+		fields = append(fields, v)
+	}
+	return fields
+}
+
+func parseBoolOrDefault(value string, defaultValue bool) bool {
+	if parsedValue, err := strconv.ParseBool(value); err == nil {
+		return parsedValue
+	}
+	return defaultValue
+}
+
+func confOrDefault(value, defaultValue string) string {
+	if value != "" {
+		return value
+	}
+	return defaultValue
 }
