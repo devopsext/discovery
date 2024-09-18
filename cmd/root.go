@@ -699,7 +699,7 @@ func Execute() {
 
 	// LDAP
 	flags.StringVar(&dLdapOptions.ConfigString, "ldap-config", dLdapOptions.ConfigString, "LDAP discovery config")
-	flags.StringVar(&dLdapOptions.Password, "ldap-password", dLdapOptions.Password, "LDAP discovery password")
+	flags.StringVar(&dLdapOptions.Password, "ldap-password", dLdapOptions.Password, "LDAP discovery password map")
 	flags.IntVar(&dLdapOptions.Timeout, "ldap-timeout", dLdapOptions.Timeout, "LDAP discovery timeout")
 	flags.BoolVar(&dLdapOptions.Insecure, "ldap-insecure", dLdapOptions.Insecure, "LDAP discovery insecure")
 	flags.StringVar(&dLdapOptions.Schedule, "ldap-schedule", dLdapOptions.Schedule, "LDAP discovery schedule")

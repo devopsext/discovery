@@ -15,7 +15,7 @@ import (
 
 type LdapGlobalOptions struct {
 	ConfigString string
-	Password     string // get separately
+	Password     string
 	Timeout      int
 	Insecure     bool
 	Schedule     string
@@ -67,7 +67,6 @@ func (ls *LdapSinkObject) Options() interface{} {
 }
 
 func (ld *Ldap) Name() string {
-	// there is always at least one target
 	return "Ldap"
 }
 
@@ -88,9 +87,6 @@ func (ldo *LdapOptions) PrepareLabels(data map[string]string) common.Labels {
 }
 
 func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, credentials Credentials, logger sreCommon.Logger) ([]LdapOptions, error) {
-	//config is something like:
-	//"url=localhost:8889|kind=DC|user=CN=user,DC=domain,DC=com|password=***|basedn=OU=servers,DC=domain,DC=com|scope=2|filter=(location=*)|f:parent=realdns|f:country=c|f:city=l|f:vendor=Provider|f:os=OperatingSystem|f:host=dnshostname;<second config>;<third config>...",
-
 	var optionsArray []LdapOptions
 	for _, target := range strings.Split(strings.TrimSpace(GlobalOptions.ConfigString), ";") {
 		var options LdapOptions
@@ -100,14 +96,13 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, credentials Creden
 		for _, param := range strings.Split(strings.TrimSpace(target), "|") {
 			name, value, found := strings.Cut(strings.TrimSpace(param), "=")
 			if found {
-				if (len(name) > 2) && (name[:2] == "f:") { //if name of conf parameter starts with 'f:' - it's field config (checking that at least 1 symbol will be left after removing 'f:' from name)
-					fieldconf[name[2:]] = value
-				} else { // just a regular config
+				if strings.HasPrefix(name, "f:") {
+					fieldconf[name[2:]] = strings.ToLower(value)
+				} else {
 					conf[name] = value
 				}
 			}
 		}
-		// common config
 		options.URL = conf["url"]
 		options.Timeout = GlobalOptions.Timeout
 		options.BaseDN = conf["basedn"]
@@ -117,61 +112,29 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, credentials Creden
 			options.Password = cred.Password
 		}
 		options.Kind = conf["kind"]
-		options.Scope, _ = strconv.Atoi(conf["scope"]) //ScopeBaseObject   = 0 ScopeSingleLevel  = 1 ScopeWholeSubtree = 2
+		options.Scope, _ = strconv.Atoi(conf["scope"])
 		options.Filter = conf["filter"]
-
-		// fields and attributes
-		options.Fields = make(map[string]string)
-		for k, v := range fieldconf {
-			options.Fields[k] = strings.ToLower(v)
-		}
-
-		options.Attributes = []string{"name"} //we always need name
-		for _, v := range options.Fields {    // and all the fields we are using to extract data
-			options.Attributes = append(options.Attributes, v)
-		}
-
-		// overriding globals if respective config present
-		if _, ok := conf["discoverdisabled"]; ok { // drop disabled objects (default) or keep them in the output
-			if discoverDisabled, ok := strconv.ParseBool(conf["discoverdisabled"]); ok != nil {
-				options.DiscoverDisabled = discoverDisabled
-			}
-		} else {
-			options.DiscoverDisabled = false
-		}
-
-		if schedule, ok := conf["schedule"]; ok { // to be able to override schedule for some targets
-			options.Schedule = schedule
-		} else {
-			options.Schedule = GlobalOptions.Schedule
-		}
-
-		if _, ok := conf["insecure"]; ok { // to be able to override insecure for some targets
-			if insecure, ok := strconv.ParseBool(conf["insecure"]); ok != nil {
-				options.Insecure = insecure
-			}
-		} else {
-			options.Insecure = GlobalOptions.Insecure
-		}
-
+		options.Fields = fieldconf
+		options.Attributes = append([]string{"name"}, fieldconfToSlice(fieldconf)...)
+		options.DiscoverDisabled = parseBoolOrDefault(conf["discoverdisabled"], false)
+		options.Schedule = confOrDefault(conf["schedule"], GlobalOptions.Schedule)
+		options.Insecure = parseBoolOrDefault(conf["insecure"], GlobalOptions.Insecure)
 		optionsArray = append(optionsArray, options)
 	}
-	return optionsArray, nil //TODO catch possible errors and bail out
+	return optionsArray, nil
 }
 
 func getDomain(dn string) string {
-	res := ""
-	parts := strings.Split(dn, ",")
-	for _, part := range parts {
+	var res strings.Builder
+	for _, part := range strings.Split(dn, ",") {
 		if strings.HasPrefix(part, "DC=") {
-			res += strings.Split(part, "=")[1] + "."
+			res.WriteString(strings.Split(part, "=")[1] + ".")
 		}
 	}
-	return strings.TrimRight(res, ".")
+	return strings.TrimRight(res.String(), ".")
 }
 
 func (ldo *LdapOptions) CustomGetObjects() (map[string]map[string]string, error) {
-	// connect
 	// TODO: Replace with ldap.DialURL
 	conn, err := ldap.DialTLS("tcp", ldo.URL, &tls.Config{InsecureSkipVerify: ldo.Insecure})
 	if err != nil {
@@ -179,15 +142,13 @@ func (ldo *LdapOptions) CustomGetObjects() (map[string]map[string]string, error)
 	}
 	defer conn.Close()
 
-	//bind
-	err = conn.Bind(ldo.User, ldo.Password)
-	if err != nil {
+	if err := conn.Bind(ldo.User, ldo.Password); err != nil {
 		return nil, err
 	}
 
-	fullFilter := fmt.Sprintf("(&%s(objectClass=computer))", ldo.Filter) //filter computers only
+	fullFilter := fmt.Sprintf("(&%s(objectClass=computer))", ldo.Filter)
 	if !ldo.DiscoverDisabled {
-		fullFilter = fmt.Sprintf("(&%s(!(userAccountControl:1.2.840.113556.1.4.803:=2))(objectClass=computer))", ldo.Filter) // this monster after useracccontrol is just OID for "bitwise and". it's how disabled objects are filtered out in AD
+		fullFilter = fmt.Sprintf("(&%s(!(userAccountControl:1.2.840.113556.1.4.803:=2))(objectClass=computer))", ldo.Filter)
 	}
 	query := &ldap.SearchRequest{
 		BaseDN:     ldo.BaseDN,
@@ -217,13 +178,9 @@ func (ldo *LdapOptions) GetObjects() (map[string]map[string]string, error) {
 }
 
 func (ldo *LdapOptions) makeObjectSinkMap(objects map[string]map[string]string) common.SinkMap {
-
 	r := make(common.SinkMap)
-
 	for k, v := range objects {
-
 		r[k] = ldo.PrepareLabels(v)
-
 	}
 	return r
 }
@@ -243,8 +200,7 @@ func (ld *Ldap) Discover() {
 			continue
 		}
 
-		l := len(data)
-		if l == 0 {
+		if len(data) == 0 {
 			ld.logger.Warn("Ldap %s@%s has no objects according to BaseDN, filter and scope.", target.Kind, target.URL)
 			continue
 		}
@@ -263,9 +219,7 @@ func (ld *Ldap) Discover() {
 }
 
 func NewLdap(options LdapGlobalOptions, observability *common.Observability, processors *common.Processors) *Ldap {
-
 	logger := observability.Logs()
-
 	credentials, err := extractCredentials(options.Password)
 	if err != nil {
 		logger.Warn("Cannot extract credentials from password: %s", err)
@@ -291,10 +245,29 @@ func NewLdap(options LdapGlobalOptions, observability *common.Observability, pro
 }
 
 func extractCredentials(password string) (Credentials, error) {
-	credentials := make(Credentials)
+	var credentials Credentials
 	err := json.Unmarshal([]byte(password), &credentials)
-	if err != nil {
-		return nil, err
+	return credentials, err
+}
+
+func fieldconfToSlice(fieldconf map[string]string) []string {
+	var fields []string
+	for _, v := range fieldconf {
+		fields = append(fields, v)
 	}
-	return credentials, nil
+	return fields
+}
+
+func parseBoolOrDefault(value string, defaultValue bool) bool {
+	if parsedValue, err := strconv.ParseBool(value); err == nil {
+		return parsedValue
+	}
+	return defaultValue
+}
+
+func confOrDefault(value, defaultValue string) string {
+	if value != "" {
+		return value
+	}
+	return defaultValue
 }
