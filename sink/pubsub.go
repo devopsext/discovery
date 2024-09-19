@@ -89,6 +89,16 @@ func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
 		if err = ps.publish(ctx, data, map[string]string{"name": name}); err != nil {
 			ps.logger.Error("PubSub Sink publish error: %s", err)
 		}
+	case "Ldap":
+		data, err := json.Marshal(so.Map())
+		if err != nil {
+			ps.logger.Error("PubSub Sink ldap marshall error: %v", err)
+			return
+		}
+		ps.logger.Debug("PubSub has to publish %s %d bytes...", name, len(data))
+		if err = ps.publish(ctx, data, map[string]string{"name": name}); err != nil {
+			ps.logger.Error("PubSub Sink publish error: %s", err)
+		}
 	default:
 		ps.logger.Debug("PubSub Sink: %s is not supported", name)
 	}
