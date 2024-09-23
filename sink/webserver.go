@@ -299,9 +299,9 @@ func (ws *WebServer) Start(wg *sync.WaitGroup) {
 func (ws *WebServer) getProcessors() map[string]WebServerProcessor {
 
 	m := make(map[string]WebServerProcessor)
-	m["/pubsub/*"] = ws.processPubSub
-	m["/files/*"] = ws.processFiles
-	m["/configs/*"] = ws.processConfig
+	m["/pubsub/"] = ws.processPubSub
+	m["/files/"] = ws.processFiles
+	m["/configs/"] = ws.processConfig
 	return m
 }
 
