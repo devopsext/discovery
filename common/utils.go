@@ -21,7 +21,7 @@ import (
 
 func ReadFiles(pattern string) ([]string, error) {
 
-	ret := []string{}
+	ret := make([]string, 0)
 	err := filepath.Walk(pattern, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -240,7 +240,7 @@ func ParsePeriodFromNow(period string, t time.Time) string {
 		return ""
 	}
 
-	from := t.Add(time.Duration(dur))
+	from := t.Add(dur)
 	return strconv.Itoa(int(from.Unix()))
 }
 
@@ -311,7 +311,7 @@ func GetPrometheusDiscoveriesByInstances(names string, logger sreCommon.Logger) 
 
 func RemoveEmptyStrings(items []string) []string {
 
-	r := []string{}
+	r := make([]string, 0)
 
 	for _, v := range items {
 		if utils.IsEmpty(v) {

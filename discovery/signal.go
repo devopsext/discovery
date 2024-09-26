@@ -181,7 +181,7 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 
 func (s *Signal) expandDisabled(files map[string]*common.File, vars map[string]string) []string {
 
-	r := []string{}
+	r := make([]string, 0)
 	m := make(map[string]interface{})
 
 	fls := make(map[string]interface{})
@@ -216,7 +216,7 @@ func (s *Signal) expandDisabled(files map[string]*common.File, vars map[string]s
 			s.disables[v] = t
 		}
 
-		arr := []string{}
+		arr := make([]string, 0)
 		sarr := s.render(tpl, "", m)
 		if !utils.IsEmpty(sarr) {
 			arr = strings.Split(sarr, ",")
@@ -319,7 +319,7 @@ func (sc *SignalCache) fRegexMatchObjectByFieldCached(obj interface{}, field, va
 
 func NewSignalCache(logger sreCommon.Logger, s *Signal) *SignalCache {
 
-	config := bigcache.DefaultConfig(time.Duration(time.Second * 10))
+	config := bigcache.DefaultConfig(time.Second * 10)
 	config.MaxEntriesInWindow = 2000
 	config.MaxEntrySize = 100
 	if s.options.CacheSize > 0 {
@@ -384,7 +384,7 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map
 	s.logger.Debug("[%d] %s: %d series filtered to %d", gid, s.source, l, len(vectors))
 
 	when := time.Now()
-	max := len(vectors) / 100
+	vMax := len(vectors) / 100
 
 	var t0 time.Duration
 	var t1 time.Duration
@@ -397,7 +397,7 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map
 
 		w := time.Now()
 
-		if max > 0 && i%max == 0 && i > 0 {
+		if vMax > 0 && i%vMax == 0 && i > 0 {
 			tsince := time.Since(when)
 			s.logger.Debug("[%d] %s: %d out of %d [%s: %s, t0=%s t1=%s t2=%s t3=%s t4=%s]", gid, s.source, i, len(vectors), tsince, tsince-tdiff, t0, t1, t2, t3, t4)
 			t0 = 0

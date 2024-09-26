@@ -100,6 +100,7 @@ var dHTTPOptions = discovery.HTTPOptions{
 	Pattern:     envGet("HTTP_PATTERN", "").(string),
 	Names:       envFileContentExpand("HTTP_NAMES", ""),
 	Exclusion:   envGet("HTTP_EXCLUSION", "").(string),
+	Files:       envFileContentExpand("HTTP_FILES", ""),
 	NoSSL:       envGet("HTTP_NO_SSL", "").(string),
 	Path:        envFileContentExpand("HTTP_PATH", ""),
 }
@@ -184,6 +185,14 @@ var dK8sOptions = discovery.K8sOptions{
 	SkipUnknown:    envGet("K8S_SKIP_UNKNOWN", true).(bool),
 	Environment:    envGet("K8S_ENV", "undefined").(string),
 	Config:         envStringExpand("K8S_CONFIG", ""),
+}
+
+var dLdapOptions = discovery.LdapGlobalOptions{
+	ConfigString: envStringExpand("LDAP_CONFIGSTRING", ""),
+	Password:     envStringExpand("LDAP_PASSWORD", ""),
+	Timeout:      envGet("LDAP_TIMEOUT", 30).(int),
+	Insecure:     envGet("LDAP_INSECURE", false).(bool),
+	Schedule:     envGet("LDAP_SCHEDULE", "").(string),
 }
 
 var dPubSubOptions = discovery.PubSubOptions{
@@ -396,7 +405,10 @@ func runSchedule(s *gocron.Scheduler, schedule string, wait bool, jobFun interfa
 	if wait {
 		ss = ss.WaitForSchedule()
 	}
-	ss.Do(jobFun)
+	_, err := ss.Do(jobFun)
+	if err != nil {
+		logs.Error("Schedule error: %s", err)
+	}
 }
 
 func runStandAloneDiscovery(wg *sync.WaitGroup, discovery common.Discovery, logger *sreCommon.Logs) {
@@ -510,7 +522,11 @@ func Execute() {
 
 				// create opts based on global prometheus options
 				opts := common.PrometheusOptions{}
-				copier.CopyWithOption(&opts, &dPrometheusOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+				err := copier.CopyWithOption(&opts, &dPrometheusOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+				if err != nil {
+					logger.Error("Prometheus copy error: %s", err)
+					continue
+				}
 
 				// render prometheus URL
 				m := make(map[string]string)
@@ -544,6 +560,7 @@ func Execute() {
 			runSimpleDiscovery(wg, scheduler, dVCenterOptions.Schedule, discovery.NewVCenter(dVCenterOptions, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
+			runSimpleDiscovery(wg, scheduler, dLdapOptions.Schedule, discovery.NewLdap(dLdapOptions, obs, processors), logger)
 
 			scheduler.StartAsync()
 
@@ -613,6 +630,7 @@ func Execute() {
 	flags.StringVar(&dHTTPOptions.QueryStep, "http-query-step", dHTTPOptions.QueryStep, "HTTP discovery query step")
 	flags.StringVar(&dHTTPOptions.Pattern, "http-pattern", dHTTPOptions.Pattern, "HTTP discovery pattern")
 	flags.StringVar(&dHTTPOptions.Names, "http-names", dHTTPOptions.Names, "HTTP discovery names")
+	flags.StringVar(&dHTTPOptions.Files, "http-files", dHTTPOptions.Files, "Http files")
 	flags.StringVar(&dHTTPOptions.Exclusion, "http-exclusion", dHTTPOptions.Exclusion, "HTTP discovery exclusion")
 	flags.StringVar(&dHTTPOptions.NoSSL, "http-no-ssl", dHTTPOptions.NoSSL, "HTTP no SSL pattern")
 
@@ -678,6 +696,13 @@ func Execute() {
 	flags.BoolVar(&dK8sOptions.SkipUnknown, "k8s-skip-unknown", dK8sOptions.SkipUnknown, "K8s discovery skip unknown applications")
 	flags.StringVar(&dK8sOptions.Environment, "k8s-env", dK8sOptions.Environment, "K8s discovery environment (test/prod/etc…)")
 	flags.StringVar(&dK8sOptions.Config, "k8s-config", dK8sOptions.Config, "K8s discovery kube config")
+
+	// LDAP
+	flags.StringVar(&dLdapOptions.ConfigString, "ldap-config", dLdapOptions.ConfigString, "LDAP discovery config")
+	flags.StringVar(&dLdapOptions.Password, "ldap-password", dLdapOptions.Password, "LDAP discovery password map")
+	flags.IntVar(&dLdapOptions.Timeout, "ldap-timeout", dLdapOptions.Timeout, "LDAP discovery timeout")
+	flags.BoolVar(&dLdapOptions.Insecure, "ldap-insecure", dLdapOptions.Insecure, "LDAP discovery insecure")
+	flags.StringVar(&dLdapOptions.Schedule, "ldap-schedule", dLdapOptions.Schedule, "LDAP discovery schedule")
 
 	// PubSub
 	flags.StringVar(&dPubSubOptions.Credentials, "pubsub-credentials", dPubSubOptions.Credentials, "Credentials for PubSub")

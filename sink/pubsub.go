@@ -44,17 +44,14 @@ type PubSubLabel struct {
 type PubSubLabels = []*PubSubLabel
 
 func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
-
 	name := d.Name()
 	ctx := context.Background()
 
 	switch name {
 	case "K8s":
 		for kind, table := range so.Map() {
-			switch kind {
-			case "workload":
-				t, ok := table.(common.SinkMap)
-				if ok {
+			if kind == "workload" {
+				if t, ok := table.(common.SinkMap); ok {
 					data, err := json.Marshal(PubSubK8sWorkload{
 						Source:  name,
 						Type:    "json",
@@ -65,55 +62,47 @@ func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
 						ps.logger.Error("PubSub Sink: %v", err)
 						return
 					}
-
 					ps.logger.Debug("PubSub Sink has to publish %s %s %d bytes...", name, kind, len(data))
-
-					err = ps.publish(ctx, data, map[string]string{"name": name, "kind": kind})
-					if err != nil {
+					if err = ps.publish(ctx, data, map[string]string{"name": name, "kind": kind}); err != nil {
 						ps.logger.Error("PubSub Sink publish error: %s", err)
-						return
 					}
 				}
 			}
 		}
-
 	case "Labels":
-
-		arr := []PubSubLabels{}
+		var arr []PubSubLabels
 		for _, v := range so.Map() {
-			ks, ok := v.(common.Labels)
-			if !ok {
-				continue
-			}
-
-			lbs := PubSubLabels{}
-			for k1, v1 := range ks {
-				lb := &PubSubLabel{
-					Name:  k1,
-					Value: fmt.Sprintf("%v", v1),
+			if ks, ok := v.(common.Labels); ok {
+				var lbs PubSubLabels
+				for k1, v1 := range ks {
+					lbs = append(lbs, &PubSubLabel{Name: k1, Value: fmt.Sprintf("%v", v1)})
 				}
-				lbs = append(lbs, lb)
+				arr = append(arr, lbs)
 			}
-			arr = append(arr, lbs)
 		}
-
 		data, err := json.Marshal(arr)
 		if err != nil {
 			ps.logger.Error("PubSub Sink marshall error: %s", err)
 			return
 		}
-
 		ps.logger.Debug("PubSub has to publish %s %d bytes...", name, len(data))
-
-		err = ps.publish(ctx, data, map[string]string{"name": name})
-		if err != nil {
+		if err = ps.publish(ctx, data, map[string]string{"name": name}); err != nil {
 			ps.logger.Error("PubSub Sink publish error: %s", err)
-			return
 		}
-
+	case "Ldap":
+		if len(so.Map()) > 0 {
+			data, err := json.Marshal(so.Map())
+			if err != nil {
+				ps.logger.Error("PubSub Sink ldap marshall error: %v", err)
+				return
+			}
+			ps.logger.Debug("PubSub has to publish %s %d bytes...", name, len(data))
+			if err = ps.publish(ctx, data, map[string]string{"name": name}); err != nil {
+				ps.logger.Error("PubSub Sink publish error: %s", err)
+			}
+		}
 	default:
 		ps.logger.Debug("PubSub Sink: %s is not supported", name)
-		return
 	}
 }
 
@@ -135,50 +124,26 @@ func (ps *PubSub) Close() {
 }
 
 func (ps *PubSub) publish(ctx context.Context, data []byte, attributes ...map[string]string) error {
-
 	msg := &pubsub.Message{
 		Data: data,
 		Attributes: map[string]string{
 			"source": "discovery",
 		},
 	}
-	if len(attributes) > 0 {
-		for _, a := range attributes {
-			for k, v := range a {
-				msg.Attributes[k] = v
-			}
+	for _, a := range attributes {
+		for k, v := range a {
+			msg.Attributes[k] = v
 		}
 	}
-
 	_, err := ps.topic.Publish(ctx, msg).Get(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func NewPubSub(options PubSubOptions, observability *common.Observability) *PubSub {
-
 	logger := observability.Logs()
 
-	if !options.Enabled {
-		logger.Debug("PubSub sink is not enabled. Skipped")
-		return nil
-	}
-
-	if options.Credentials == "" {
-		logger.Debug("PubSub sink has no credentials. Skipped")
-		return nil
-	}
-
-	if options.ProjectID == "" {
-		logger.Debug("PubSub sink has no project id. Skipped")
-		return nil
-	}
-
-	if options.TopicID == "" {
-		logger.Debug("PubSub sink has no topic id. Skipped")
+	if !options.Enabled || options.Credentials == "" || options.ProjectID == "" || options.TopicID == "" {
+		logger.Debug("PubSub sink is not properly configured. Skipped")
 		return nil
 	}
 
@@ -195,13 +160,11 @@ func NewPubSub(options PubSubOptions, observability *common.Observability) *PubS
 		return nil
 	}
 
-	topic := client.Topic(options.TopicID)
-
 	return &PubSub{
 		options:       options,
 		logger:        logger,
 		observability: observability,
 		client:        client,
-		topic:         topic,
+		topic:         client.Topic(options.TopicID),
 	}
 }

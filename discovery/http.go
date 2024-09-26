@@ -3,9 +3,12 @@ package discovery
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/devopsext/discovery/common"
@@ -22,6 +25,7 @@ type HTTPOptions struct {
 	Schedule    string
 	Pattern     string
 	Names       string
+	Files       string
 	Exclusion   string
 	NoSSL       string
 	Path        string
@@ -34,6 +38,8 @@ type HTTP struct {
 	options        HTTPOptions
 	logger         sreCommon.Logger
 	observability  *common.Observability
+	filesTemplate  *toolsRender.TextTemplate
+	files          *sync.Map
 	namesTemplate  *toolsRender.TextTemplate
 	pathTemplate   *toolsRender.TextTemplate
 	processors     *common.Processors
@@ -70,8 +76,7 @@ func (h *HTTP) render(tpl *toolsRender.TextTemplate, def string, obj interface{}
 	return s1
 }
 
-func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[string]string, rExclusion, rNoSSL *regexp.Regexp) {
-
+func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[string]string, rExclusion, rNoSSL *regexp.Regexp, fls map[string]*common.File) {
 	proto := "https"
 	if rNoSSL != nil && rNoSSL.MatchString(name) {
 		proto = "http"
@@ -103,9 +108,20 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 		port = fmt.Sprintf(":%s", port)
 	}
 
+	labelsWithFiles := make(map[string]interface{})
+	for key, value := range labels {
+		labelsWithFiles[key] = value
+	}
+	files := make(map[string]interface{})
+	for k, file := range fls {
+
+		files[k] = file.Obj
+	}
+	labelsWithFiles["files"] = files
+
 	path := ""
 	if !utils.IsEmpty(h.options.Path) {
-		path = h.render(h.pathTemplate, h.options.Path, labels)
+		path = h.render(h.pathTemplate, h.options.Path, labelsWithFiles)
 		path = strings.TrimLeft(path, "/")
 		if !utils.IsEmpty(path) {
 			path = fmt.Sprintf("/%s", path)
@@ -126,8 +142,55 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 	urls[name] = labels
 }
 
-func (h *HTTP) findURLs(vectors []*common.PrometheusResponseDataVector) common.LabelsMap {
+func (h *HTTP) getFiles(vars map[string]string) map[string]*common.File {
 
+	files := make(map[string]*common.File)
+
+	if h.filesTemplate == nil {
+		return files
+	}
+
+	fs := h.render(h.filesTemplate, h.options.Files, vars)
+	kv := utils.MapGetKeyValues(fs)
+	for k, v := range kv {
+
+		if utils.FileExists(v) {
+			typ := strings.Replace(filepath.Ext(v), ".", "", 1)
+
+			var obj interface{}
+			md5 := common.Md5ToString([]byte(v))
+			if utils.IsEmpty(md5) {
+				continue
+			}
+
+			r, ok := h.files.Load(md5)
+			if ok {
+				obj = r
+			}
+
+			if obj == nil {
+				o, err := common.ReadFile(v, typ)
+				if err != nil {
+					h.logger.Error(err)
+					continue
+				}
+				h.files.Store(md5, o)
+				obj = o
+			}
+
+			if obj != nil {
+				files[k] = &common.File{
+					Path: v,
+					Type: typ,
+					Obj:  obj,
+				}
+			}
+		}
+	}
+	return files
+}
+
+func (h *HTTP) findURLs(vectors []*common.PrometheusResponseDataVector) common.LabelsMap {
 	ret := make(common.LabelsMap)
 	gid := utils.GoRoutineID()
 
@@ -147,8 +210,9 @@ func (h *HTTP) findURLs(vectors []*common.PrometheusResponseDataVector) common.L
 		rNoSSL = regexp.MustCompile(h.options.NoSSL)
 	}
 
-	for _, v := range vectors {
+	fls := h.getFiles(map[string]string{})
 
+	for _, v := range vectors {
 		if len(v.Labels) < 1 {
 			h.logger.Debug("[%d] %s: No labels, min requirements (1): %v", gid, h.source, v.Labels)
 			continue
@@ -172,12 +236,12 @@ func (h *HTTP) findURLs(vectors []*common.PrometheusResponseDataVector) common.L
 
 		names := rPattern.FindAllString(name, -1)
 		if len(names) == 0 {
-			h.appendURL(name, ret, v.Labels, rExclusion, rNoSSL)
+			h.appendURL(name, ret, v.Labels, rExclusion, rNoSSL, fls)
 			continue
 		}
 
 		for _, k := range names {
-			h.appendURL(k, ret, v.Labels, rExclusion, rNoSSL)
+			h.appendURL(k, ret, v.Labels, rExclusion, rNoSSL, fls)
 		}
 	}
 	return ret
@@ -261,7 +325,6 @@ func NewHTTP(source string, prometheusOptions common.PrometheusOptions, options 
 		logger.Error(err)
 		return nil
 	}
-
 	pathOpts := toolsRender.TemplateOptions{
 		Content: options.Path,
 		Name:    "http-path",
@@ -270,6 +333,16 @@ func NewHTTP(source string, prometheusOptions common.PrometheusOptions, options 
 	if err != nil {
 		logger.Error(err)
 		return nil
+	}
+
+	filesOpts := toolsRender.TemplateOptions{
+		Content:     options.Files,
+		Name:        "http-fiels",
+		FilterFuncs: true,
+	}
+	filesTemplate, err := toolsRender.NewTextTemplate(filesOpts, observability)
+	if err != nil {
+		logger.Error(err)
 	}
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
@@ -287,6 +360,8 @@ func NewHTTP(source string, prometheusOptions common.PrometheusOptions, options 
 		prometheusOpts: prometheusOpts,
 		options:        options,
 		logger:         logger,
+		filesTemplate:  filesTemplate,
+		files:          &sync.Map{},
 		observability:  observability,
 		namesTemplate:  namesTemplate,
 		pathTemplate:   pathTemplate,

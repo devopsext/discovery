@@ -8,7 +8,7 @@ import (
 
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
-	telegraf "github.com/devopsext/discovery/telegraf"
+	"github.com/devopsext/discovery/telegraf"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
 	"github.com/jinzhu/copier"
@@ -82,7 +82,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 	source := d.Source()
 
 	files := make(map[string]string)
-	dirs := []string{}
+	dirs := make([]string, 0)
 
 	for _, s1 := range m {
 		dir := common.Render(t.options.Signal.Dir, s1.Vars, t.observability)
@@ -93,8 +93,8 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 				if f.IsDir() {
 					continue
 				}
-				path := path.Join(dir, f.Name())
-				files[path] = dir
+				fPath := path.Join(dir, f.Name())
+				files[fPath] = dir
 			}
 		}
 	}
@@ -103,11 +103,11 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 
 		dir := common.Render(t.options.Signal.Dir, s1.Vars, t.observability)
 		file := common.Render(t.options.Signal.File, s1.Vars, t.observability)
-		path := path.Join(dir, file)
+		fPath := path.Join(dir, file)
 
-		delete(files, path)
+		delete(files, fPath)
 
-		t.logger.Debug("%s: Processing application: %s for path: %s", source, k, path)
+		t.logger.Debug("%s: Processing application: %s for path: %s", source, k, fPath)
 		t.logger.Debug("%s: Found metrics: %v", source, s1.Metrics)
 
 		telegrafConfig := &telegraf.Config{
@@ -115,17 +115,21 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		}
 
 		inputOpts := telegraf.InputPrometheusHttpOptions{}
-		copier.CopyWithOption(&inputOpts, &t.options.Signal.InputPrometheusHttpOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
-		inputOpts.URL = opts.URL
-		inputOpts.User = opts.User
-		inputOpts.Password = opts.Password
-
-		bytes, err := telegrafConfig.GenerateInputPrometheusHttpBytes(s1, t.options.Signal.Tags, inputOpts, path, t.options.Signal.PersistMetrics)
+		err := copier.CopyWithOption(&inputOpts, &t.options.Signal.InputPrometheusHttpOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 		if err != nil {
 			t.logger.Error("%s: application %s error: %s", source, k, err)
 			continue
 		}
-		telegrafConfig.CreateIfCheckSumIsDifferent(source, path, t.options.Checksum, bytes, t.logger)
+		inputOpts.URL = opts.URL
+		inputOpts.User = opts.User
+		inputOpts.Password = opts.Password
+
+		bytes, err := telegrafConfig.GenerateInputPrometheusHttpBytes(s1, t.options.Signal.Tags, inputOpts, fPath, t.options.Signal.PersistMetrics)
+		if err != nil {
+			t.logger.Error("%s: application %s error: %s", source, k, err)
+			continue
+		}
+		telegrafConfig.CreateIfCheckSumIsDifferent(source, fPath, t.options.Checksum, bytes, t.logger)
 	}
 
 	if len(files) > 0 {
@@ -148,7 +152,10 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 				remove = !reExclusion.MatchString(k)
 			}
 			if remove {
-				os.Remove(k)
+				err := os.Remove(k)
+				if err != nil {
+					t.logger.Error("%s: remove %s error: %s", source, k, err)
+				}
 			}
 		}
 	}
