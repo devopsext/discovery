@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/pubsub v1.3.1
 	github.com/BurntSushi/toml v0.3.1
 	github.com/allegro/bigcache v1.2.1
-	github.com/devopsext/sre v0.6.1
+	github.com/devopsext/sre v0.6.2
 	github.com/devopsext/tools v0.14.7
 	github.com/devopsext/utils v0.4.2
 	github.com/go-co-op/gocron v1.18.0

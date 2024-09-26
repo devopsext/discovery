@@ -81,8 +81,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/devopsext/dd-trace-go v1.31.2 h1:JRueUyJ+t/zQc0Jd2dlbe+40r2k9q2wdMQQchQszVvI=
 github.com/devopsext/dd-trace-go v1.31.2/go.mod h1:wRKMf/tRASHwH/UOfPQ3IQmVFhTz2/1a1/mpXoIjF54=
-github.com/devopsext/sre v0.6.1 h1:UVaTsNXKGOtekN38ZNosq9GUgNbplok3XkTshZstSuY=
-github.com/devopsext/sre v0.6.1/go.mod h1:dDy50nKXkZeqy3J4E1TC6xUdPxWholqi2Z9R5A5df34=
+github.com/devopsext/sre v0.6.2 h1:fA6TlwyMtK2g0UsvE7dyhs1rfurIWrsy+yuO7fVLWJ8=
+github.com/devopsext/sre v0.6.2/go.mod h1:dDy50nKXkZeqy3J4E1TC6xUdPxWholqi2Z9R5A5df34=
 github.com/devopsext/tools v0.14.7 h1:uF9YL+E2VB7CyFudNE3o6Vcke4qLv2fpzv0RrbB1Wvg=
 github.com/devopsext/tools v0.14.7/go.mod h1:QYH3dVcrQQ3qxWm7CupHDROyE2d/3Pd8Dwco9RdeHL8=
 github.com/devopsext/utils v0.4.2 h1:MIdBfeuXW/Iu7QX+mw8ar+346qpGhFTUaCPdNB8ZoqI=
