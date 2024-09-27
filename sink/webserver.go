@@ -61,17 +61,9 @@ func (ws *WebServer) Process(d common.Discovery, so common.SinkObject) {
 	}
 }
 
-func (ws *WebServer) getPath(base, url string) (string, error) {
+func (ws *WebServer) getPath(base, url string) string {
 	upath := strings.TrimLeft(url, "/")
-	upath = strings.Replace(upath, base, "", 1)
-	upath = path.Clean(upath)
-
-	// Ensure the path is NOT within the base directory
-	if strings.HasPrefix(upath, base) {
-		return "", fmt.Errorf("invalid path: %s", upath)
-	}
-
-	return upath, nil
+	return strings.Replace(upath, base, "", 1)
 }
 
 func (ws *WebServer) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
@@ -85,10 +77,7 @@ func (ws *WebServer) render(tpl *toolsRender.TextTemplate, def string, obj inter
 
 func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error {
 	base := "pubsub"
-	upath, err := ws.getPath(base, r.URL.Path)
-	if err != nil {
-		return err
-	}
+	upath := ws.getPath(base, r.URL.Path)
 	name := path.Join(base, upath)
 
 	obj, _ := ws.objects.Load(name)
@@ -109,10 +98,7 @@ func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error
 
 func (ws *WebServer) processFiles(w http.ResponseWriter, r *http.Request) error {
 	base := "files"
-	upath, err := ws.getPath(base, r.URL.Path)
-	if err != nil {
-		return err
-	}
+	upath := ws.getPath(base, r.URL.Path)
 	name := path.Join(base, upath)
 
 	obj, _ := ws.objects.Load(name)
@@ -140,10 +126,7 @@ func (ws *WebServer) processFiles(w http.ResponseWriter, r *http.Request) error 
 
 func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error {
 	base := "files"
-	upath, err := ws.getPath("configs", r.URL.Path)
-	if err != nil {
-		return err
-	}
+	upath := ws.getPath("configs", r.URL.Path)
 	upath = strings.TrimLeft(upath, "/")
 
 	// if path is not a file - return the default config
