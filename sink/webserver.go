@@ -4,12 +4,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/allegro/bigcache"
 	"net"
 	"net/http"
 	"os"
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
@@ -27,6 +29,7 @@ type WebServerOptions struct {
 	Key        string
 	Chain      string
 	Providers  []string
+	RenderTTL  time.Duration // render cache ttl in minutes
 }
 
 type WebServerProcessor = func(w http.ResponseWriter, r *http.Request) error
@@ -36,6 +39,7 @@ type WebServer struct {
 	logger        sreCommon.Logger
 	observability *common.Observability
 	objects       *sync.Map
+	renderCache   *bigcache.BigCache
 }
 
 func (ws *WebServer) Name() string {
@@ -47,7 +51,6 @@ func (ws *WebServer) Providers() []string {
 }
 
 func (ws *WebServer) Process(d common.Discovery, so common.SinkObject) {
-
 	dname := d.Name()
 	m := so.Map()
 	ws.logger.Debug("WebServer has to process %d objects from %s...", len(m), d.Name())
@@ -58,34 +61,39 @@ func (ws *WebServer) Process(d common.Discovery, so common.SinkObject) {
 	}
 }
 
-func (ws *WebServer) getPath(base, url string) string {
+func (ws *WebServer) getPath(base, url string) (string, error) {
 	upath := strings.TrimLeft(url, "/")
-	return strings.Replace(upath, base, "", 1)
+	upath = strings.Replace(upath, base, "", 1)
+	upath = path.Clean(upath)
+
+	// Ensure the path is NOT within the base directory
+	if strings.HasPrefix(upath, base) {
+		return "", fmt.Errorf("invalid path: %s", upath)
+	}
+
+	return upath, nil
 }
 
 func (ws *WebServer) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
-
-	s1, err := common.RenderTemplate(tpl, def, obj)
-	if err != nil {
+	if res, err := common.RenderTemplate(tpl, def, obj); err != nil {
 		ws.logger.Error(err)
 		return def
+	} else {
+		return res
 	}
-	return s1
 }
 
 func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error {
-
-	base := strings.ToLower("PubSub")
-	upath := ws.getPath(base, r.URL.Path)
+	base := "pubsub"
+	upath, err := ws.getPath(base, r.URL.Path)
+	if err != nil {
+		return err
+	}
 	name := path.Join(base, upath)
 
 	obj, _ := ws.objects.Load(name)
 	if utils.IsEmpty(obj) {
 		return fmt.Errorf("WebServer couldn't load %s for %s", base, name)
-	}
-
-	if utils.IsEmpty(obj) {
-		return fmt.Errorf("WebServer couldn't find %s file: %s", base, name)
 	}
 
 	file, ok := obj.(*discovery.PubSubMessagePayloadFile)
@@ -100,9 +108,11 @@ func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error
 }
 
 func (ws *WebServer) processFiles(w http.ResponseWriter, r *http.Request) error {
-
-	base := strings.ToLower("Files")
-	upath := ws.getPath(base, r.URL.Path)
+	base := "files"
+	upath, err := ws.getPath(base, r.URL.Path)
+	if err != nil {
+		return err
+	}
 	name := path.Join(base, upath)
 
 	obj, _ := ws.objects.Load(name)
@@ -114,17 +124,26 @@ func (ws *WebServer) processFiles(w http.ResponseWriter, r *http.Request) error 
 	if !ok {
 		return fmt.Errorf("WebServer %s has wrong path: %s", base, name)
 	}
-
-	http.ServeFile(w, r, fpath)
+	switch r.Method {
+	case http.MethodGet:
+		http.ServeFile(w, r, fpath)
+	case http.MethodHead:
+		fileInfo, err := os.Stat(fpath)
+		if err != nil {
+			return fmt.Errorf("WebServer couldn't get info about the file %s", fpath)
+		}
+		modTime := fileInfo.ModTime().UTC()
+		w.Header().Set("Last-Modified", modTime.Format(http.TimeFormat))
+	}
 	return nil
 }
 
 func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error {
-
-	var content []byte
-
 	base := "files"
-	upath := ws.getPath("configs", r.URL.Path)
+	upath, err := ws.getPath("configs", r.URL.Path)
+	if err != nil {
+		return err
+	}
 	upath = strings.TrimLeft(upath, "/")
 
 	// if path is not a file - return the default config
@@ -134,7 +153,6 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 
 	// convert path like /metrics/windows/telegraf.conf -> /metrics_windows_telegraf.conf
 	upath = strings.ReplaceAll(upath, "/", "_")
-
 	name := path.Join(base, upath)
 
 	obj, ok := ws.objects.Load(name)
@@ -147,45 +165,57 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 		return fmt.Errorf("WebServer %s has wrong path: %s", base, name)
 	}
 
-	params := r.URL.Query()
-
 	fileInfo, err := os.Stat(fpath)
 	if err != nil {
 		return fmt.Errorf("WebServer couldn't get info about the config file %s", fpath)
-	} else {
-		content, err = os.ReadFile(fpath)
-		if err != nil {
-			return fmt.Errorf("WebServer couldn't read the config file %s", fpath)
-		}
 	}
-
-	configOpts := toolsRender.TemplateOptions{
-		Content: string(content),
-		Name:    "telegraf-config",
-	}
-	telegrafConfigTemplate, err := toolsRender.NewTextTemplate(configOpts, ws.observability)
-	if err != nil {
-		return fmt.Errorf("WebServer couldn't template the config file %s, error: %s", fpath, err)
-	}
-	telegrafConfig := ws.render(telegrafConfigTemplate, "Don't have a template", params)
-
 	modTime := fileInfo.ModTime().UTC()
 	w.Header().Set("Last-Modified", modTime.Format(http.TimeFormat))
-	if _, err := w.Write([]byte(telegrafConfig)); err != nil {
-		return fmt.Errorf("WebServer couldn't write the config file: %s", name)
+
+	switch r.Method {
+	case http.MethodGet:
+
+		key := r.URL.String()
+		var telegrafConfig []byte
+		if telegrafConfig, err = ws.renderCache.Get(key); err != nil {
+			ws.logger.Debug("WebServer cache miss for: %s", key)
+			content, err := os.ReadFile(fpath)
+			if err != nil {
+				return fmt.Errorf("WebServer couldn't read the config file %s", fpath)
+			}
+
+			params := r.URL.Query()
+			configOpts := toolsRender.TemplateOptions{
+				Content: string(content),
+				Name:    "telegraf-config",
+			}
+			telegrafConfigTemplate, err := toolsRender.NewTextTemplate(configOpts, ws.observability)
+			if err != nil {
+				return fmt.Errorf("WebServer couldn't template the config file %s, error: %s", fpath, err)
+			}
+			telegrafConfig = []byte(ws.render(telegrafConfigTemplate, "Don't have a template", params))
+			if err = ws.renderCache.Set(key, telegrafConfig); err != nil {
+				ws.logger.Warn("WebServer couldn't cache render: %s", key)
+			}
+		}
+
+		if _, err := w.Write(telegrafConfig); err != nil {
+			return fmt.Errorf("WebServer couldn't write the config file: %s", name)
+		}
+	case http.MethodHead:
+		w.Header().Set("Content-Length", "0")
+	default:
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
+
 	return nil
 }
 
 func (ws *WebServer) processURL(url string, mux *http.ServeMux, p WebServerProcessor) {
-
 	urls := strings.Split(url, ",")
 	for _, url := range urls {
-
 		mux.HandleFunc(url, func(w http.ResponseWriter, r *http.Request) {
-
-			err := p(w, r)
-			if err != nil {
+			if err := p(w, r); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				ws.logger.Error(err)
 			}
@@ -194,10 +224,8 @@ func (ws *WebServer) processURL(url string, mux *http.ServeMux, p WebServerProce
 }
 
 func (ws *WebServer) Start(wg *sync.WaitGroup) {
-
 	wg.Add(1)
-	go func(wg *sync.WaitGroup) {
-
+	go func() {
 		defer wg.Done()
 		ws.logger.Info("WebServer start...")
 
@@ -205,50 +233,27 @@ func (ws *WebServer) Start(wg *sync.WaitGroup) {
 		var certificates []tls.Certificate
 
 		if ws.options.Tls {
-
-			// load certififcate
-			var cert []byte
-			if _, err := os.Stat(ws.options.Cert); err == nil {
-
-				cert, err = os.ReadFile(ws.options.Cert)
-				if err != nil {
-					ws.logger.Panic(err)
-				}
-			} else {
-				cert = []byte(ws.options.Cert)
-			}
-
-			// load key
-			var key []byte
-			if _, err := os.Stat(ws.options.Key); err == nil {
-				key, err = os.ReadFile(ws.options.Key)
-				if err != nil {
-					ws.logger.Panic(err)
-				}
-			} else {
-				key = []byte(ws.options.Key)
-			}
-
-			// make pair from certificate and pair
-			pair, err := tls.X509KeyPair(cert, key)
+			cert, err := loadFileOrString(ws.options.Cert)
 			if err != nil {
 				ws.logger.Panic(err)
 			}
 
-			certificates = append(certificates, pair)
-
-			// load CA chain
-			var chain []byte
-			if _, err := os.Stat(ws.options.Chain); err == nil {
-				chain, err = os.ReadFile(ws.options.Chain)
-				if err != nil {
-					ws.logger.Panic(err)
-				}
-			} else {
-				chain = []byte(ws.options.Chain)
+			key, err := loadFileOrString(ws.options.Key)
+			if err != nil {
+				ws.logger.Panic(err)
 			}
 
-			// make pool of chains
+			pair, err := tls.X509KeyPair(cert, key)
+			if err != nil {
+				ws.logger.Panic(err)
+			}
+			certificates = append(certificates, pair)
+
+			chain, err := loadFileOrString(ws.options.Chain)
+			if err != nil {
+				ws.logger.Panic(err)
+			}
+
 			caPool = x509.NewCertPool()
 			if !caPool.AppendCertsFromPEM(chain) {
 				ws.logger.Debug("WebServer CA chain is invalid")
@@ -256,9 +261,7 @@ func (ws *WebServer) Start(wg *sync.WaitGroup) {
 		}
 
 		mux := http.NewServeMux()
-
-		processors := ws.getProcessors()
-		for u, p := range processors {
+		for u, p := range ws.getProcessors() {
 			ws.processURL(u, mux, p)
 		}
 
@@ -270,43 +273,35 @@ func (ws *WebServer) Start(wg *sync.WaitGroup) {
 		ws.logger.Info("WebServer is up. Listening...")
 
 		srv := &http.Server{
-			Handler:  mux,
-			ErrorLog: nil,
+			Handler: mux,
 		}
 
 		if ws.options.Tls {
-
 			srv.TLSConfig = &tls.Config{
 				Certificates:       certificates,
 				RootCAs:            caPool,
 				InsecureSkipVerify: ws.options.Insecure,
 				ServerName:         ws.options.ServerName,
 			}
-
 			err = srv.ServeTLS(listener, "", "")
-			if err != nil {
-				ws.logger.Panic(err)
-			}
 		} else {
 			err = srv.Serve(listener)
-			if err != nil {
-				ws.logger.Panic(err)
-			}
 		}
-	}(wg)
+		if err != nil {
+			ws.logger.Panic(err)
+		}
+	}()
 }
 
 func (ws *WebServer) getProcessors() map[string]WebServerProcessor {
-
-	m := make(map[string]WebServerProcessor)
-	m["/pubsub/"] = ws.processPubSub
-	m["/files/"] = ws.processFiles
-	m["/configs/"] = ws.processConfig
-	return m
+	return map[string]WebServerProcessor{
+		"/pubsub/":  ws.processPubSub,
+		"/files/":   ws.processFiles,
+		"/configs/": ws.processConfig,
+	}
 }
 
 func NewWebServer(options WebServerOptions, observability *common.Observability) *WebServer {
-
 	logger := observability.Logs()
 
 	if utils.IsEmpty(options.Listen) {
@@ -316,10 +311,24 @@ func NewWebServer(options WebServerOptions, observability *common.Observability)
 
 	options.Providers = common.RemoveEmptyStrings(options.Providers)
 
+	renderCache, err := bigcache.NewBigCache(bigcache.DefaultConfig(options.RenderTTL * time.Minute))
+	if err != nil {
+		logger.Error(err)
+		return nil
+	}
+
 	return &WebServer{
 		options:       options,
 		logger:        logger,
 		observability: observability,
 		objects:       &sync.Map{},
+		renderCache:   renderCache,
 	}
+}
+
+func loadFileOrString(pathOrContent string) ([]byte, error) {
+	if _, err := os.Stat(pathOrContent); err == nil {
+		return os.ReadFile(pathOrContent)
+	}
+	return []byte(pathOrContent), nil
 }

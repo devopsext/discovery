@@ -67,7 +67,9 @@ func AppendHostSink(m SinkMap, name string, hs HostSink) {
 }
 
 func (ss *Sinks) Add(s Sink) {
-	ss.list = append(ss.list, s)
+	if s != nil {
+		ss.list = append(ss.list, s)
+	}
 }
 
 func (ss *Sinks) Process(d Discovery, so SinkObject) {
