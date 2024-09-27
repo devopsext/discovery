@@ -353,8 +353,8 @@ var sinkWebServerOptions = sink.WebServerOptions{
 	Cert:       envGet("SINK_WEBSERVER_CERT", "").(string),
 	Key:        envGet("SINK_WEBSERVER_KEY", "").(string),
 	Chain:      envGet("SINK_WEBSERVER_CHAIN", "").(string),
-
-	Providers: strings.Split(envStringExpand("SINK_WEBSERVER_PROVIDERS", ""), ","),
+	Providers:  strings.Split(envStringExpand("SINK_WEBSERVER_PROVIDERS", ""), ","),
+	RenderTTL:  time.Duration(envGet("SINK_WEBSERVER_RENDER_TTL", 5).(int)),
 }
 
 func getOnlyEnv(key string) string {
@@ -502,9 +502,7 @@ func Execute() {
 			sinks.Add(sink.NewTelegraf(sinkTelegrafOptions, obs))
 			sinks.Add(sink.NewObservability(sinkObservabilityOptions, obs))
 			sinks.Add(sink.NewPubSub(sinkPubSubOptions, obs))
-
-			ws := sink.NewWebServer(sinkWebServerOptions, obs)
-			if ws != nil {
+			if ws := sink.NewWebServer(sinkWebServerOptions, obs); ws != nil {
 				sinks.Add(ws)
 				ws.Start(&mainWG)
 			}

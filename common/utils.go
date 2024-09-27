@@ -111,23 +111,21 @@ func FileMd5ToString(path string) string {
 }
 
 func IfDef(v, def interface{}) interface{} {
-
 	if utils.IsEmpty(v) {
 		return def
 	}
-	switch v.(type) {
+	switch v := v.(type) {
 	case string:
-		if v.(string) == "" {
+		if v == "" {
 			return def
 		}
 	case int:
-		if v.(int) == 0 {
+		if v == 0 {
 			return def
 		}
 	}
 	return v
 }
-
 func StringInArr(a string, arr []string) bool {
 	for _, b := range arr {
 		if b == a {
