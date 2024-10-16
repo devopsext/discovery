@@ -273,7 +273,7 @@ func (d *Files) Discover() {
 			if (event.Op == fsnotify.Create) || (event.Op == fsnotify.Write) || (event.Op == fsnotify.Chmod) {
 
 				if !utils.FileExists(event.Name) {
-					return
+					continue
 				}
 				name := filepath.Base(event.Name)
 				m[name] = event.Name
@@ -284,10 +284,10 @@ func (d *Files) Discover() {
 				d.discoverProviders(m)
 			}
 		case err, ok := <-d.watcher.Errors:
-			if !ok {
-				return
-			}
 			d.logger.Error("Files watcher has error: %s", err)
+			if !ok {
+				continue
+			}
 		}
 	}
 }

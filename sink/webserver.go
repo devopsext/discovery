@@ -311,7 +311,15 @@ func NewWebServer(options WebServerOptions, observability *common.Observability)
 
 	options.Providers = common.RemoveEmptyStrings(options.Providers)
 
-	renderCache, err := bigcache.NewBigCache(bigcache.DefaultConfig(options.RenderTTL * time.Minute))
+	cacheConfig := bigcache.DefaultConfig(options.RenderTTL)
+	// clean up expired items in every 1 minute
+	cacheConfig.CleanWindow = 1 * time.Minute
+	// set the maximum number of entries in the cache
+	cacheConfig.MaxEntriesInWindow = 1500
+	// set the maximum size of the entry in bytes
+	cacheConfig.MaxEntrySize = 4096
+
+	renderCache, err := bigcache.NewBigCache(cacheConfig)
 	if err != nil {
 		logger.Error(err)
 		return nil

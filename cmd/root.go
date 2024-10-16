@@ -354,7 +354,7 @@ var sinkWebServerOptions = sink.WebServerOptions{
 	Key:        envGet("SINK_WEBSERVER_KEY", "").(string),
 	Chain:      envGet("SINK_WEBSERVER_CHAIN", "").(string),
 	Providers:  strings.Split(envStringExpand("SINK_WEBSERVER_PROVIDERS", ""), ","),
-	RenderTTL:  time.Duration(envGet("SINK_WEBSERVER_RENDER_TTL", 5).(int)),
+	RenderTTL:  time.Second * time.Duration(envGet("SINK_WEBSERVER_RENDER_TTL", 300).(int)),
 }
 
 func getOnlyEnv(key string) string {
