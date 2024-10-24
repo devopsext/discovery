@@ -37,9 +37,12 @@ Flags:
       --dns-query-period string                         DNS discovery query period
       --dns-query-step string                           DNS discovery query step
       --dns-schedule string                             DNS discovery schedule
-      --ec2-access-key string                           AWS EC2 discovery access key
-      --ec2-schedule string                             AWS EC2 discovery schedule
-      --ec2-secret-key string                           AWS EC2 discovery secret key
+      --aws-accounts string                             AWS discovery accounts (comma-separated)
+      --aws-role string                                 AWS discovery role
+      --aws-role-timeout string                         AWS discovery role timeout seconds
+      --aws-access-key string                           AWS discovery access key
+      --aws-secret-key string                           AWS discovery secret key
+      --aws-ec2-schedule string                         AWS EC2 discovery schedule
       --files-coverters string                          Files filters
       --files-folder string                             Files folder
       --files-providers string                          Files providers

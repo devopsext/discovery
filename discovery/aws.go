@@ -7,13 +7,13 @@ import (
 	"github.com/devopsext/utils"
 )
 
-type AWSOptions struct {
-	toolsVendors.AWSKeys
+type AWSDiscoveryOptions struct {
+	toolsVendors.AWSOptions
 }
 
 type AWSEC2Options struct {
 	Schedule string
-	AWSOptions
+	AWSDiscoveryOptions
 }
 
 type AWSEC2 struct {
@@ -86,12 +86,15 @@ func (o *AWSEC2) Discover() {
 
 func NewAWSEC2(options AWSEC2Options, observability *common.Observability, processors *common.Processors) *AWSEC2 {
 	logger := observability.Logs()
-	if utils.IsEmpty(options.AccessKey) || utils.IsEmpty(options.SecretKey) {
-		logger.Debug("AWS keys not present. Skipped")
+	if utils.IsEmpty(options.AccessKey) ||
+		utils.IsEmpty(options.SecretKey) ||
+		utils.IsEmpty(options.Accounts) ||
+		utils.IsEmpty(options.Role) {
+		logger.Debug("AWS keys, accounts or role data not present. Skipped")
 		return nil
 	}
 
-	client, err := toolsVendors.NewAWSEC2(options.AWSKeys)
+	client, err := toolsVendors.NewAWSEC2(options.AWSOptions)
 	if err != nil {
 		logger.Debug("couldn't create EC2 object. Skipped")
 		logger.Debug(err)
