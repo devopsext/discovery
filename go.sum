@@ -91,10 +91,14 @@ github.com/devopsext/tools v0.14.7 h1:uF9YL+E2VB7CyFudNE3o6Vcke4qLv2fpzv0RrbB1Wv
 github.com/devopsext/tools v0.14.7/go.mod h1:QYH3dVcrQQ3qxWm7CupHDROyE2d/3Pd8Dwco9RdeHL8=
 github.com/devopsext/tools v0.15.13 h1:9QJMLlS9U/r9q0VggUfsbqUjDgGgs3k9gvkQyLXRgGQ=
 github.com/devopsext/tools v0.15.13/go.mod h1:+yPbrAimj3jYGIsms4nmyZo9DKVHv6lTZMa4HYT8mgg=
+github.com/devopsext/tools v0.15.17 h1:c2HfsFGMgp+yTUWB45j+8jmWjxkDXgR1K5TXhX1mr5w=
+github.com/devopsext/tools v0.15.17/go.mod h1:wl7Nwjj2UhSDe4VbuOfLS4qC2WnayYqBMA3MPZZUvXY=
 github.com/devopsext/utils v0.4.2 h1:MIdBfeuXW/Iu7QX+mw8ar+346qpGhFTUaCPdNB8ZoqI=
 github.com/devopsext/utils v0.4.2/go.mod h1:Vg3Jxxr4i9JXPmhaZo7TvY+OEr3W3QlZDXmbN8ScU5k=
 github.com/devopsext/utils v0.4.6 h1:jt123zIunnn4A9aYOrj5Z+c9x+RQGI6t0G31ruX1/Pg=
 github.com/devopsext/utils v0.4.6/go.mod h1:3Apwsy4/k+baHRxsHuK0ipqdgK/YNHif0fZmO7m0W4Q=
+github.com/devopsext/utils v0.4.7 h1:9/FaKnP60Yzyb90+PYLzmalpTDUkOwn55QPD1QBoH/Y=
+github.com/devopsext/utils v0.4.7/go.mod h1:3Apwsy4/k+baHRxsHuK0ipqdgK/YNHif0fZmO7m0W4Q=
 github.com/emicklei/go-restful/v3 v3.11.0 h1:rAQeMHw1c7zTmncogyy8VvRZwtkmkZ4FxERmMY4rD+g=
 github.com/emicklei/go-restful/v3 v3.11.0/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
@@ -123,6 +127,9 @@ github.com/go-openapi/jsonreference v0.20.2 h1:3sVjiK66+uXK/6oQ8xgcRKcFgQ5KXa2Kv
 github.com/go-openapi/jsonreference v0.20.2/go.mod h1:Bl1zwGIM8/wsvqjsOQLJ/SH+En5Ap4rVB5KVcIDZG2k=
 github.com/go-openapi/swag v0.22.3 h1:yMBqmnQ0gyZvEb/+KzuWZOXgllrXT4SADYbvDaXHv/g=
 github.com/go-openapi/swag v0.22.3/go.mod h1:UzaqsxGiab7freDnrUUra0MwWfN/q7tE4j+VcZ0yl14=
+github.com/go-playground/assert/v2 v2.0.1/go.mod h1:VDjEfimB/XKnb+ZQfWdccd7VUvScMdVu0Titje2rxJ4=
+github.com/go-playground/form/v4 v4.2.1 h1:HjdRDKO0fftVMU5epjPW2SOREcZ6/wLUzEobqUGJuPw=
+github.com/go-playground/form/v4 v4.2.1/go.mod h1:q1a2BY+AQUUzhl6xA/6hBetay6dEIhMHjgvJiGo6K7U=
 github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 h1:tfuBGBXKqDEevZMzYi5KSi8KkcZtzBcTgAUUtapy0OI=
 github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572/go.mod h1:9Pwr4B2jHnOSGXyyzV8ROjYa2ojvAY6HCGYYfMoC3Ls=
 github.com/gogo/protobuf v1.3.2 h1:Ov1cvc58UF3b5XjBnZv7+opcTcQFZebYjWzi34vdm4Q=
