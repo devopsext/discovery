@@ -150,7 +150,10 @@ var dZabbixOptions = discovery.ZabbixOptions{
 }
 
 var dVCenterOptions = discovery.VCenterOptions{
-	Schedule: envGet("VCENTER_SCHEDULE", "").(string),
+	Schedule:      envGet("VCENTER_SCHEDULE", "").(string),
+	ClusterFilter: envGet("VCENTER_CLUSTER_FILTER", ".*").(string),
+	HostFilter:    envGet("VCENTER_HOST_FILTER", ".*").(string),
+	VMFilter:      envGet("VCENTER_VM_FILTER", ".*").(string),
 	VCenterOptions: vendors.VCenterOptions{
 		Timeout:  envGet("VCENTER_TIMEOUT", 5).(int),
 		Insecure: envGet("VCENTER_INSECURE", false).(bool),
@@ -675,6 +678,9 @@ func Execute() {
 
 	// VCenter
 	flags.StringVar(&dVCenterOptions.Schedule, "vcenter-schedule", dVCenterOptions.Schedule, "VCenter discovery schedule")
+	flags.StringVar(&dVCenterOptions.ClusterFilter, "vcenter-cluster-filter", dVCenterOptions.ClusterFilter, "VCenter discovery cluster filter")
+	flags.StringVar(&dVCenterOptions.HostFilter, "vcenter-host-filter", dVCenterOptions.HostFilter, "VCenter discovery host filter")
+	flags.StringVar(&dVCenterOptions.VMFilter, "vcenter-vm-filter", dVCenterOptions.VMFilter, "VCenter discovery vm filter")
 	flags.IntVar(&dVCenterOptions.Timeout, "vcenter-timeout", dVCenterOptions.Timeout, "VCenter discovery timeout")
 	flags.BoolVar(&dVCenterOptions.Insecure, "vcenter-insecure", dVCenterOptions.Insecure, "VCenter discovery insecure")
 	flags.StringVar(&dVCenterOptions.URL, "vcenter-url", dVCenterOptions.URL, "VCenter discovery URL")

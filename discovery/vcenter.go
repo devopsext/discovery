@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"encoding/json"
+	"regexp"
 
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
@@ -57,7 +58,10 @@ type VCenterClusterResponse struct {
 
 type VCenterOptions struct {
 	toolsVendors.VCenterOptions
-	Schedule string
+	Schedule      string
+	ClusterFilter string
+	HostFilter    string
+	VMFilter      string
 }
 
 type VCenter struct {
@@ -66,6 +70,9 @@ type VCenter struct {
 	logger        sreCommon.Logger
 	observability *common.Observability
 	processors    *common.Processors
+	clusterFilter *regexp.Regexp
+	hostFilter    *regexp.Regexp
+	vmFilter      *regexp.Regexp
 }
 
 type VCenterSinkObject struct {
@@ -102,7 +109,17 @@ func (vc *VCenter) getClusters(opts toolsVendors.VCenterOptions) ([]*VCenterClus
 	if err := json.Unmarshal(data, &res); err != nil {
 		return r, err
 	}
-	return res.Value, nil
+
+	var ret []*VCenterCluster
+
+	for _, c := range res.Value {
+		if vc.clusterFilter != nil && !vc.clusterFilter.MatchString(c.Name) {
+			continue
+		}
+		ret = append(ret, c)
+	}
+
+	return ret, nil
 }
 
 func (vc *VCenter) getHosts(opts toolsVendors.VCenterOptions, cluster string) ([]*VCenterHost, error) {
@@ -120,7 +137,17 @@ func (vc *VCenter) getHosts(opts toolsVendors.VCenterOptions, cluster string) ([
 	if err := json.Unmarshal(data, &res); err != nil {
 		return r, err
 	}
-	return res.Value, nil
+
+	var ret []*VCenterHost
+
+	for _, c := range res.Value {
+		if vc.hostFilter != nil && !vc.hostFilter.MatchString(c.Name) {
+			continue
+		}
+		ret = append(ret, c)
+	}
+
+	return ret, nil
 }
 
 func (vc *VCenter) getVMs(opts toolsVendors.VCenterOptions, cluster, host string) ([]*VCenterVM, error) {
@@ -139,7 +166,17 @@ func (vc *VCenter) getVMs(opts toolsVendors.VCenterOptions, cluster, host string
 	if err := json.Unmarshal(data, &res); err != nil {
 		return r, err
 	}
-	return res.Value, nil
+
+	var ret []*VCenterVM
+
+	for _, c := range res.Value {
+		if vc.vmFilter != nil && !vc.vmFilter.MatchString(c.Name) {
+			continue
+		}
+		ret = append(ret, c)
+	}
+
+	return ret, nil
 }
 
 func (vc *VCenter) getVMGuestidentity(opts toolsVendors.VCenterOptions, vm string) (*VCenterVMGuestIdentity, error) {
@@ -162,6 +199,9 @@ func (vc *VCenter) makeSinkMap(clusters []*VCenterCluster) common.SinkMap {
 
 	r := make(common.SinkMap)
 
+	lbs := common.Labels{}
+	lbs["source"] = vc.options.URL
+
 	for _, c := range clusters {
 
 		for _, h := range c.hosts {
@@ -177,21 +217,21 @@ func (vc *VCenter) makeSinkMap(clusters []*VCenterCluster) common.SinkMap {
 					os = common.IfDef(v.identity.FullName.OS, "").(string)
 				}
 
-				common.AppendHostSink(r, v.Name, common.HostSink{
+				common.AppendHostSinkLabels(r, v.Name, common.HostSink{
 					IP:      ip,
 					Host:    host,
 					OS:      os,
 					Vendor:  "vSphere",
 					Cluster: c.Name,
 					Server:  h.Name,
-				})
+				}, lbs)
 			}
 		}
 	}
 	return r
 }
 
-func (vc *VCenter) setVMs(opts toolsVendors.VCenterOptions, host, name string, vms []*VCenterVM) {
+func (vc *VCenter) setVMs(opts toolsVendors.VCenterOptions, vms []*VCenterVM) {
 
 	for _, v := range vms {
 
@@ -220,7 +260,7 @@ func (vc *VCenter) setHosts(opts toolsVendors.VCenterOptions, cluster, name stri
 			continue
 		}
 		vc.logger.Debug("VCenter cluster %s host %s found %d vms. Processing...", name, h.Name, len(vms))
-		vc.setVMs(opts, h.Host, h.Name, vms)
+		vc.setVMs(opts, vms)
 	}
 }
 
@@ -296,11 +336,29 @@ func NewVCenter(options VCenterOptions, observability *common.Observability, pro
 		return nil
 	}
 
+	var reCluster *regexp.Regexp
+	if !utils.IsEmpty(options.ClusterFilter) {
+		reCluster = regexp.MustCompile(options.ClusterFilter)
+	}
+
+	var reHost *regexp.Regexp
+	if !utils.IsEmpty(options.HostFilter) {
+		reHost = regexp.MustCompile(options.HostFilter)
+	}
+
+	var vmHost *regexp.Regexp
+	if !utils.IsEmpty(options.VMFilter) {
+		vmHost = regexp.MustCompile(options.VMFilter)
+	}
+
 	return &VCenter{
 		client:        toolsVendors.NewVCenter(options.VCenterOptions),
 		options:       options,
 		logger:        logger,
 		observability: observability,
 		processors:    processors,
+		clusterFilter: reCluster,
+		hostFilter:    reHost,
+		vmFilter:      vmHost,
 	}
 }

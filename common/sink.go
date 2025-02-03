@@ -34,7 +34,7 @@ type HostSink struct {
 	Server  string
 }
 
-func AppendHostSink(m SinkMap, name string, hs HostSink) {
+func AppendHostSinkLabels(m SinkMap, name string, hs HostSink, lbs Labels) {
 
 	if m == nil || utils.IsEmpty(name) {
 		return
@@ -63,7 +63,16 @@ func AppendHostSink(m SinkMap, name string, hs HostSink) {
 	if !utils.IsEmpty(hs.Server) {
 		labels["server"] = hs.Server
 	}
+
+	for k, v := range lbs {
+		labels[k] = v
+	}
 	m[name] = labels
+}
+
+func AppendHostSink(m SinkMap, name string, hs HostSink) {
+
+	AppendHostSinkLabels(m, name, hs, nil)
 }
 
 func (ss *Sinks) Add(s Sink) {
