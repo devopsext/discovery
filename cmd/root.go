@@ -150,6 +150,7 @@ var dZabbixOptions = discovery.ZabbixOptions{
 }
 
 var dVCenterOptions = discovery.VCenterOptions{
+	Names:         envStringExpand("VCENTER_NAMES", ""),
 	Schedule:      envGet("VCENTER_SCHEDULE", "").(string),
 	ClusterFilter: envGet("VCENTER_CLUSTER_FILTER", ".*").(string),
 	HostFilter:    envGet("VCENTER_HOST_FILTER", ".*").(string),
@@ -432,7 +433,7 @@ func runStandAloneDiscovery(wg *sync.WaitGroup, discovery common.Discovery, logg
 	logger.Debug("%s: discovery enabled on event", discovery.Name())
 }
 
-func runPrometheusDiscovery(wg *sync.WaitGroup, scheduler *gocron.Scheduler, schedule string, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
+func runNamedDiscovery(wg *sync.WaitGroup, scheduler *gocron.Scheduler, schedule string, name, value string, discovery common.Discovery, logger *sreCommon.Logs) {
 
 	if utils.IsEmpty(discovery) {
 		return
@@ -523,8 +524,8 @@ func Execute() {
 			wg := &sync.WaitGroup{}
 
 			// run prometheus discoveries for each prometheus name for URLs and run related discoveries
-			promDiscoveryObjects := common.GetPrometheusDiscoveriesByInstances(dPrometheusOptions.Names, obs.Logs())
-			for _, prom := range promDiscoveryObjects {
+			proms := common.ParseNames(dPrometheusOptions.Names, obs.Logs())
+			for _, prom := range proms {
 
 				// create opts based on global prometheus options
 				opts := common.PrometheusOptions{}
@@ -551,19 +552,50 @@ func Execute() {
 				opts.User = prom.User
 				opts.Password = prom.Password
 
-				runPrometheusDiscovery(wg, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, processors), logger)
-				runPrometheusDiscovery(wg, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, processors), logger)
-				runPrometheusDiscovery(wg, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, processors), logger)
-				runPrometheusDiscovery(wg, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, processors), logger)
-				runPrometheusDiscovery(wg, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, processors), logger)
-				runPrometheusDiscovery(wg, scheduler, dLabelsOptions.Schedule, prom.Name, opts.URL, discovery.NewLabels(prom.Name, opts, dLabelsOptions, obs, processors), logger)
+				runNamedDiscovery(wg, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, processors), logger)
+				runNamedDiscovery(wg, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, processors), logger)
+				runNamedDiscovery(wg, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, processors), logger)
+				runNamedDiscovery(wg, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, processors), logger)
+				runNamedDiscovery(wg, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, processors), logger)
+				runNamedDiscovery(wg, scheduler, dLabelsOptions.Schedule, prom.Name, opts.URL, discovery.NewLabels(prom.Name, opts, dLabelsOptions, obs, processors), logger)
 			}
 
-			// run simple discoveries
 			runSimpleDiscovery(wg, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, processors), logger)
-			runSimpleDiscovery(wg, scheduler, dVCenterOptions.Schedule, discovery.NewVCenter(dVCenterOptions, obs, processors), logger)
+
+			// run vcenter discoveries for each vcenter name for URLs and run related discoveries
+			vcenters := common.ParseNames(dVCenterOptions.Names, obs.Logs())
+			for _, vcenter := range vcenters {
+
+				// create opts based on global vcenter options
+				opts := discovery.VCenterOptions{}
+				err := copier.CopyWithOption(&opts, &dVCenterOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+				if err != nil {
+					logger.Error("VCenter copy error: %s", err)
+					continue
+				}
+
+				// render vcenter URL
+				m := make(map[string]string)
+				m["name"] = vcenter.Name
+				m["url"] = vcenter.URL
+				m["user"] = vcenter.User
+				m["password"] = vcenter.Password
+				opts.URL = common.Render(dVCenterOptions.URL, m, obs)
+
+				if utils.IsEmpty(opts.URL) || utils.IsEmpty(vcenter.Name) {
+					logger.Debug("VCenter discovery is not found")
+					continue
+				}
+				// fill additional fields
+				opts.Names = vcenter.Name
+				opts.User = vcenter.User
+				opts.Password = vcenter.Password
+
+				runNamedDiscovery(wg, scheduler, dVCenterOptions.Schedule, vcenter.Name, opts.URL, discovery.NewVCenter(vcenter.Name, opts, obs, processors), logger)
+			}
+
 			runSimpleDiscovery(wg, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dLdapOptions.Schedule, discovery.NewLdap(dLdapOptions, obs, processors), logger)
@@ -677,6 +709,7 @@ func Execute() {
 	flags.StringVar(&dZabbixOptions.Auth, "zabbix-token", dZabbixOptions.Auth, "Zabbix discovery token")
 
 	// VCenter
+	flags.StringVar(&dVCenterOptions.Names, "vcenter-names", dVCenterOptions.Names, "VCenter discovery names")
 	flags.StringVar(&dVCenterOptions.Schedule, "vcenter-schedule", dVCenterOptions.Schedule, "VCenter discovery schedule")
 	flags.StringVar(&dVCenterOptions.ClusterFilter, "vcenter-cluster-filter", dVCenterOptions.ClusterFilter, "VCenter discovery cluster filter")
 	flags.StringVar(&dVCenterOptions.HostFilter, "vcenter-host-filter", dVCenterOptions.HostFilter, "VCenter discovery host filter")

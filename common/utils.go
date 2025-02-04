@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	sreCommon "github.com/devopsext/sre/common"
 	toolsRender "github.com/devopsext/tools/render"
 	"github.com/devopsext/utils"
 	"gopkg.in/yaml.v2"
@@ -240,71 +238,6 @@ func ParsePeriodFromNow(period string, t time.Time) string {
 
 	from := t.Add(dur)
 	return strconv.Itoa(int(from.Unix()))
-}
-
-func parseURL(s string, defSchema string) (*url.URL, error) {
-
-	schema := defSchema
-	rest := s
-
-	arr := strings.Split(s, "://")
-
-	if len(arr) == 2 {
-		s1 := strings.TrimSpace(arr[0])
-		if !utils.IsEmpty(s1) {
-			schema = s1
-		}
-		rest = strings.TrimSpace(arr[1])
-	}
-
-	u, err := url.Parse(fmt.Sprintf("%s://%s", schema, rest))
-	if err != nil {
-		return nil, err
-	}
-	return u, nil
-}
-
-// prometheus=prometheus.service.svc:9090, victoria=https://user:pass@victoria.some.where, source2=http://prometheus.location
-func GetPrometheusDiscoveriesByInstances(names string, logger sreCommon.Logger) []PromDiscoveryObject {
-
-	nameItems := RemoveEmptyStrings(strings.Split(names, ","))
-	var promDiscoveryObjects []PromDiscoveryObject
-
-	for index, item := range nameItems {
-
-		var name, nurl string
-		parts := strings.SplitN(item, "=", 2)
-		if len(parts) == 2 {
-			name = strings.TrimSpace(parts[0])
-			nurl = strings.TrimSpace(parts[1])
-		} else {
-			name = fmt.Sprintf("unknown%d", index)
-			nurl = strings.TrimSpace(parts[0])
-		}
-
-		u, err := parseURL(nurl, "http")
-		if err != nil {
-			logger.Error(err)
-		}
-
-		user := ""
-		password := ""
-		if u.User != nil {
-			user = u.User.Username()
-			password, _ = u.User.Password()
-			u.User = nil // remove user
-		}
-
-		promDiscoveryObject := PromDiscoveryObject{
-			Name:     name,
-			URL:      u.String(),
-			User:     user,
-			Password: password,
-		}
-
-		promDiscoveryObjects = append(promDiscoveryObjects, promDiscoveryObject)
-	}
-	return promDiscoveryObjects
 }
 
 func RemoveEmptyStrings(items []string) []string {

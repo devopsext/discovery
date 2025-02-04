@@ -58,6 +58,7 @@ type VCenterClusterResponse struct {
 
 type VCenterOptions struct {
 	toolsVendors.VCenterOptions
+	Names         string
 	Schedule      string
 	ClusterFilter string
 	HostFilter    string
@@ -65,6 +66,7 @@ type VCenterOptions struct {
 }
 
 type VCenter struct {
+	source        string
 	client        *toolsVendors.VCenter
 	options       VCenterOptions
 	logger        sreCommon.Logger
@@ -93,7 +95,7 @@ func (vc *VCenter) Name() string {
 }
 
 func (vc *VCenter) Source() string {
-	return ""
+	return vc.source
 }
 
 func (vc *VCenter) getClusters(opts toolsVendors.VCenterOptions) ([]*VCenterCluster, error) {
@@ -200,7 +202,7 @@ func (vc *VCenter) makeSinkMap(clusters []*VCenterCluster) common.SinkMap {
 	r := make(common.SinkMap)
 
 	lbs := common.Labels{}
-	lbs["source"] = vc.options.URL
+	lbs["source"] = vc.source
 
 	for _, c := range clusters {
 
@@ -237,7 +239,7 @@ func (vc *VCenter) setVMs(opts toolsVendors.VCenterOptions, vms []*VCenterVM) {
 
 		identity, err := vc.getVMGuestidentity(opts, v.VM)
 		if err != nil {
-			vc.logger.Error("VCenter vm %s guest identity error: %s", v.Name, err)
+			vc.logger.Error("%s: VCenter vm %s guest identity error: %s", vc.source, v.Name, err)
 			continue
 		}
 		v.identity = identity
@@ -250,16 +252,16 @@ func (vc *VCenter) setHosts(opts toolsVendors.VCenterOptions, cluster, name stri
 
 		vms, err := vc.getVMs(opts, cluster, h.Host)
 		if err != nil {
-			vc.logger.Error("VCenter host %s vms error: %s", h.Name, err)
+			vc.logger.Error("%s: VCenter host %s vms error: %s", vc.source, h.Name, err)
 			continue
 		}
 		h.vms = vms
 
 		if len(vms) == 0 {
-			vc.logger.Debug("VCenter cluster %s host %s has no vms", name, h.Name)
+			vc.logger.Debug("%s: VCenter cluster %s host %s has no vms", vc.source, name, h.Name)
 			continue
 		}
-		vc.logger.Debug("VCenter cluster %s host %s found %d vms. Processing...", name, h.Name, len(vms))
+		vc.logger.Debug("%s: VCenter cluster %s host %s found %d vms. Processing...", vc.source, name, h.Name, len(vms))
 		vc.setVMs(opts, vms)
 	}
 }
@@ -270,23 +272,23 @@ func (vc *VCenter) setClusters(opts toolsVendors.VCenterOptions, clusters []*VCe
 
 		hosts, err := vc.getHosts(opts, c.Cluster)
 		if err != nil {
-			vc.logger.Error("VCenter cluster %s hosts error: %s", c.Name, err)
+			vc.logger.Error("%s: VCenter cluster %s hosts error: %s", vc.source, c.Name, err)
 			continue
 		}
 		c.hosts = hosts
 
 		if len(hosts) == 0 {
-			vc.logger.Debug("VCenter cluster %s has no hosts", c.Name)
+			vc.logger.Debug("%s: VCenter cluster %s has no hosts", vc.source, c.Name)
 			continue
 		}
-		vc.logger.Debug("VCenter cluster %s found %d hosts. Processing...", c.Name, len(hosts))
+		vc.logger.Debug("%s: VCenter cluster %s found %d hosts. Processing...", vc.source, c.Name, len(hosts))
 		vc.setHosts(opts, c.Cluster, c.Name, hosts)
 	}
 }
 
 func (vc *VCenter) Discover() {
 
-	vc.logger.Debug("VCenter discovery by URL: %s", vc.options.URL)
+	vc.logger.Debug("%s: VCenter discovery by URL: %s", vc.source, vc.options.URL)
 
 	session, err := vc.client.CustomGetSession(vc.options.VCenterOptions)
 	if err != nil {
@@ -312,14 +314,14 @@ func (vc *VCenter) Discover() {
 	}
 
 	if len(clusters) == 0 {
-		vc.logger.Debug("VCenter has no clusters")
+		vc.logger.Debug("%s: VCenter has no clusters", vc.source)
 		return
 	}
-	vc.logger.Debug("VCenter found %d clusters. Processing...", len(clusters))
+	vc.logger.Debug("%s: VCenter found %d clusters. Processing...", vc.source, len(clusters))
 	vc.setClusters(opts, clusters)
 
 	m := vc.makeSinkMap(clusters)
-	vc.logger.Debug("VCenter found %d entries. Processing...", len(m))
+	vc.logger.Debug("%s: VCenter found %d entries. Processing...", vc.source, len(m))
 
 	vc.processors.Process(vc, &VCenterSinkObject{
 		sinkMap: m,
@@ -327,12 +329,12 @@ func (vc *VCenter) Discover() {
 	})
 }
 
-func NewVCenter(options VCenterOptions, observability *common.Observability, processors *common.Processors) *VCenter {
+func NewVCenter(source string, options VCenterOptions, observability *common.Observability, processors *common.Processors) *VCenter {
 
 	logger := observability.Logs()
 
 	if utils.IsEmpty(options.URL) {
-		logger.Debug("VCenter has no URL. Skipped")
+		logger.Debug("%s: VCenter has no URL. Skipped", source)
 		return nil
 	}
 
@@ -352,6 +354,7 @@ func NewVCenter(options VCenterOptions, observability *common.Observability, pro
 	}
 
 	return &VCenter{
+		source:        source,
 		client:        toolsVendors.NewVCenter(options.VCenterOptions),
 		options:       options,
 		logger:        logger,
