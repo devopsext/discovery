@@ -3,6 +3,7 @@ package discovery
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"regexp"
@@ -48,6 +49,11 @@ type HTTP struct {
 type HTTPSinkObject struct {
 	sinkMap common.SinkMap
 	http    *HTTP
+}
+
+type FileCache struct {
+	Content     interface{}
+	ContentHash string
 }
 
 func (hs *HTTPSinkObject) Map() common.SinkMap {
@@ -143,9 +149,7 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 }
 
 func (h *HTTP) getFiles(vars map[string]string) map[string]*common.File {
-
 	files := make(map[string]*common.File)
-
 	if h.filesTemplate == nil {
 		return files
 	}
@@ -153,28 +157,46 @@ func (h *HTTP) getFiles(vars map[string]string) map[string]*common.File {
 	fs := h.render(h.filesTemplate, h.options.Files, vars)
 	kv := utils.MapGetKeyValues(fs)
 	for k, v := range kv {
-
 		if utils.FileExists(v) {
 			typ := strings.Replace(filepath.Ext(v), ".", "", 1)
 
-			var obj interface{}
-			md5 := common.Md5ToString([]byte(v))
-			if utils.IsEmpty(md5) {
+			pathHash := common.Md5ToString([]byte(v))
+			if utils.IsEmpty(pathHash) {
 				continue
 			}
 
-			r, ok := h.files.Load(md5)
-			if ok {
-				obj = r
+			// Read file content for content hash
+			content, err := os.ReadFile(v)
+			if err != nil {
+				h.logger.Error(err)
+				continue
+			}
+			contentHash := common.Md5ToString(content)
+
+			var obj interface{}
+			needReload := true
+
+			//  load from cache
+			if cached, ok := h.files.Load(pathHash); ok {
+				fileCache := cached.(FileCache)
+
+				if fileCache.ContentHash == contentHash {
+					obj = fileCache.Content
+					needReload = false
+				}
 			}
 
-			if obj == nil {
+			if needReload {
 				o, err := common.ReadFile(v, typ)
 				if err != nil {
 					h.logger.Error(err)
 					continue
 				}
-				h.files.Store(md5, o)
+
+				h.files.Store(pathHash, FileCache{
+					Content:     o,
+					ContentHash: contentHash,
+				})
 				obj = o
 			}
 
