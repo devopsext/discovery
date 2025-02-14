@@ -64,6 +64,11 @@ type SignalSinkObject struct {
 	signal  *Signal
 }
 
+type SignalFileCache struct {
+	Content     interface{}
+	ContentHash string
+}
+
 func (ss *SignalSinkObject) Map() common.SinkMap {
 	return ss.sinkMap
 }
@@ -132,9 +137,7 @@ func (s *Signal) readBaseConfigs() map[string]*common.BaseConfig {
 }
 
 func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
-
 	files := make(map[string]*common.File)
-
 	if s.filesTemplate == nil {
 		return files
 	}
@@ -142,28 +145,46 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 	fs := s.render(s.filesTemplate, s.options.Files, vars)
 	kv := utils.MapGetKeyValues(fs)
 	for k, v := range kv {
-
 		if utils.FileExists(v) {
 			typ := strings.Replace(filepath.Ext(v), ".", "", 1)
 
-			var obj interface{}
-			md5 := common.Md5ToString([]byte(v))
-			if utils.IsEmpty(md5) {
+			pathHash := common.Md5ToString([]byte(v))
+			if utils.IsEmpty(pathHash) {
 				continue
 			}
 
-			r, ok := s.files.Load(md5)
-			if ok {
-				obj = r
+			// Read file content for content hash
+			content, err := os.ReadFile(v)
+			if err != nil {
+				s.logger.Error(err)
+				continue
+			}
+			contentHash := common.Md5ToString(content)
+
+			var obj interface{}
+			needReload := true
+
+			//  load from cache
+			if cached, ok := s.files.Load(pathHash); ok {
+				fileCache := cached.(SignalFileCache)
+
+				if fileCache.ContentHash == contentHash {
+					obj = fileCache.Content
+					needReload = false
+				}
 			}
 
-			if obj == nil {
+			if needReload {
 				o, err := common.ReadFile(v, typ)
 				if err != nil {
 					s.logger.Error(err)
 					continue
 				}
-				s.files.Store(md5, o)
+
+				s.files.Store(pathHash, SignalFileCache{
+					Content:     o,
+					ContentHash: contentHash,
+				})
 				obj = o
 			}
 
