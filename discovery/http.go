@@ -51,7 +51,7 @@ type HTTPSinkObject struct {
 	http    *HTTP
 }
 
-type FileCache struct {
+type HTTPFileCache struct {
 	Content     interface{}
 	ContentHash string
 }
@@ -178,7 +178,7 @@ func (h *HTTP) getFiles(vars map[string]string) map[string]*common.File {
 
 			//  load from cache
 			if cached, ok := h.files.Load(pathHash); ok {
-				fileCache := cached.(FileCache)
+				fileCache := cached.(HTTPFileCache)
 
 				if fileCache.ContentHash == contentHash {
 					obj = fileCache.Content
@@ -193,7 +193,7 @@ func (h *HTTP) getFiles(vars map[string]string) map[string]*common.File {
 					continue
 				}
 
-				h.files.Store(pathHash, FileCache{
+				h.files.Store(pathHash, HTTPFileCache{
 					Content:     o,
 					ContentHash: contentHash,
 				})
