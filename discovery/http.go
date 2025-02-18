@@ -52,8 +52,8 @@ type HTTPSinkObject struct {
 }
 
 type HTTPFileCache struct {
-	Content     interface{}
-	ContentHash string
+	Content interface{}
+	ModTime int64
 }
 
 func (hs *HTTPSinkObject) Map() common.SinkMap {
@@ -149,6 +149,7 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 }
 
 func (h *HTTP) getFiles(vars map[string]string) map[string]*common.File {
+
 	files := make(map[string]*common.File)
 	if h.filesTemplate == nil {
 		return files
@@ -156,56 +157,48 @@ func (h *HTTP) getFiles(vars map[string]string) map[string]*common.File {
 
 	fs := h.render(h.filesTemplate, h.options.Files, vars)
 	kv := utils.MapGetKeyValues(fs)
+
 	for k, v := range kv {
-		if utils.FileExists(v) {
-			typ := strings.Replace(filepath.Ext(v), ".", "", 1)
+		fileInfo, err := os.Stat(v)
+		if err != nil {
+			h.logger.Error(err)
+			continue
+		}
 
-			pathHash := common.Md5ToString([]byte(v))
-			if utils.IsEmpty(pathHash) {
-				continue
+		typ := strings.Replace(filepath.Ext(v), ".", "", 1)
+		pathKey := getPathKey(v)
+		modTime := fileInfo.ModTime().Unix()
+
+		needReload := true
+		var obj interface{}
+
+		if cached, ok := h.files.Load(pathKey); ok {
+			fileCache := cached.(HTTPFileCache)
+			if fileCache.ModTime == modTime {
+				obj = fileCache.Content
+				needReload = false
 			}
+		}
 
-			// Read file content for content hash
-			content, err := os.ReadFile(v)
+		if needReload {
+			o, err := common.ReadFile(v, typ)
 			if err != nil {
 				h.logger.Error(err)
 				continue
 			}
-			contentHash := common.Md5ToString(content)
+			obj = o
 
-			var obj interface{}
-			needReload := true
+			h.files.Store(pathKey, HTTPFileCache{
+				Content: obj,
+				ModTime: modTime,
+			})
+		}
 
-			//  load from cache
-			if cached, ok := h.files.Load(pathHash); ok {
-				fileCache := cached.(HTTPFileCache)
-
-				if fileCache.ContentHash == contentHash {
-					obj = fileCache.Content
-					needReload = false
-				}
-			}
-
-			if needReload {
-				o, err := common.ReadFile(v, typ)
-				if err != nil {
-					h.logger.Error(err)
-					continue
-				}
-
-				h.files.Store(pathHash, HTTPFileCache{
-					Content:     o,
-					ContentHash: contentHash,
-				})
-				obj = o
-			}
-
-			if obj != nil {
-				files[k] = &common.File{
-					Path: v,
-					Type: typ,
-					Obj:  obj,
-				}
+		if obj != nil {
+			files[k] = &common.File{
+				Path: v,
+				Type: typ,
+				Obj:  obj,
 			}
 		}
 	}

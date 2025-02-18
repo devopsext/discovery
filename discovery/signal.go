@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -65,8 +66,8 @@ type SignalSinkObject struct {
 }
 
 type SignalFileCache struct {
-	Content     interface{}
-	ContentHash string
+	Content interface{}
+	ModTime int64
 }
 
 func (ss *SignalSinkObject) Map() common.SinkMap {
@@ -136,6 +137,10 @@ func (s *Signal) readBaseConfigs() map[string]*common.BaseConfig {
 	return configs
 }
 
+func getPathKey(path string) string {
+	return base64.URLEncoding.EncodeToString([]byte(path))
+}
+
 func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 	files := make(map[string]*common.File)
 	if s.filesTemplate == nil {
@@ -144,56 +149,48 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 
 	fs := s.render(s.filesTemplate, s.options.Files, vars)
 	kv := utils.MapGetKeyValues(fs)
+
 	for k, v := range kv {
-		if utils.FileExists(v) {
-			typ := strings.Replace(filepath.Ext(v), ".", "", 1)
+		fileInfo, err := os.Stat(v)
+		if err != nil {
+			s.logger.Error(err)
+			continue
+		}
 
-			pathHash := common.Md5ToString([]byte(v))
-			if utils.IsEmpty(pathHash) {
-				continue
+		typ := strings.Replace(filepath.Ext(v), ".", "", 1)
+		pathKey := getPathKey(v)
+		modTime := fileInfo.ModTime().Unix()
+
+		needReload := true
+		var obj interface{}
+
+		if cached, ok := s.files.Load(pathKey); ok {
+			fileCache := cached.(SignalFileCache)
+			if fileCache.ModTime == modTime {
+				obj = fileCache.Content
+				needReload = false
 			}
+		}
 
-			// Read file content for content hash
-			content, err := os.ReadFile(v)
+		if needReload {
+			o, err := common.ReadFile(v, typ)
 			if err != nil {
 				s.logger.Error(err)
 				continue
 			}
-			contentHash := common.Md5ToString(content)
+			obj = o
 
-			var obj interface{}
-			needReload := true
+			s.files.Store(pathKey, SignalFileCache{
+				Content: obj,
+				ModTime: modTime,
+			})
+		}
 
-			//  load from cache
-			if cached, ok := s.files.Load(pathHash); ok {
-				fileCache := cached.(SignalFileCache)
-
-				if fileCache.ContentHash == contentHash {
-					obj = fileCache.Content
-					needReload = false
-				}
-			}
-
-			if needReload {
-				o, err := common.ReadFile(v, typ)
-				if err != nil {
-					s.logger.Error(err)
-					continue
-				}
-
-				s.files.Store(pathHash, SignalFileCache{
-					Content:     o,
-					ContentHash: contentHash,
-				})
-				obj = o
-			}
-
-			if obj != nil {
-				files[k] = &common.File{
-					Path: v,
-					Type: typ,
-					Obj:  obj,
-				}
+		if obj != nil {
+			files[k] = &common.File{
+				Path: v,
+				Type: typ,
+				Obj:  obj,
 			}
 		}
 	}
