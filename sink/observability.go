@@ -52,13 +52,18 @@ func (o *Observability) getTotalName() string {
 func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 
 	dname := d.Name()
+	dsource := d.Source()
 	m := so.Map()
 
-	o.logger.Debug("Observability has to process %d objects from %s...", len(m), dname)
+	o.logger.Debug("Observability has to process %d objects from %s source %s...", len(m), dname, dsource)
 
 	var lm common.LabelsMap
 
-	o.meter.Group(dname).Clear()
+	group := dname
+	if !utils.IsEmpty(dsource) {
+		group = fmt.Sprintf("%s/%s", dname, dsource)
+	}
+	o.meter.Group(group).Clear()
 
 	switch dname {
 	case "Signal":
@@ -126,13 +131,17 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 	}
 
 	if len(lm) == 0 {
-		o.logger.Debug("Observability has no support for %s", dname)
+		o.logger.Debug("Observability has no support for %s source %s", dname, dsource)
 		return
 	}
 
 	labels := make(sreCommon.Labels)
 	labels["provider"] = dname
-	c := o.meter.Counter(dname, o.getTotalName(), "Discovered total", labels)
+	if !utils.IsEmpty(dsource) {
+		labels["source"] = dsource
+	}
+
+	c := o.meter.Counter(group, o.getTotalName(), "Discovered total", labels)
 
 	dn := o.getDiscoveryName()
 	wrong := make(map[string]string)
@@ -145,7 +154,7 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 		labels["provider"] = dname
 		labels = common.MergeStringMaps(labels, common.FilterStringMap(v, o.options.Labels))
 		labels = common.ReplaceLabelValues(labels, wrong)
-		g := o.meter.Gauge(dname, dn, "Discovery existence", labels)
+		g := o.meter.Gauge(group, dn, "Discovery existence", labels)
 		g.Set(1)
 	}
 	c.Add(len(lm))
