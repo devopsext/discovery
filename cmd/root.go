@@ -55,9 +55,10 @@ var stdoutOptions = sreProvider.StdoutOptions{
 }
 
 var prometheusMetricsOptions = sreProvider.PrometheusOptions{
-	URL:    envGet("PROMETHEUS_METRICS_URL", "/metrics").(string),
-	Listen: envGet("PROMETHEUS_METRICS_LISTEN", ":8080").(string),
-	Prefix: envGet("PROMETHEUS_METRICS_PREFIX", "").(string),
+	URL:       envGet("PROMETHEUS_METRICS_URL", "/metrics").(string),
+	Listen:    envGet("PROMETHEUS_METRICS_LISTEN", ":8080").(string),
+	Prefix:    envGet("PROMETHEUS_METRICS_PREFIX", "").(string),
+	GoRuntime: envGet("PROMETHEUS_METRICS_GO_RUNTIME", true).(bool),
 }
 
 var dPrometheusOptions = common.PrometheusOptions{
