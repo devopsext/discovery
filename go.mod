@@ -1,12 +1,12 @@
 module github.com/devopsext/discovery
 
-go 1.23
+go 1.24.1
 
 require (
 	cloud.google.com/go/pubsub v1.3.1
 	github.com/BurntSushi/toml v0.3.1
 	github.com/allegro/bigcache v1.2.1
-	github.com/devopsext/sre v0.6.2
+	github.com/devopsext/sre v0.6.3
 	github.com/devopsext/tools v0.15.17
 	github.com/devopsext/utils v0.4.7
 	github.com/go-co-op/gocron v1.18.0
@@ -26,7 +26,6 @@ require (
 require (
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.5 // indirect
-	github.com/go-playground/form/v4 v4.2.1 // indirect
 )
 
 require (
