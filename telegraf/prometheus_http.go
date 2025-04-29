@@ -33,26 +33,28 @@ type InputPrometheusHttpAvailability struct {
 }
 
 type InputPrometheusHttp struct {
-	Name          string                             `toml:"name"`
-	URL           string                             `toml:"url"`
-	User          string                             `toml:"user,omitempty"`
-	Password      string                             `toml:"password,omitempty"`
-	Version       string                             `toml:"version"`
-	Params        string                             `toml:"params,omitempty"`
-	Interval      string                             `toml:"interval"`
-	Timeout       string                             `toml:"timeout"`
-	Duration      string                             `toml:"duration,omitempty"`
-	Prefix        string                             `toml:"prefix"`
-	File          []*InputPrometheusHttpFile         `toml:"file"`
-	Metric        []*InputPrometheusHttpMetric       `toml:"metric"`
-	Availability  []*InputPrometheusHttpAvailability `toml:"metric"`
-	Tags          map[string]string                  `toml:"tags,omitempty"`
-	Include       []string                           `toml:"taginclude,omitempty"`
-	SkipEmptyTags bool                               `toml:"skip_empty_tags"`
-	observability *common.Observability
+	Name             string                             `toml:"name"`
+	URL              string                             `toml:"url"`
+	User             string                             `toml:"user,omitempty"`
+	Password         string                             `toml:"password,omitempty"`
+	Version          string                             `toml:"version"`
+	Params           string                             `toml:"params,omitempty"`
+	CollectionOffset string                             `toml:"collection_offset"`
+	Interval         string                             `toml:"interval"`
+	Timeout          string                             `toml:"timeout"`
+	Duration         string                             `toml:"duration,omitempty"`
+	Prefix           string                             `toml:"prefix"`
+	File             []*InputPrometheusHttpFile         `toml:"file"`
+	Metric           []*InputPrometheusHttpMetric       `toml:"metric"`
+	Availability     []*InputPrometheusHttpAvailability `toml:"metric"`
+	Tags             map[string]string                  `toml:"tags,omitempty"`
+	Include          []string                           `toml:"taginclude,omitempty"`
+	SkipEmptyTags    bool                               `toml:"skip_empty_tags"`
+	observability    *common.Observability
 }
 
 type InputPrometheusHttpOptions struct {
+	CollectionOffset string
 	Interval         string
 	URL              string
 	User             string

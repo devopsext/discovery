@@ -3,8 +3,12 @@ package telegraf
 import (
 	"bufio"
 	"bytes"
+	"fmt"
+	"math/rand"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/devopsext/discovery/common"
@@ -67,6 +71,7 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Object, labelsTpl s
 	input.Password = opts.Password
 	input.Version = opts.Version
 	input.Params = opts.Params
+	input.CollectionOffset, _ = randomizeOffsetDuration(opts.CollectionOffset)
 	input.Interval = opts.Interval
 	input.Timeout = opts.Timeout
 	input.Duration = opts.Duration
@@ -269,4 +274,29 @@ func (tc *Config) GenerateInputX509CertBytes(opts InputX509CertOptions, addresse
 	}
 
 	return b.Bytes(), nil
+}
+
+func randomizeOffsetDuration(durationStr string) (string, error) {
+	if !strings.HasSuffix(durationStr, "s") {
+		return "0s", fmt.Errorf("Invalid duration format: %s, must end with 's'", durationStr)
+	}
+
+	numStr := strings.TrimSuffix(durationStr, "s")
+	maxValue, err := strconv.Atoi(numStr)
+	if err != nil {
+		return "0s", fmt.Errorf("Invalid numerical value in duration: %w", err)
+	}
+
+	if maxValue < 0 {
+		return "0s", fmt.Errorf("Duration value cannot be negative: %d", maxValue)
+	}
+
+	// Create a new random number generator with a unique seed
+	source := rand.NewSource(time.Now().UnixNano())
+	r := rand.New(source)
+
+	// Generate a random integer between 0 (inclusive) and maxValue (inclusive)
+	randomValue := r.Intn(maxValue + 1)
+
+	return fmt.Sprintf("%ds", randomValue), nil
 }
