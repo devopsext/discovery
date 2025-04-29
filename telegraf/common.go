@@ -291,6 +291,11 @@ func randomizeOffsetDuration(durationStr string) (string, error) {
 		return "0s", fmt.Errorf("Duration value cannot be negative: %d", maxValue)
 	}
 
+	// skip rest
+	if maxValue == 0 {
+		return "0s", nil
+	}
+
 	// Create a new random number generator with a unique seed
 	source := rand.NewSource(time.Now().UnixNano())
 	r := rand.New(source)
