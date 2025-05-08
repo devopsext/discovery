@@ -265,6 +265,7 @@ var sinkTelegrafOptions = sink.TelegrafOptions{
 		PersistMetrics: envGet("SINK_TELEGRAF_SIGNAL_PERSIST_METRICS", false).(bool),
 		Exclusion:      envStringExpand("SINK_TELEGRAF_SIGNAL_EXCLUSION", ""),
 		InputPrometheusHttpOptions: telegraf.InputPrometheusHttpOptions{
+			CollectionOffset: envGet("SINK_TELEGRAF_SIGNAL_OFFSET", "0s").(string),
 			Interval:         envGet("SINK_TELEGRAF_SIGNAL_INTERVAL", "10s").(string),
 			Version:          envGet("SINK_TELEGRAF_SIGNAL_VERSION", "v1").(string),
 			Params:           envGet("SINK_TELEGRAF_SIGNAL_PARAMS", "").(string),
