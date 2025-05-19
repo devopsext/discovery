@@ -65,8 +65,9 @@ type SignalSinkObject struct {
 }
 
 type SignalFileCache struct {
-	Content     interface{}
-	ContentHash string
+	Content      interface{}
+	ModifiedTime time.Time
+	contentHash  string
 }
 
 func (ss *SignalSinkObject) Map() common.SinkMap {
@@ -153,13 +154,12 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 				continue
 			}
 
-			// Read file content for content hash
-			content, err := os.ReadFile(v)
+			fileInfo, err := os.Stat(v)
 			if err != nil {
 				s.logger.Error(err)
 				continue
 			}
-			contentHash := common.Md5ToString(content)
+			modTime := fileInfo.ModTime()
 
 			var obj interface{}
 			needReload := true
@@ -168,24 +168,43 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 			if cached, ok := s.files.Load(pathHash); ok {
 				fileCache := cached.(SignalFileCache)
 
-				if fileCache.ContentHash == contentHash {
+				if fileCache.ModifiedTime.Equal(modTime) {
 					obj = fileCache.Content
 					needReload = false
 				}
 			}
 
 			if needReload {
-				o, err := common.ReadFile(v, typ)
+				content, err := os.ReadFile(v)
 				if err != nil {
 					s.logger.Error(err)
 					continue
 				}
+				contentHash := common.Md5ToString(content)
+
+				// parse the file based on its type
+				var parseErr error
+				switch {
+				case typ == "json":
+					obj, parseErr = common.ReadJson(content)
+				case typ == "toml":
+					obj, parseErr = common.ReadToml(content)
+				case (typ == "yaml") || (typ == "yml"):
+					obj, parseErr = common.ReadYaml(content)
+				default:
+					obj, parseErr = common.ReadJson(content)
+				}
+
+				if parseErr != nil {
+					s.logger.Error(parseErr)
+					continue
+				}
 
 				s.files.Store(pathHash, SignalFileCache{
-					Content:     o,
-					ContentHash: contentHash,
+					Content:      obj,
+					contentHash:  contentHash,
+					ModifiedTime: modTime,
 				})
-				obj = o
 			}
 
 			if obj != nil {
