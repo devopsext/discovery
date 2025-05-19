@@ -52,8 +52,9 @@ type HTTPSinkObject struct {
 }
 
 type HTTPFileCache struct {
-	Content     interface{}
-	ContentHash string
+	Content      interface{}
+	ContentHash  string
+	ModifiedTime time.Time
 }
 
 func (hs *HTTPSinkObject) Map() common.SinkMap {
@@ -165,39 +166,59 @@ func (h *HTTP) getFiles(vars map[string]string) map[string]*common.File {
 				continue
 			}
 
-			// Read file content for content hash
-			content, err := os.ReadFile(v)
+			//  modification time
+			fileInfo, err := os.Stat(v)
 			if err != nil {
 				h.logger.Error(err)
 				continue
 			}
-			contentHash := common.Md5ToString(content)
+			modTime := fileInfo.ModTime()
 
 			var obj interface{}
 			needReload := true
 
-			//  load from cache
 			if cached, ok := h.files.Load(pathHash); ok {
 				fileCache := cached.(HTTPFileCache)
 
-				if fileCache.ContentHash == contentHash {
+				if fileCache.ModifiedTime.Equal(modTime) {
 					obj = fileCache.Content
 					needReload = false
+					h.logger.Debug("Using cached version of file: %s (unchanged)", v)
 				}
 			}
 
 			if needReload {
-				o, err := common.ReadFile(v, typ)
+				content, err := os.ReadFile(v)
 				if err != nil {
 					h.logger.Error(err)
 					continue
 				}
 
+				contentHash := common.Md5ToString(content)
+
+				// parse the file based on its type
+				var parseErr error
+				switch {
+				case typ == "json":
+					obj, parseErr = common.ReadJson(content)
+				case typ == "toml":
+					obj, parseErr = common.ReadToml(content)
+				case (typ == "yaml") || (typ == "yml"):
+					obj, parseErr = common.ReadYaml(content)
+				default:
+					obj, parseErr = common.ReadJson(content)
+				}
+
+				if parseErr != nil {
+					h.logger.Error(parseErr)
+					continue
+				}
+
 				h.files.Store(pathHash, HTTPFileCache{
-					Content:     o,
-					ContentHash: contentHash,
+					Content:      obj,
+					ContentHash:  contentHash,
+					ModifiedTime: modTime,
 				})
-				obj = o
 			}
 
 			if obj != nil {
