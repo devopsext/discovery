@@ -138,6 +138,22 @@ var dObserviumOptions = discovery.ObserviumOptions{
 	},
 }
 
+var dNetboxOptions = discovery.NetboxOptions{
+	Schedule: envGet("NETBOX_SCHEDULE", "").(string),
+	NetboxOptions: vendors.NetboxOptions{
+		Timeout:  envGet("NETBOX_TIMEOUT", 30).(int),
+		Insecure: envGet("NETBOX_INSECURE", false).(bool),
+		URL:      envGet("NETBOX_URL", "").(string),
+		Token:    envGet("NETBOX_TOKEN", "").(string),
+		Limit:    envGet("NETBOX_LIMIT", "50").(string),
+		Brief:    envGet("NETBOX_BRIEF", false).(bool),
+		Filter:   utils.MapGetKeyValues(envGet("NETBOX_FILTER", "").(string)),
+	},
+	NetboxDeviceOptions: vendors.NetboxDeviceOptions{
+		DeviceID: envGet("NETBOX_DEVICE_ID", "").(string),
+	},
+}
+
 var dZabbixOptions = discovery.ZabbixOptions{
 	Schedule: envGet("ZABBIX_SCHEDULE", "").(string),
 	ZabbixOptions: vendors.ZabbixOptions{
@@ -563,6 +579,7 @@ func Execute() {
 			}
 
 			runSimpleDiscovery(wg, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, processors), logger)
+			runSimpleDiscovery(wg, scheduler, dNetboxOptions.Schedule, discovery.NewNetbox(dNetboxOptions, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dZabbixOptions.Schedule, discovery.NewZabbix(dZabbixOptions, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dK8sOptions.Schedule, discovery.NewK8s(dK8sOptions, obs, processors), logger)
 
@@ -700,6 +717,15 @@ func Execute() {
 	flags.StringVar(&dObserviumOptions.User, "observium-user", dObserviumOptions.User, "Observium discovery user")
 	flags.StringVar(&dObserviumOptions.Password, "observium-password", dObserviumOptions.Password, "Observium discovery password")
 	flags.StringVar(&dObserviumOptions.Token, "observium-token", dObserviumOptions.Token, "Observium discovery token")
+
+	// Netbox
+	flags.IntVar(&dNetboxOptions.Timeout, "netbox-timeout", dNetboxOptions.Timeout, "Netbox timeout in seconds")
+	flags.BoolVar(&dNetboxOptions.Insecure, "netbox-insecure", dNetboxOptions.Insecure, "Netbox insecure")
+	flags.StringVar(&dNetboxOptions.URL, "netbox-url", dNetboxOptions.URL, "Netbox URL")
+	flags.StringVar(&dNetboxOptions.Token, "netbox-token", dNetboxOptions.Token, "Netbox token")
+	flags.StringVar(&dNetboxOptions.Limit, "netbox-limit", dNetboxOptions.Limit, "Netbox API limit")
+	flags.BoolVar(&dNetboxOptions.Brief, "netbox-brief", dNetboxOptions.Brief, "Netbox API brief param")
+	flags.StringToStringVar(&dNetboxOptions.Filter, "netbox-filter", dNetboxOptions.Filter, "Netbox API filter params")
 
 	// Zabbix
 	flags.StringVar(&dZabbixOptions.Schedule, "zabbix-schedule", dZabbixOptions.Schedule, "Zabbix discovery schedule")
