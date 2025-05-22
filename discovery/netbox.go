@@ -105,14 +105,15 @@ func (n *Netbox) makeDevicesSinkMap(devices []NetboxDevice) common.SinkMap {
 
 	r := make(common.SinkMap)
 
-	netboxLabels := make(common.Labels)
-
 	for _, v := range devices {
+
+		netboxLabels := make(common.Labels)
+
+		ip, _, _ := strings.Cut(v.PrimaryIP.Address, "/")
 
 		netboxLabels["rack"] = v.Rack.Name
 		netboxLabels["role"] = v.DeviceRole.Slug
-
-		ip, _, _ := strings.Cut(v.PrimaryIP.Address, "/")
+		netboxLabels["site"] = v.Site.Slug
 
 		common.AppendHostSinkLabels(r, v.Name, common.HostSink{
 			IP:     ip,
