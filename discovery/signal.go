@@ -282,7 +282,7 @@ func (s *Signal) checkDisabled(disabled []string, ident string) (bool, string) {
 	return false, ""
 }
 
-func (s *Signal) filterVectors(name string, configs map[string]*common.BaseConfig, vectors []*common.PrometheusResponseDataVector) []*common.PrometheusResponseDataVector {
+func (s *Signal) filterVectors(name string, config *common.BaseConfig, vectors []*common.PrometheusResponseDataVector) []*common.PrometheusResponseDataVector {
 
 	var r []*common.PrometheusResponseDataVector
 	for _, v := range vectors {
@@ -290,15 +290,10 @@ func (s *Signal) filterVectors(name string, configs map[string]*common.BaseConfi
 		n := v.Labels[name]
 		if !utils.IsEmpty(n) {
 			exists := false
-			for _, c := range configs {
-				if c.Disabled {
-					continue
-				}
-				exists = c.Contains(n)
-				if exists {
-					break
-				}
+			if config.Disabled {
+				continue
 			}
+			exists = config.Contains(n)
 			found = exists
 		}
 		if found {
@@ -378,9 +373,9 @@ func NewSignalCache(logger sreCommon.Logger, s *Signal) *SignalCache {
 	}
 }
 
-func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map[string]*common.Object {
+func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector, path string, config *common.BaseConfig) map[string]*common.Object {
 
-	configs := s.readBaseConfigs()
+	// configs := s.readBaseConfigs()
 	matched := make(map[string]*common.Object)
 	gid := utils.GoRoutineID()
 
@@ -420,7 +415,7 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map
 		return true
 	})
 
-	vectors = s.filterVectors(name, configs, vectors)
+	vectors = s.filterVectors(name, config, vectors)
 	s.logger.Debug("[%d] %s: %d series filtered to %d", gid, s.source, l, len(vectors))
 
 	when := time.Now()
@@ -529,94 +524,102 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector) map
 
 		t4 = t4 + time.Since(w) - tt
 
-		for path, config := range configs {
-
-			if config.Disabled {
-				continue
-			}
-
-			exists := config.MetricExists(metric, mergedVars)
-			if !exists {
-				continue
-			}
-
-			ds := matched[fieldAndIdent]
-			if ds == nil {
-				s.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, s.source, fieldAndIdent, mergedVars, time.Since(when))
-				ds = &common.Object{
-					Configs: make(map[string]*common.BaseConfig),
-					Vars:    make(map[string]string),
-				}
-			}
-
-			if !utils.Contains(ds.Metrics, metric) {
-				ds.Metrics = append(ds.Metrics, metric)
-			}
-
-			if ds.Configs[path] == nil {
-				ds.Configs[path] = config
-			}
-			for k, l := range objectVars {
-				if (ds.Vars[k] == "") && (l != metric) {
-					ds.Vars[k] = l
-				}
-			}
-			ds.Files = fls
-			matched[fieldAndIdent] = ds
+		exists := config.MetricExists(metric, mergedVars)
+		if !exists {
+			continue
 		}
+
+		ds := matched[fieldAndIdent]
+		if ds == nil {
+			s.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, s.source, fieldAndIdent, mergedVars, time.Since(when))
+			ds = &common.Object{
+				Configs: make(map[string]*common.BaseConfig),
+				Vars:    make(map[string]string),
+			}
+		}
+
+		if !utils.Contains(ds.Metrics, metric) {
+			ds.Metrics = append(ds.Metrics, metric)
+		}
+
+		if ds.Configs[path] == nil {
+			ds.Configs[path] = config
+		}
+		for k, l := range objectVars {
+			if (ds.Vars[k] == "") && (l != metric) {
+				ds.Vars[k] = l
+			}
+		}
+		ds.Files = fls
+		matched[fieldAndIdent] = ds
 	}
 	return matched
 }
 
 func (s *Signal) Discover() {
 
-	s.logger.Debug("%s: Signal discovery by query: %s", s.source, s.options.Query)
+	configs := s.readBaseConfigs()
+	objects := make(map[string]*common.Object, len(configs))
+	for path, config := range configs {
 
-	if !utils.IsEmpty(s.options.QueryPeriod) {
-		// https://Signal.io/docs/Signal/latest/querying/api/#range-queries
-		t := time.Now().UTC()
-		s.prometheusOpts.From = common.ParsePeriodFromNow(s.options.QueryPeriod, t)
-		s.prometheusOpts.To = strconv.Itoa(int(t.Unix()))
-		s.prometheusOpts.Step = s.options.QueryStep
-		if utils.IsEmpty(s.prometheusOpts.Step) {
-			s.prometheusOpts.Step = "15s"
+		if config.Disabled {
+			continue
 		}
-		s.logger.Debug("%s: Signal discovery range: %s <-> %s", s.source, s.prometheusOpts.From, s.prometheusOpts.To)
-	}
 
-	data, err := s.prometheus.CustomGet(s.prometheusOpts)
-	if err != nil {
-		s.logger.Error(err)
-		return
-	}
+		query := s.options.Query
+		m := regexp.MustCompile(`^(.*)(DISCOVERY_SIGNAL_SCOPES)(.*)$`)
+		str := fmt.Sprintf("${1}%s$3", config.Scopes)
+		s.prometheusOpts.Query = m.ReplaceAllString(query, str)
+		s.logger.Debug("%s: Signal discovery by query: %s", s.source, s.prometheusOpts.Query)
 
-	var res common.PrometheusResponse
-	if err := json.Unmarshal(data, &res); err != nil {
-		s.logger.Error(err)
-		return
-	}
+		if !utils.IsEmpty(s.options.QueryPeriod) {
+			// https://Signal.io/docs/Signal/latest/querying/api/#range-queries
+			t := time.Now().UTC()
+			s.prometheusOpts.From = common.ParsePeriodFromNow(s.options.QueryPeriod, t)
+			s.prometheusOpts.To = strconv.Itoa(int(t.Unix()))
+			s.prometheusOpts.Step = s.options.QueryStep
+			if utils.IsEmpty(s.prometheusOpts.Step) {
+				s.prometheusOpts.Step = "15s"
+			}
+			s.logger.Debug("%s: Signal template discovery range: %s <-> %s", s.source, s.prometheusOpts.From, s.prometheusOpts.To)
+		}
 
-	if res.Status != "success" {
-		s.logger.Error(res.Status)
-		return
-	}
+		data, err := s.prometheus.CustomGet(s.prometheusOpts)
+		if err != nil {
+			s.logger.Error(err)
+			return
+		}
 
-	if (res.Data == nil) || (len(res.Data.Result) == 0) {
-		s.logger.Error("%s: Signal empty data on response", s.source)
-		return
-	}
+		var res common.PrometheusResponse
+		if err := json.Unmarshal(data, &res); err != nil {
+			s.logger.Error(err)
+			return
+		}
 
-	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-		s.logger.Error("%s: Signal only vector and matrix are allowed", s.source)
-		return
-	}
+		if res.Status != "success" {
+			s.logger.Error(res.Status)
+			return
+		}
 
-	objects := s.findObjects(res.Data.Result)
-	if len(objects) == 0 {
-		s.logger.Debug("%s: Signal not found any objects according query", s.source)
-		return
+		if (res.Data == nil) || (len(res.Data.Result) == 0) {
+			s.logger.Error("%s: Signal empty data on response", s.source)
+			return
+		}
+
+		if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
+			s.logger.Error("%s: Signal only vector and matrix are allowed", s.source)
+			return
+		}
+
+		object := s.findObjects(res.Data.Result, path, config)
+		for name, obj := range object {
+			objects[name] = obj
+		}
+		if len(objects) == 0 {
+			s.logger.Debug("%s: Signal not found any objects according query", s.source)
+			return
+		}
 	}
-	s.logger.Debug("%s: Signal found %d objects according query. Processing...", s.source, len(objects))
 
 	s.processors.Process(s, &SignalSinkObject{
 		sinkMap: common.ConvertObjectsToSinkMap(objects),
@@ -687,7 +690,6 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 		Password: prometheusOptions.Password,
 		Timeout:  prometheusOptions.Timeout,
 		Insecure: prometheusOptions.Insecure,
-		Query:    options.Query,
 	}
 
 	signal := &Signal{
