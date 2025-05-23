@@ -54,6 +54,7 @@ type BaseConfig struct {
 	Disabled     bool              `yaml:"disabled"`
 	Prefix       string            `yaml:"prefix"`
 	Vars         map[string]string `yaml:"vars"`
+	Scopes       string            `yaml:"scopes"`
 	Labels       Labels            `yaml:"labels"`
 	Conditions   []*BaseCondition  `yaml:"if"`
 	Filters      []*BaseCondition  `yaml:"not"`
