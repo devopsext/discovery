@@ -2,6 +2,8 @@ module github.com/devopsext/discovery
 
 go 1.24.1
 
+toolchain go1.24.2
+
 require (
 	cloud.google.com/go/pubsub v1.3.1
 	github.com/BurntSushi/toml v0.3.1
