@@ -282,23 +282,14 @@ func (s *Signal) checkDisabled(disabled []string, ident string) (bool, string) {
 	return false, ""
 }
 
-func (s *Signal) filterVectors(name string, configs map[string]*common.BaseConfig, vectors []*common.PrometheusResponseDataVector) []*common.PrometheusResponseDataVector {
+func (s *Signal) filterVectors(name string, config *common.BaseConfig, vectors []*common.PrometheusResponseDataVector) []*common.PrometheusResponseDataVector {
 
 	var r []*common.PrometheusResponseDataVector
 	for _, v := range vectors {
 		found := false
 		n := v.Labels[name]
 		if !utils.IsEmpty(n) {
-			exists := false
-			for _, c := range configs {
-				if c.Disabled {
-					continue
-				}
-				exists = c.Contains(n)
-				if exists {
-					break
-				}
-			}
+			exists := config.Contains(n)
 			found = exists
 		}
 		if found {
@@ -378,9 +369,9 @@ func NewSignalCache(logger sreCommon.Logger, s *Signal) *SignalCache {
 	}
 }
 
-func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector, configs map[string]*common.BaseConfig) map[string]*common.Object {
+func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*common.PrometheusResponseDataVector, path string, config *common.BaseConfig) map[string]*common.Object {
 
-	matched := make(map[string]*common.Object)
+	matched := objects
 	gid := utils.GoRoutineID()
 
 	if utils.IsEmpty(s.options.Metric) {
@@ -419,7 +410,7 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector, con
 		return true
 	})
 
-	vectors = s.filterVectors(name, configs, vectors)
+	vectors = s.filterVectors(name, config, vectors)
 	s.logger.Debug("[%d] %s: %d series filtered to %d", gid, s.source, l, len(vectors))
 
 	when := time.Now()
@@ -528,41 +519,34 @@ func (s *Signal) findObjects(vectors []*common.PrometheusResponseDataVector, con
 
 		t4 = t4 + time.Since(w) - tt
 
-		for path, config := range configs {
-
-			if config.Disabled {
-				continue
-			}
-
-			exists := config.MetricExists(metric, mergedVars)
-			if !exists {
-				continue
-			}
-
-			ds := matched[fieldAndIdent]
-			if ds == nil {
-				s.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, s.source, fieldAndIdent, mergedVars, time.Since(when))
-				ds = &common.Object{
-					Configs: make(map[string]*common.BaseConfig),
-					Vars:    make(map[string]string),
-				}
-			}
-
-			if !utils.Contains(ds.Metrics, metric) {
-				ds.Metrics = append(ds.Metrics, metric)
-			}
-
-			if ds.Configs[path] == nil {
-				ds.Configs[path] = config
-			}
-			for k, l := range objectVars {
-				if (ds.Vars[k] == "") && (l != metric) {
-					ds.Vars[k] = l
-				}
-			}
-			ds.Files = fls
-			matched[fieldAndIdent] = ds
+		exists := config.MetricExists(metric, mergedVars)
+		if !exists {
+			continue
 		}
+
+		ds := matched[fieldAndIdent]
+		if ds == nil {
+			s.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, s.source, fieldAndIdent, mergedVars, time.Since(when))
+			ds = &common.Object{
+				Configs: make(map[string]*common.BaseConfig),
+				Vars:    make(map[string]string),
+			}
+		}
+
+		if !utils.Contains(ds.Metrics, metric) {
+			ds.Metrics = append(ds.Metrics, metric)
+		}
+
+		if ds.Configs[path] == nil {
+			ds.Configs[path] = config
+		}
+		for k, l := range objectVars {
+			if (ds.Vars[k] == "") && (l != metric) {
+				ds.Vars[k] = l
+			}
+		}
+		ds.Files = fls
+		matched[fieldAndIdent] = ds
 	}
 	return matched
 }
@@ -619,12 +603,13 @@ func (s *Signal) Discover() {
 			s.logger.Error("%s: Signal only vector and matrix are allowed", s.source)
 		}
 
+		objects = s.findObjects(objects, res.Data.Result, path, config)
+		if len(objects) == 0 {
+			s.logger.Debug("%s: Signal not found any objects according query", s.source)
+			return
+		}
 	}
-	objects = s.findObjects(result, configs)
-	if len(objects) == 0 {
-		s.logger.Debug("%s: Signal not found any objects according query", s.source)
-		return
-	}
+
 	s.processors.Process(s, &SignalSinkObject{
 		sinkMap: common.ConvertObjectsToSinkMap(objects),
 		signal:  s,
