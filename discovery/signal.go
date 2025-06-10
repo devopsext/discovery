@@ -429,7 +429,7 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 
 		if vMax > 0 && i%vMax == 0 && i > 0 {
 			tsince := time.Since(when)
-			s.logger.Debug("[%d] %s: %d out of %d [%s: %s, t0=%s t1=%s t2=%s t3=%s t4=%s]", gid, s.source, i, len(vectors), tsince, tsince-tdiff, t0, t1, t2, t3, t4)
+			s.logger.Debug("[%d] source: %s scope: %s %d out of %d [%s: %s, t0=%s t1=%s t2=%s t3=%s t4=%s]", gid, s.source, config.Labels["scope"], i, len(vectors), tsince, tsince-tdiff, t0, t1, t2, t3, t4)
 			t0 = 0
 			t1 = 0
 			t2 = 0
@@ -439,7 +439,7 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 		}
 
 		if len(v.Labels) < 2 {
-			s.logger.Debug("[%d] %s: No labels, min requirements (2): %v", gid, s.source, v.Labels)
+			s.logger.Debug("[%d] source: %s scope: %s No labels, min requirements (2): %v", gid, s.source, config.Labels["scope"], v.Labels)
 			continue
 		}
 
@@ -499,7 +499,7 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 		metric := mergedVars[name]
 
 		if utils.IsEmpty(ident) || utils.IsEmpty(metric) {
-			s.logger.Debug("[%d] %s: No object, field or metric found in labels, but: %v", gid, s.source, mergedVars)
+			s.logger.Debug("[%d] source: %s scope: %s No object, field or metric found in labels, but: %v", gid, s.source, config.Labels["scope"], mergedVars)
 			continue
 		}
 
@@ -526,7 +526,7 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 
 		ds := matched[fieldAndIdent]
 		if ds == nil {
-			s.logger.Debug("[%d] %s: %s found by: %v [%s]", gid, s.source, fieldAndIdent, mergedVars, time.Since(when))
+			s.logger.Debug("[%d] source: %s scope: %s %s found by: %v [%s]", gid, s.source, config.Labels["scope"], fieldAndIdent, mergedVars, time.Since(when))
 			ds = &common.Object{
 				Configs: make(map[string]*common.BaseConfig),
 				Vars:    make(map[string]string),
@@ -604,10 +604,10 @@ func (s *Signal) Discover() {
 		}
 
 		objects = s.findObjects(objects, res.Data.Result, path, config)
-		if len(objects) == 0 {
-			s.logger.Debug("%s: Signal not found any objects according query", s.source)
-			return
-		}
+	}
+	if len(objects) == 0 {
+		s.logger.Debug("%s: Signal not found any objects according query", s.source)
+		return
 	}
 
 	s.processors.Process(s, &SignalSinkObject{
