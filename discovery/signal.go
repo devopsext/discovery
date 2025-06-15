@@ -564,8 +564,18 @@ func (s *Signal) Discover() {
 
 		query := s.options.Query
 		m := regexp.MustCompile(`^(.*)(DISCOVERY_SIGNAL_SCOPES)(.*)$`)
-		str := fmt.Sprintf("${1}%s$3", config.Scopes)
+		str := fmt.Sprintf("${1}%s${3}", config.Scopes)
 		s.prometheusOpts.Query = m.ReplaceAllString(query, str)
+
+		if len(config.Params) > 0 {
+			m = regexp.MustCompile(`^(.*)(DISCOVERY_SIGNAL_PARAMS)(.*)$`)
+			str = fmt.Sprintf("${1}%s${3}", config.Params)
+		} else {
+			m = regexp.MustCompile(`^(.*)(,DISCOVERY_SIGNAL_PARAMS)(.*)$`)
+			str = fmt.Sprintf("${1}%s${3}", "")
+		}
+		s.prometheusOpts.Query = m.ReplaceAllString(s.prometheusOpts.Query, str)
+
 		s.logger.Debug("%s: Signal template %s discovery by query: %s", s.source, path, s.prometheusOpts.Query)
 
 		if !utils.IsEmpty(s.options.QueryPeriod) {
