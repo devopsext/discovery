@@ -33,17 +33,21 @@ var stdout *sreProvider.Stdout
 var mainWG sync.WaitGroup
 
 type RootOptions struct {
-	Logs          []string
-	Metrics       []string
-	RunOnce       bool
-	SchedulerWait bool
+	Logs             []string
+	Metrics          []string
+	RunOnce          bool
+	ProfilingEnabled bool
+	ProfilingAddr    string
+	SchedulerWait    bool
 }
 
 var rootOptions = RootOptions{
-	Logs:          strings.Split(envGet("LOGS", "stdout").(string), ","),
-	Metrics:       strings.Split(envGet("METRICS", "prometheus").(string), ","),
-	RunOnce:       envGet("RUN_ONCE", false).(bool),
-	SchedulerWait: envGet("SCHEDULER_WAIT", true).(bool),
+	Logs:             strings.Split(envGet("LOGS", "stdout").(string), ","),
+	Metrics:          strings.Split(envGet("METRICS", "prometheus").(string), ","),
+	ProfilingAddr:    envGet("PROFILING_ADDRESS", "localhost:6060").(string),
+	ProfilingEnabled: envGet("PROFILING_ENABLED", false).(bool),
+	RunOnce:          envGet("RUN_ONCE", false).(bool),
+	SchedulerWait:    envGet("SCHEDULER_WAIT", true).(bool),
 }
 
 var stdoutOptions = sreProvider.StdoutOptions{
@@ -521,6 +525,11 @@ func Execute() {
 
 			obs := common.NewObservability(logs, metrics)
 			logger := obs.Logs()
+
+			if rootOptions.ProfilingEnabled {
+				pprof := common.NewPprofServer()
+				pprof.Start(rootOptions.ProfilingAddr, logger)
+			}
 
 			sinks := common.NewSinks(obs)
 			sinks.Add(sink.NewFile(sinkFileOptions, obs))
