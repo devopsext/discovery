@@ -555,8 +555,8 @@ func (s *Signal) Discover() {
 
 	configs := s.readBaseConfigs()
 	objects := make(map[string]*common.Object)
-	result := make([]*common.PrometheusResponseDataVector, 0)
 	for path, config := range configs {
+		result := make([]*common.PrometheusResponseDataVector, 0)
 
 		if config.Disabled {
 			continue
