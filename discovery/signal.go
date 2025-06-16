@@ -137,7 +137,7 @@ func (s *Signal) readBaseConfigs() map[string]*common.BaseConfig {
 	return configs
 }
 
-func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
+func (s *Signal) getFiles(vars map[string]string, wContent bool) map[string]*common.File {
 	files := make(map[string]*common.File)
 	if s.filesTemplate == nil {
 		return files
@@ -208,10 +208,18 @@ func (s *Signal) getFiles(vars map[string]string) map[string]*common.File {
 			}
 
 			if obj != nil {
-				files[k] = &common.File{
-					Path: v,
-					Type: typ,
-					Obj:  obj,
+				if wContent {
+					files[k] = &common.File{
+						Path: v,
+						Type: typ,
+						Obj:  obj,
+					}
+				} else {
+					files[k] = &common.File{
+						Path: v,
+						Type: typ,
+						Obj:  nil,
+					}
 				}
 			}
 		}
@@ -443,11 +451,12 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 			continue
 		}
 
-		fls := s.getFiles(v.Labels)
 		m := make(map[string]interface{})
 		for k, v := range v.Labels {
 			m[k] = v
 		}
+
+		fls := s.getFiles(v.Labels, true)
 		files := make(map[string]interface{})
 		for k, v := range fls {
 			files[k] = v.Obj
@@ -545,7 +554,7 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 				ds.Vars[k] = l
 			}
 		}
-		ds.Files = fls
+		ds.Files = s.getFiles(v.Labels, false)
 		matched[fieldAndIdent] = ds
 	}
 	return matched
