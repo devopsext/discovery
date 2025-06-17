@@ -33,6 +33,7 @@ type SignalOptions struct {
 	Ident        string
 	Field        string
 	BaseTemplate string
+	BasePattern  string
 	Vars         string
 	Files        string
 	CacheSize    int
@@ -114,7 +115,16 @@ func (s *Signal) readBaseConfigs() map[string]*common.BaseConfig {
 
 	for _, v := range files {
 
-		s.logger.Debug("%s: Processing base config: %s...", s.source, v)
+		s.logger.Debug("%s: Processing base config: %s", s.source, v)
+		re := regexp.MustCompile((`\/[a-zA-Z_-]+(.yml)`))
+		str := re.FindString(v)
+
+		re = regexp.MustCompile(s.options.BasePattern)
+		if !re.MatchString(str) {
+			s.logger.Info("%s: Base config %s not found in allowed pattern, ignoring it", s.source, v)
+			continue
+		}
+
 		content, err := os.ReadFile(v)
 		if err != nil {
 			s.logger.Error(err)
