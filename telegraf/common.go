@@ -71,8 +71,15 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Object, labelsTpl s
 	input.Password = opts.Password
 	input.Version = opts.Version
 	input.Params = opts.Params
-	input.CollectionOffset, _ = randomizeOffsetDuration(opts.CollectionOffset)
-	input.Interval = opts.Interval
+	for _, config := range s.Configs {
+		if len(config.Vars["collection_interval"]) > 0 {
+			input.Interval = config.Vars["collection_interval"]
+			input.CollectionOffset, _ = randomizeOffsetDuration(input.Interval)
+		} else {
+			input.Interval = opts.Interval
+			input.CollectionOffset, _ = randomizeOffsetDuration(opts.CollectionOffset)
+		}
+	}
 	input.Timeout = opts.Timeout
 	input.Duration = opts.Duration
 	input.Prefix = opts.Prefix
