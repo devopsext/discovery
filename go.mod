@@ -9,7 +9,7 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/allegro/bigcache v1.2.1
 	github.com/devopsext/sre v0.6.3
-	github.com/devopsext/tools v0.17.6
+	github.com/devopsext/tools v0.17.12
 	github.com/devopsext/utils v0.4.7
 	github.com/go-co-op/gocron v1.18.0
 	github.com/itchyny/gojq v0.12.16
