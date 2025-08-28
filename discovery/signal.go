@@ -612,6 +612,19 @@ func (s *Signal) Discover() {
 		data, err := s.prometheus.CustomGet(s.prometheusOpts)
 		if err != nil {
 			s.logger.Error(err)
+			if err.Error() == "429 Too Many Requests" {
+				s.logger.Error("%s: Hit ratelimiting, retrying with interval of 1 sec", s.source)
+				for i := 0; i > 4; i++ {
+					time.Sleep(time.Second)
+					data, err = s.prometheus.CustomGet(s.prometheusOpts)
+					if err != nil && err.Error() == "429 Too Many Requests" {
+						continue
+					} else {
+						break
+					}
+				}
+
+			}
 			continue
 		} else {
 			err = json.Unmarshal(data, &res)
