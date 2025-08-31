@@ -610,45 +610,54 @@ func (s *Signal) Discover() {
 		}
 		var res common.PrometheusResponse
 		data, err := s.prometheus.CustomGet(s.prometheusOpts)
+		success := false
 		if err != nil {
 			s.logger.Error(err)
 			if err.Error() == "429 Too Many Requests" {
-				s.logger.Error("%s: Hit ratelimiting, retrying with interval of 1 sec", s.source)
-				for i := 0; i > 4; i++ {
+				for i := range 5 {
+					s.logger.Error("%s: Hit ratelimiting, retrying with interval of 1 sec [%d]", s.source, i)
 					time.Sleep(time.Second)
 					data, err = s.prometheus.CustomGet(s.prometheusOpts)
-					if err != nil && err.Error() == "429 Too Many Requests" {
-						continue
-					} else {
-						break
+					if err != nil {
+						s.logger.Error(err)
+						if err.Error() == "429 Too Many Requests" {
+							continue
+						} else {
+							break
+						}
 					}
+					success = true
+					break
 				}
 
 			}
-			continue
 		} else {
+			success = true
+		}
+
+		if success {
 			err = json.Unmarshal(data, &res)
 
 			temp := res.Data.Result
 			result = append(result, temp...)
-		}
 
-		if res.Status != "success" {
-			s.logger.Error(res.Status)
-		}
+			if res.Status != "success" {
+				s.logger.Error(res.Status)
+			}
 
-		if (res.Data == nil) || (len(res.Data.Result) == 0) {
-			s.logger.Error("%s: Signal empty data on response", s.source)
-		}
+			if (res.Data == nil) || (len(res.Data.Result) == 0) {
+				s.logger.Error("%s: Signal empty data on response", s.source)
+			}
 
-		if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-			s.logger.Error("%s: Signal only vector and matrix are allowed", s.source)
-		}
+			if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
+				s.logger.Error("%s: Signal only vector and matrix are allowed", s.source)
+			}
 
-		objects = s.findObjects(objects, res.Data.Result, path, config)
+			objects = s.findObjects(objects, res.Data.Result, path, config)
+		}
 	}
 	if len(objects) == 0 {
-		s.logger.Debug("%s: Signal not found any objects according query", s.source)
+		s.logger.Debug("%s: Signal not found any objects from the query", s.source)
 		return
 	}
 
