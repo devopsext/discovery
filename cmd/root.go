@@ -33,17 +33,21 @@ var stdout *sreProvider.Stdout
 var mainWG sync.WaitGroup
 
 type RootOptions struct {
-	Logs          []string
-	Metrics       []string
-	RunOnce       bool
-	SchedulerWait bool
+	Logs             []string
+	Metrics          []string
+	RunOnce          bool
+	ProfilingEnabled bool
+	ProfilingAddr    string
+	SchedulerWait    bool
 }
 
 var rootOptions = RootOptions{
-	Logs:          strings.Split(envGet("LOGS", "stdout").(string), ","),
-	Metrics:       strings.Split(envGet("METRICS", "prometheus").(string), ","),
-	RunOnce:       envGet("RUN_ONCE", false).(bool),
-	SchedulerWait: envGet("SCHEDULER_WAIT", true).(bool),
+	Logs:             strings.Split(envGet("LOGS", "stdout").(string), ","),
+	Metrics:          strings.Split(envGet("METRICS", "prometheus").(string), ","),
+	ProfilingAddr:    envGet("PROFILING_ADDRESS", "localhost:6060").(string),
+	ProfilingEnabled: envGet("PROFILING_ENABLED", false).(bool),
+	RunOnce:          envGet("RUN_ONCE", false).(bool),
+	SchedulerWait:    envGet("SCHEDULER_WAIT", true).(bool),
 }
 
 var stdoutOptions = sreProvider.StdoutOptions{
@@ -80,6 +84,7 @@ var dSignalOptions = discovery.SignalOptions{
 	Files:        envFileContentExpand("SIGNAL_FILES", ""),
 	Vars:         envFileContentExpand("SIGNAL_VARS", ""),
 	BaseTemplate: envStringExpand("SIGNAL_BASE_TEMPLATE", ""),
+	BasePattern:  envStringExpand("SIGNAL_BASE_PATTERN", ".*"),
 	CacheSize:    envGet("SIGNAL_CACHE_SIZE", 0).(int),
 }
 
@@ -281,7 +286,6 @@ var sinkTelegrafOptions = sink.TelegrafOptions{
 		PersistMetrics: envGet("SINK_TELEGRAF_SIGNAL_PERSIST_METRICS", false).(bool),
 		Exclusion:      envStringExpand("SINK_TELEGRAF_SIGNAL_EXCLUSION", ""),
 		InputPrometheusHttpOptions: telegraf.InputPrometheusHttpOptions{
-			CollectionOffset: envGet("SINK_TELEGRAF_SIGNAL_OFFSET", "0s").(string),
 			Interval:         envGet("SINK_TELEGRAF_SIGNAL_INTERVAL", "10s").(string),
 			Version:          envGet("SINK_TELEGRAF_SIGNAL_VERSION", "v1").(string),
 			Params:           envGet("SINK_TELEGRAF_SIGNAL_PARAMS", "").(string),
@@ -521,6 +525,11 @@ func Execute() {
 
 			obs := common.NewObservability(logs, metrics)
 			logger := obs.Logs()
+
+			if rootOptions.ProfilingEnabled {
+				pprof := common.NewPprofServer()
+				pprof.Start(rootOptions.ProfilingAddr, logger)
+			}
 
 			sinks := common.NewSinks(obs)
 			sinks.Add(sink.NewFile(sinkFileOptions, obs))

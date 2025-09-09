@@ -3,12 +3,13 @@ package telegraf
 import (
 	"bufio"
 	"bytes"
+	"crypto/md5"
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/devopsext/discovery/common"
@@ -71,8 +72,8 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Object, labelsTpl s
 	input.Password = opts.Password
 	input.Version = opts.Version
 	input.Params = opts.Params
-	input.CollectionOffset, _ = randomizeOffsetDuration(opts.CollectionOffset)
 	input.Interval = opts.Interval
+	input.CollectionOffset, _ = randomizeOffsetDuration(name, input.Interval)
 	input.Timeout = opts.Timeout
 	input.Duration = opts.Duration
 	input.Prefix = opts.Prefix
@@ -276,7 +277,7 @@ func (tc *Config) GenerateInputX509CertBytes(opts InputX509CertOptions, addresse
 	return b.Bytes(), nil
 }
 
-func randomizeOffsetDuration(durationStr string) (string, error) {
+func randomizeOffsetDuration(fileName string, durationStr string) (string, error) {
 	if !strings.HasSuffix(durationStr, "s") {
 		return "0s", fmt.Errorf("Invalid duration format: %s, must end with 's'", durationStr)
 	}
@@ -296,8 +297,11 @@ func randomizeOffsetDuration(durationStr string) (string, error) {
 		return "0s", nil
 	}
 
-	// Create a new random number generator with a unique seed
-	source := rand.NewSource(time.Now().UnixNano())
+	h := md5.New()
+	h.Write([]byte(fileName))
+	var seed uint64 = binary.BigEndian.Uint64(h.Sum(nil))
+
+	source := rand.NewSource(int64(seed))
 	r := rand.New(source)
 
 	// Generate a random integer between 0 (inclusive) and maxValue (inclusive)
