@@ -362,9 +362,23 @@ func FileWriteWithCheckSum(path string, data []byte, checksum bool) (bool, error
 	return false, nil
 }
 
-func ReplaceLabelValues(labels Labels, replacements map[string]string) Labels {
+func ReplaceLabelKeys(labels map[string]string, replacements map[string]string) map[string]string {
 
-	lbs := make(Labels)
+	lbs := make(map[string]string)
+
+	for k, v := range labels {
+		delete(lbs, k)
+		for k2, v2 := range replacements {
+			k = strings.ReplaceAll(k, k2, v2)
+		}
+		lbs[k] = v
+	}
+	return lbs
+}
+
+func ReplaceLabelValues(labels map[string]string, replacements map[string]string) map[string]string {
+
+	lbs := make(map[string]string)
 
 	for k, v := range labels {
 		for k2, v2 := range replacements {

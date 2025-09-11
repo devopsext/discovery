@@ -249,6 +249,17 @@ var dLabelsOptions = discovery.LabelsOptions{
 	Name:        envFileContentExpand("LABELS_NAME", ""),
 }
 
+var dTeleportOptions = discovery.TeleportOptions{
+	Schedule: envGet("TELEPORT_SCHEDULE", "").(string),
+	Kinds:    strings.Split(envStringExpand("TELEPORT_KINDS", ""), ","),
+	TeleportOptions: vendors.TeleportOptions{
+		Address:  envGet("TELEPORT_ADDRESS", "").(string),
+		Identity: envGet("TELEPORT_IDENTITY", "").(string),
+		Timeout:  envGet("TELEPORT_TIMEOUT", 30).(int),
+		Insecure: envGet("TELEPORT_INSECURE", false).(bool),
+	},
+}
+
 var dDumbOptions = discovery.DumbOptions{
 	Enabled:  envGet("DUMB_ENABLED", false).(bool),
 	Schedule: envGet("DUMB_SCHEDULE", "10s").(string),
@@ -538,6 +549,7 @@ func Execute() {
 			sinks.Add(sink.NewTelegraf(sinkTelegrafOptions, obs))
 			sinks.Add(sink.NewObservability(sinkObservabilityOptions, obs))
 			sinks.Add(sink.NewPubSub(sinkPubSubOptions, obs))
+
 			if ws := sink.NewWebServer(sinkWebServerOptions, obs); ws != nil {
 				sinks.Add(ws)
 				ws.Start(&mainWG)
@@ -625,9 +637,11 @@ func Execute() {
 			}
 
 			runSimpleDiscovery(wg, scheduler, dAWSEC2Options.Schedule, discovery.NewAWSEC2(dAWSEC2Options, obs, processors), logger)
-			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dLdapOptions.Schedule, discovery.NewLdap(dLdapOptions, obs, processors), logger)
+			runSimpleDiscovery(wg, scheduler, dTeleportOptions.Schedule, discovery.NewTeleport(dTeleportOptions, obs, processors), logger)
+			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
 
+			// start scheduler
 			scheduler.StartAsync()
 
 			// run supportive discoveries without scheduler
@@ -805,6 +819,14 @@ func Execute() {
 	flags.StringVar(&dLabelsOptions.QueryPeriod, "labels-query-period", dLabelsOptions.QueryPeriod, "Labels discovery query period")
 	flags.StringVar(&dLabelsOptions.QueryStep, "labels-query-step", dLabelsOptions.QueryStep, "Labels discovery query step")
 	flags.StringVar(&dLabelsOptions.Name, "labels-name", dLabelsOptions.Name, "Labels discovery name")
+
+	// Teleport
+	flags.StringVar(&dTeleportOptions.Schedule, "teleport-schedule", dTeleportOptions.Schedule, "Teleport discovery schedule")
+	flags.StringVar(&dTeleportOptions.Address, "teleport-address", dTeleportOptions.Address, "Teleport discovery address")
+	flags.StringVar(&dTeleportOptions.Identity, "teleport-identity", dTeleportOptions.Identity, "Teleport discovery identity")
+	flags.IntVar(&dTeleportOptions.Timeout, "teleport-timeout", dTeleportOptions.Timeout, "Teleport discovery timeout")
+	flags.BoolVar(&dTeleportOptions.Insecure, "teleport-insecure", dTeleportOptions.Insecure, "Teleport discovery insecure")
+	flags.StringSliceVar(&dTeleportOptions.Kinds, "teleport-kinds", dTeleportOptions.Kinds, "Teleport discovery kinds")
 
 	// Processor Template
 	flags.StringVar(&pTemplateOptions.Content, "processor-template-content", pTemplateOptions.Content, "Processor template content or file")

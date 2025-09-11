@@ -52,3 +52,4 @@ _signal.telegraf.tags copy.tpl
 _signal.vars copy.tpl
 *tpl
 trace.log
+identity

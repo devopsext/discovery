@@ -34,6 +34,19 @@ type HostSink struct {
 	Server  string
 }
 
+func AppendSinkLabels(m SinkMap, name string, lbs Labels) {
+
+	if m == nil || utils.IsEmpty(name) {
+		return
+	}
+
+	labels := make(Labels)
+	for k, v := range lbs {
+		labels[k] = v
+	}
+	m[name] = labels
+}
+
 func AppendHostSinkLabels(m SinkMap, name string, hs HostSink, lbs Labels) {
 
 	if m == nil || utils.IsEmpty(name) {

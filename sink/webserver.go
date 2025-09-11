@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/allegro/bigcache"
 	"net"
 	"net/http"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/allegro/bigcache"
 
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
