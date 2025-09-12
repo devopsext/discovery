@@ -569,9 +569,7 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 				ds.Vars[k] = l
 			}
 			if k == instLabel {
-				if objectVars["ident"] == ident {
-					inst[ident] = append(inst[ident], l)
-				}
+				inst[ident] = append(inst[ident], l)
 			}
 		}
 
