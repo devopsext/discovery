@@ -441,6 +441,8 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 	var t4 time.Duration
 	var tdiff time.Duration
 
+	inst := make(map[string][]string)
+
 	for i, v := range vectors {
 
 		w := time.Now()
@@ -559,14 +561,28 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 		if ds.Configs[path] == nil {
 			ds.Configs[path] = config
 		}
+
+		instLabel := "instance"
+
 		for k, l := range objectVars {
-			if (ds.Vars[k] == "") && (l != metric) {
+			if (ds.Vars[k] == "") && (l != metric) && (k != instLabel) {
 				ds.Vars[k] = l
 			}
+			if k == instLabel {
+				if objectVars["ident"] == ident {
+					inst[ident] = append(inst[ident], l)
+				}
+			}
 		}
+
+		if _, ok := objectVars[instLabel]; ok {
+			ds.Vars[instLabel] = strings.Join(inst[ident], ",")
+		}
+
 		ds.Files = s.getFiles(v.Labels, false)
 		matched[fieldAndIdent] = ds
 	}
+
 	return matched
 }
 

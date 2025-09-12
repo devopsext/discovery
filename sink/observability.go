@@ -153,14 +153,24 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 	wrongValues := make(map[string]string)
 	wrongValues["\""] = ""
 
-	for k, v := range lm {
+	instLabel := "instance"
 
+	for k, v := range lm {
 		labels := make(sreCommon.Labels)
 		labels["name"] = k
 		labels["provider"] = dname
 		labels = common.MergeStringMaps(labels, common.FilterStringMap(v, o.options.Labels))
 		labels = common.ReplaceLabelKeys(labels, wrongKeys)
 		labels = common.ReplaceLabelValues(labels, wrongValues)
+		if !utils.IsEmpty(v[instLabel]) {
+			insts := strings.Split(v[instLabel], ",")
+			for _, i := range insts {
+				labels[instLabel] = i
+				g := o.meter.Gauge(group, dn, "Discovery existence", labels)
+				g.Set(1)
+			}
+			continue
+		}
 		g := o.meter.Gauge(group, dn, "Discovery existence", labels)
 		g.Set(1)
 	}
