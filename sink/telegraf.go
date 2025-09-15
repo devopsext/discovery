@@ -83,6 +83,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 
 	files := make(map[string]string)
 	dirs := make([]string, 0)
+	idents := make(map[string]bool)
 
 	for _, s1 := range m {
 		dir := common.Render(t.options.Signal.Dir, s1.Vars, t.observability)
@@ -100,6 +101,16 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 	}
 
 	for k, s1 := range m {
+
+		ident, ok := s1.Vars["ident"]
+		if !ok {
+			t.logger.Error("%s: missing an ident for key: %s", source, k)
+			continue
+		}
+
+		if _, ok := idents[ident]; ok {
+			continue
+		}
 
 		dir := common.Render(t.options.Signal.Dir, s1.Vars, t.observability)
 		file := common.Render(t.options.Signal.File, s1.Vars, t.observability)
@@ -130,6 +141,8 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 			continue
 		}
 		telegrafConfig.CreateIfCheckSumIsDifferent(source, fPath, t.options.Checksum, bytes, t.logger)
+
+		idents[ident] = true
 	}
 
 	if len(files) > 0 {
