@@ -32,6 +32,7 @@ type SignalOptions struct {
 	Metric       string
 	Ident        string
 	Field        string
+	Instance     string
 	BaseTemplate string
 	BasePattern  string
 	Vars         string
@@ -46,18 +47,19 @@ type SignalCache struct {
 }
 
 type Signal struct {
-	source         string
-	prometheus     *toolsVendors.Prometheus
-	prometheusOpts toolsVendors.PrometheusOptions
-	options        SignalOptions
-	logger         sreCommon.Logger
-	observability  *common.Observability
-	objectTemplate *toolsRender.TextTemplate
-	fieldTemplate  *toolsRender.TextTemplate
-	filesTemplate  *toolsRender.TextTemplate
-	files          *sync.Map
-	disables       map[string]*toolsRender.TextTemplate
-	processors     *common.Processors
+	source           string
+	prometheus       *toolsVendors.Prometheus
+	prometheusOpts   toolsVendors.PrometheusOptions
+	options          SignalOptions
+	logger           sreCommon.Logger
+	observability    *common.Observability
+	objectTemplate   *toolsRender.TextTemplate
+	fieldTemplate    *toolsRender.TextTemplate
+	instanceTemplate *toolsRender.TextTemplate
+	filesTemplate    *toolsRender.TextTemplate
+	files            *sync.Map
+	disables         map[string]*toolsRender.TextTemplate
+	processors       *common.Processors
 }
 
 type SignalSinkObject struct {
@@ -486,6 +488,7 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 
 		ident := ""
 		field := ""
+		instance := ""
 
 		if utils.IsEmpty(s.options.Ident) && (len(v.Labels) > 1) {
 			flag := false
@@ -497,22 +500,29 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 				flag = true
 			}
 		} else {
-			temp := s.render(s.objectTemplate, s.options.Ident, mergedVars)
-			if temp == s.options.Ident {
-				ident = mergedVars[temp]
+			objTemp := s.render(s.objectTemplate, s.options.Ident, mergedVars)
+			if objTemp == s.options.Ident {
+				ident = mergedVars[objTemp]
 			} else {
-				ident = temp
+				ident = objTemp
 			}
 		}
 
 		t2 = t2 + time.Since(w) - tt
 		tt = time.Since(w)
 
-		temp := s.render(s.fieldTemplate, s.options.Field, mergedVars)
-		if temp == s.options.Field {
-			field = mergedVars[temp]
+		fieldTemp := s.render(s.fieldTemplate, s.options.Field, mergedVars)
+		if fieldTemp == s.options.Field {
+			field = mergedVars[fieldTemp]
 		} else {
-			field = temp
+			field = fieldTemp
+		}
+
+		instTemp := s.render(s.instanceTemplate, s.options.Instance, mergedVars)
+		if instTemp == s.options.Instance {
+			instance = mergedVars[instTemp]
+		} else {
+			instance = instTemp
 		}
 
 		metric := mergedVars[name]
@@ -527,7 +537,7 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 
 		// find objects in files
 		// if it's disabled, skip it with warning
-		fieldAndIdent := fmt.Sprintf("%s/%s", field, ident)
+		fieldAndIdent := fmt.Sprintf("%s/%s/%s", field, ident, instance)
 
 		disabled := s.expandDisabled(fls, mergedVars)
 		dis, _ := s.checkDisabled(disabled, ident)
@@ -714,6 +724,17 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 		return nil
 	}
 
+	instanceOpts := toolsRender.TemplateOptions{
+		Content:     options.Instance,
+		Name:        "signal-instance",
+		FilterFuncs: true,
+	}
+	instanceTemplate, err := toolsRender.NewTextTemplate(instanceOpts, observability)
+	if err != nil {
+		logger.Error(err)
+		return nil
+	}
+
 	filesOpts := toolsRender.TemplateOptions{
 		Content:     options.Files,
 		Name:        "signal-fiels",
@@ -733,18 +754,19 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 	}
 
 	signal := &Signal{
-		source:         source,
-		prometheus:     toolsVendors.NewPrometheus(prometheusOpts),
-		prometheusOpts: prometheusOpts,
-		options:        options,
-		logger:         logger,
-		observability:  observability,
-		objectTemplate: objectTemplate,
-		fieldTemplate:  fieldTemplate,
-		filesTemplate:  filesTemplate,
-		files:          &sync.Map{},
-		disables:       make(map[string]*toolsRender.TextTemplate),
-		processors:     processors,
+		source:           source,
+		prometheus:       toolsVendors.NewPrometheus(prometheusOpts),
+		prometheusOpts:   prometheusOpts,
+		options:          options,
+		logger:           logger,
+		observability:    observability,
+		objectTemplate:   objectTemplate,
+		fieldTemplate:    fieldTemplate,
+		instanceTemplate: instanceTemplate,
+		filesTemplate:    filesTemplate,
+		files:            &sync.Map{},
+		disables:         make(map[string]*toolsRender.TextTemplate),
+		processors:       processors,
 	}
 
 	return signal

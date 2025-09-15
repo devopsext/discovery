@@ -81,6 +81,7 @@ var dSignalOptions = discovery.SignalOptions{
 	Metric:       envGet("SIGNAL_METRIC", "").(string),
 	Ident:        envFileContentExpand("SIGNAL_IDENT", ""),
 	Field:        envGet("SIGNAL_FIELD", "").(string),
+	Instance:     envFileContentExpand("SIGNAL_INSTANCE", ""),
 	Files:        envFileContentExpand("SIGNAL_FILES", ""),
 	Vars:         envFileContentExpand("SIGNAL_VARS", ""),
 	BaseTemplate: envStringExpand("SIGNAL_BASE_TEMPLATE", ""),
@@ -688,6 +689,7 @@ func Execute() {
 	flags.StringVar(&dSignalOptions.QueryStep, "signal-query-step", dSignalOptions.QueryStep, "Signal discovery query step")
 	flags.StringVar(&dSignalOptions.Ident, "signal-object", dSignalOptions.Ident, "Signal discovery ident label")
 	flags.StringVar(&dSignalOptions.Field, "signal-field", dSignalOptions.Field, "Signal discovery field label")
+	flags.StringVar(&dSignalOptions.Instance, "signal-instance", dSignalOptions.Instance, "Signal discovery instance label")
 	flags.StringVar(&dSignalOptions.Metric, "signal-metric", dSignalOptions.Metric, "Signal discovery metric label")
 	flags.StringVar(&dSignalOptions.Files, "signal-files", dSignalOptions.Files, "Signal discovery files")
 	flags.StringSliceVar(&dSignalOptions.Disabled, "signal-disabled", dSignalOptions.Disabled, "Signal discovery disabled services")
