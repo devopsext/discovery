@@ -102,7 +102,11 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 
 	for k, s1 := range m {
 
-		ident := s1.Vars["ident"]
+		ident, ok := s1.Vars["ident"]
+		if !ok {
+			t.logger.Error("%s: missing an ident for key: %s", source, k)
+			continue
+		}
 
 		if _, ok := idents[ident]; ok {
 			continue
