@@ -83,7 +83,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 
 	files := make(map[string]string)
 	dirs := make([]string, 0)
-	idents := make(map[string]bool)
+	identObjects := make(map[string]*common.Object)
 
 	for _, s1 := range m {
 		dir := common.Render(t.options.Signal.Dir, s1.Vars, t.observability)
@@ -100,17 +100,52 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		}
 	}
 
+	// First pass: group objects by identField and ident and merge metrics (we need it to remove instances duplicates)
 	for k, s1 := range m {
-
 		ident, ok := s1.Vars["ident"]
 		if !ok {
-			t.logger.Error("%s: missing an ident for key: %s", source, k)
+			t.logger.Error("%s: missing 'ident' in Vars for key: %s", source, k)
+			continue
+		}
+		fieldIdent, ok := s1.Vars["fieldIdent"]
+		if !ok {
+			t.logger.Error("%s: missing 'fieldIdent' in Vars for key: %s", source, k)
 			continue
 		}
 
-		if _, ok := idents[ident]; ok {
+		fieldIdentValue := fieldIdent + "/" + ident
+
+		existingObj, exists := identObjects[fieldIdentValue]
+		if !exists {
+			// Create a new object for this ident
+			identObjects[fieldIdentValue] = &common.Object{
+				Metrics: append([]string{}, s1.Metrics...),
+				Vars:    s1.Vars,
+				Configs: s1.Configs,
+				Files:   s1.Files,
+			}
 			continue
 		}
+
+		// Merge metrics with existing object
+		for _, metric := range s1.Metrics {
+			if !utils.Contains(existingObj.Metrics, metric) {
+				existingObj.Metrics = append(existingObj.Metrics, metric)
+			}
+		}
+		// Merge Configs with existing object
+		for path := range s1.Configs {
+			if !utils.Contains(existingObj.Configs, path) {
+				existingObj.Configs[path] = s1.Configs[path]
+			}
+		}
+		// Update other fields (keep the latest vars, files)
+		existingObj.Vars = s1.Vars
+		existingObj.Files = s1.Files
+	}
+
+	// Second pass: process merged objects
+	for ident, s1 := range identObjects {
 
 		dir := common.Render(t.options.Signal.Dir, s1.Vars, t.observability)
 		file := common.Render(t.options.Signal.File, s1.Vars, t.observability)
@@ -118,7 +153,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 
 		delete(files, fPath)
 
-		t.logger.Debug("%s: Processing application: %s for path: %s", source, k, fPath)
+		t.logger.Debug("%s: Processing application: %s for path: %s", source, ident, fPath)
 		t.logger.Debug("%s: Found metrics: %v", source, s1.Metrics)
 
 		telegrafConfig := &telegraf.Config{
@@ -128,7 +163,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		inputOpts := telegraf.InputPrometheusHttpOptions{}
 		err := copier.CopyWithOption(&inputOpts, &t.options.Signal.InputPrometheusHttpOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 		if err != nil {
-			t.logger.Error("%s: application %s error: %s", source, k, err)
+			t.logger.Error("%s: application %s error: %s", source, ident, err)
 			continue
 		}
 		inputOpts.URL = opts.URL
@@ -137,12 +172,10 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 
 		bytes, err := telegrafConfig.GenerateInputPrometheusHttpBytes(s1, t.options.Signal.Tags, inputOpts, fPath, t.options.Signal.PersistMetrics)
 		if err != nil {
-			t.logger.Error("%s: application %s error: %s", source, k, err)
+			t.logger.Error("%s: application %s error: %s", source, ident, err)
 			continue
 		}
 		telegrafConfig.CreateIfCheckSumIsDifferent(source, fPath, t.options.Checksum, bytes, t.logger)
-
-		idents[ident] = true
 	}
 
 	if len(files) > 0 {
