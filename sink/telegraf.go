@@ -2,6 +2,7 @@ package sink
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path"
 	"regexp"
@@ -113,7 +114,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 			continue
 		}
 
-		fieldIdentValue := fieldIdent + "/" + ident
+		fieldIdentValue := fmt.Sprintf("%s/%s", fieldIdent, ident)
 
 		existingObj, exists := identObjects[fieldIdentValue]
 		if !exists {
@@ -135,7 +136,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 		}
 		// Merge Configs with existing object
 		for path := range s1.Configs {
-			if !utils.Contains(existingObj.Configs, path) {
+			if _, exists := existingObj.Configs[path]; !exists {
 				existingObj.Configs[path] = s1.Configs[path]
 			}
 		}
