@@ -82,6 +82,7 @@ var dSignalOptions = discovery.SignalOptions{
 	Ident:        envFileContentExpand("SIGNAL_IDENT", ""),
 	Field:        envGet("SIGNAL_FIELD", "").(string),
 	Instance:     envFileContentExpand("SIGNAL_INSTANCE", ""),
+	Container:    envFileContentExpand("SIGNAL_CONTAINER", ""),
 	Files:        envFileContentExpand("SIGNAL_FILES", ""),
 	Vars:         envFileContentExpand("SIGNAL_VARS", ""),
 	BaseTemplate: envStringExpand("SIGNAL_BASE_TEMPLATE", ""),

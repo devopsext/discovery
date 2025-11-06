@@ -112,6 +112,37 @@ func (p *FileProvider) filter(obj interface{}, q string) interface{} {
 	return arr
 }
 
+func (p *FileProvider) tryMap(obj interface{}) map[string]interface{} {
+
+	m, ok := obj.(map[string]interface{})
+	if ok {
+		return m
+	}
+
+	arr, ok := obj.([]interface{})
+	if ok {
+		m2 := make(map[string]interface{})
+		for _, v := range arr {
+
+			m3, ok := v.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			key := m3["name"]
+			if utils.IsEmpty(key) {
+				key = m3["id"]
+			}
+
+			if !utils.IsEmpty(key) {
+				m2[fmt.Sprintf("%v", key)] = v
+			}
+		}
+		return m2
+	}
+	return nil
+}
+
 func (p *FileProvider) Map() common.SinkMap {
 
 	def := make(common.SinkMap)
@@ -119,8 +150,8 @@ func (p *FileProvider) Map() common.SinkMap {
 		return def
 	}
 
-	m, ok := p.obj.(map[string]interface{})
-	if !ok {
+	m := p.tryMap(p.obj)
+	if m == nil {
 		return def
 	}
 
