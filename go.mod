@@ -1,6 +1,6 @@
 module github.com/devopsext/discovery
 
-go 1.25.3
+go 1.25
 
 //replace github.com/devopsext/sre => ../sre/
 //replace github.com/devopsext/tools => ../../devopsext/tools
@@ -10,7 +10,7 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/allegro/bigcache v1.2.1
 	github.com/devopsext/sre v0.7.0
-	github.com/devopsext/tools v0.19.0
+	github.com/devopsext/tools v0.20.0
 	github.com/devopsext/utils v0.4.8
 	github.com/go-co-op/gocron v1.18.0
 	github.com/hashicorp/consul/api v1.33.0

@@ -109,8 +109,8 @@ github.com/devopsext/dd-trace-go v1.31.2 h1:JRueUyJ+t/zQc0Jd2dlbe+40r2k9q2wdMQQc
 github.com/devopsext/dd-trace-go v1.31.2/go.mod h1:wRKMf/tRASHwH/UOfPQ3IQmVFhTz2/1a1/mpXoIjF54=
 github.com/devopsext/sre v0.7.0 h1:jaP8AYkds79a2TkLAY8U9RPuf+9rlWIUT5adcwA4mLo=
 github.com/devopsext/sre v0.7.0/go.mod h1:w+uUaCQd0EM1lGDrmSFwmQDL0+H5MVooiEOJE2tVzEs=
-github.com/devopsext/tools v0.19.0 h1:Wo+jkvS9xNVFVyMUFEVR9o+FUREW80MA7oqAgauul34=
-github.com/devopsext/tools v0.19.0/go.mod h1:wEp5O5Ccay6mF1/ocv0v35FItEp7N+tetRsV3OQZLnQ=
+github.com/devopsext/tools v0.20.0 h1:Pal3tlQclmMr2RKnSDjHpRTJ3GwNbkbYNNpTzlbyLqk=
+github.com/devopsext/tools v0.20.0/go.mod h1:5gok2TOOyEv0isRLXxikqpsZYwk4DAcMQEhCHiLs+Pk=
 github.com/devopsext/utils v0.4.8 h1:Ql8fwF36lUcHj5nw/IlZrfHEcPNmh1YPJws3MOnuCKA=
 github.com/devopsext/utils v0.4.8/go.mod h1:3Apwsy4/k+baHRxsHuK0ipqdgK/YNHif0fZmO7m0W4Q=
 github.com/emicklei/go-restful/v3 v3.11.0 h1:rAQeMHw1c7zTmncogyy8VvRZwtkmkZ4FxERmMY4rD+g=

@@ -33,6 +33,7 @@ type SignalOptions struct {
 	Ident        string
 	Field        string
 	Instance     string
+	Container    string
 	BaseTemplate string
 	BasePattern  string
 	Vars         string
@@ -47,19 +48,20 @@ type SignalCache struct {
 }
 
 type Signal struct {
-	source           string
-	prometheus       *toolsVendors.Prometheus
-	prometheusOpts   toolsVendors.PrometheusOptions
-	options          SignalOptions
-	logger           sreCommon.Logger
-	observability    *common.Observability
-	objectTemplate   *toolsRender.TextTemplate
-	fieldTemplate    *toolsRender.TextTemplate
-	instanceTemplate *toolsRender.TextTemplate
-	filesTemplate    *toolsRender.TextTemplate
-	files            *sync.Map
-	disables         map[string]*toolsRender.TextTemplate
-	processors       *common.Processors
+	source            string
+	prometheus        *toolsVendors.Prometheus
+	prometheusOpts    toolsVendors.PrometheusOptions
+	options           SignalOptions
+	logger            sreCommon.Logger
+	observability     *common.Observability
+	objectTemplate    *toolsRender.TextTemplate
+	fieldTemplate     *toolsRender.TextTemplate
+	instanceTemplate  *toolsRender.TextTemplate
+	containerTemplate *toolsRender.TextTemplate
+	filesTemplate     *toolsRender.TextTemplate
+	files             *sync.Map
+	disables          map[string]*toolsRender.TextTemplate
+	processors        *common.Processors
 }
 
 type SignalSinkObject struct {
@@ -489,6 +491,7 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 		ident := ""
 		field := ""
 		instance := ""
+		container := ""
 
 		if utils.IsEmpty(s.options.Ident) && (len(v.Labels) > 1) {
 			flag := false
@@ -525,6 +528,13 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 			instance = instTemp
 		}
 
+		containerTemp := s.render(s.containerTemplate, s.options.Container, mergedVars)
+		if containerTemp == s.options.Container {
+			container = mergedVars[containerTemp]
+		} else {
+			container = containerTemp
+		}
+
 		metric := mergedVars[name]
 
 		if utils.IsEmpty(ident) || utils.IsEmpty(metric) {
@@ -537,12 +547,22 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 
 		// find objects in files
 		// if it's disabled, skip it with warning
-		fieldAndIdent := fmt.Sprintf("%s/%s/%s", field, ident, instance)
+		key := fmt.Sprintf("%s/%s", field, ident)
+
+		// add container to the key
+		if !utils.IsEmpty(container) {
+			key = fmt.Sprintf("%s/%s", key, container)
+		}
+
+		// add instance to the key
+		if !utils.IsEmpty(instance) {
+			key = fmt.Sprintf("%s/%s", key, instance)
+		}
 
 		disabled := s.expandDisabled(fls, mergedVars)
 		dis, _ := s.checkDisabled(disabled, ident)
 		if dis {
-			//s.logger.Trace("%s: %s disabled by pattern: %s", s.source, fieldAndIdent, pattern)
+			//s.logger.Trace("%s: %s disabled by pattern: %s", s.source, key, pattern)
 			continue
 		}
 
@@ -553,9 +573,9 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 			continue
 		}
 
-		ds := matched[fieldAndIdent]
+		ds := matched[key]
 		if ds == nil {
-			s.logger.Debug("[%d] source: %s scope: %s %s found by: %v [%s]", gid, s.source, config.Labels["scope"], fieldAndIdent, mergedVars, time.Since(when))
+			s.logger.Debug("[%d] source: %s scope: %s %s found by: %v [%s]", gid, s.source, config.Labels["scope"], key, mergedVars, time.Since(when))
 			ds = &common.Object{
 				Configs: make(map[string]*common.BaseConfig),
 				Vars:    make(map[string]string),
@@ -575,7 +595,7 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 			}
 		}
 		ds.Files = s.getFiles(v.Labels, false)
-		matched[fieldAndIdent] = ds
+		matched[key] = ds
 	}
 	return matched
 }
@@ -585,13 +605,13 @@ func (s *Signal) Discover() {
 	configs := s.readBaseConfigs()
 	objects := make(map[string]*common.Object)
 	for path, config := range configs {
-		result := make([]*common.PrometheusResponseDataVector, 0)
-
 		if config.Disabled {
 			continue
 		}
 
 		query := s.options.Query
+
+		// replace scopes and params cause it's out of the source code
 		m := regexp.MustCompile(`^(.*)(DISCOVERY_SIGNAL_SCOPES)(.*)$`)
 		str := fmt.Sprintf("${1}%s${3}", config.Scopes)
 		s.prometheusOpts.Query = m.ReplaceAllString(query, str)
@@ -623,6 +643,8 @@ func (s *Signal) Discover() {
 		success := false
 		if err != nil {
 			s.logger.Error(err)
+
+			// this is the ... need to rewrite by using error code instead of string
 			if err.Error() == "429 Too Many Requests" {
 				for i := range 5 {
 					s.logger.Error("%s: Hit ratelimiting, retrying with interval of 1 sec [%d]", s.source, i)
@@ -630,6 +652,8 @@ func (s *Signal) Discover() {
 					data, err = s.prometheus.CustomGet(s.prometheusOpts)
 					if err != nil {
 						s.logger.Error(err)
+
+						// this is the ... need to rewrite by using error code instead of string
 						if err.Error() == "429 Too Many Requests" {
 							continue
 						} else {
@@ -646,10 +670,12 @@ func (s *Signal) Discover() {
 		}
 
 		if success {
-			err = json.Unmarshal(data, &res)
 
-			temp := res.Data.Result
-			result = append(result, temp...)
+			err = json.Unmarshal(data, &res)
+			if err != nil {
+				s.logger.Error("%s: Signal cannot unmarshal response: %s", s.source, err)
+				continue
+			}
 
 			if res.Status != "success" {
 				s.logger.Error(res.Status)
@@ -666,6 +692,7 @@ func (s *Signal) Discover() {
 			objects = s.findObjects(objects, res.Data.Result, path, config)
 		}
 	}
+
 	if len(objects) == 0 {
 		s.logger.Debug("%s: Signal not found any objects from the query", s.source)
 		return
@@ -709,7 +736,7 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 	}
 	objectTemplate, err := toolsRender.NewTextTemplate(objectOpts, observability)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("%s: Signal no object template. Skipped", source)
 		return nil
 	}
 
@@ -720,7 +747,7 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 	}
 	fieldTemplate, err := toolsRender.NewTextTemplate(fieldOpts, observability)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("%s: Signal no field template. Skipped", source)
 		return nil
 	}
 
@@ -731,8 +758,17 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 	}
 	instanceTemplate, err := toolsRender.NewTextTemplate(instanceOpts, observability)
 	if err != nil {
-		logger.Error(err)
-		return nil
+		logger.Error("%s: Signal no instance template. Continue", source)
+	}
+
+	containerOpts := toolsRender.TemplateOptions{
+		Content:     options.Container,
+		Name:        "signal-container",
+		FilterFuncs: true,
+	}
+	containerTemplate, err := toolsRender.NewTextTemplate(containerOpts, observability)
+	if err != nil {
+		logger.Error("%s: Signal no container template. Continue", source)
 	}
 
 	filesOpts := toolsRender.TemplateOptions{
@@ -742,7 +778,7 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 	}
 	filesTemplate, err := toolsRender.NewTextTemplate(filesOpts, observability)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("%s: Signal no files template. Continue", source)
 	}
 
 	prometheusOpts := toolsVendors.PrometheusOptions{
@@ -754,19 +790,20 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 	}
 
 	signal := &Signal{
-		source:           source,
-		prometheus:       toolsVendors.NewPrometheus(prometheusOpts),
-		prometheusOpts:   prometheusOpts,
-		options:          options,
-		logger:           logger,
-		observability:    observability,
-		objectTemplate:   objectTemplate,
-		fieldTemplate:    fieldTemplate,
-		instanceTemplate: instanceTemplate,
-		filesTemplate:    filesTemplate,
-		files:            &sync.Map{},
-		disables:         make(map[string]*toolsRender.TextTemplate),
-		processors:       processors,
+		source:            source,
+		prometheus:        toolsVendors.NewPrometheus(prometheusOpts),
+		prometheusOpts:    prometheusOpts,
+		options:           options,
+		logger:            logger,
+		observability:     observability,
+		objectTemplate:    objectTemplate,
+		fieldTemplate:     fieldTemplate,
+		instanceTemplate:  instanceTemplate,
+		containerTemplate: containerTemplate,
+		filesTemplate:     filesTemplate,
+		files:             &sync.Map{},
+		disables:          make(map[string]*toolsRender.TextTemplate),
+		processors:        processors,
 	}
 
 	return signal
