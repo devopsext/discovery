@@ -270,6 +270,7 @@ var dConsulOptions = discovery.ConsulOptions{
 	BaseUrl:  envGet("CONSUL_URL", "").(string),
 	Insecure: envGet("CONSUL_INSECURE", false).(bool),
 	Schedule: envGet("CONSUL_SCHEDULE", "").(string),
+	Workers:  envGet("CONSUL_WORKERS", 5).(int),
 }
 
 var pTemplateOptions = processor.TemplateOptions{
@@ -841,6 +842,7 @@ func Execute() {
 	flags.StringVar(&dConsulOptions.Schedule, "consul-schedule", dConsulOptions.Schedule, "Consul discovery schedule")
 	flags.StringVar(&dConsulOptions.BaseUrl, "consul-url", dConsulOptions.BaseUrl, "Consul discovery url")
 	flags.BoolVar(&dConsulOptions.Insecure, "consul-insecure", dConsulOptions.Insecure, "Consul discovery insecure")
+	flags.IntVar(&dConsulOptions.Workers, "consul-workers", dConsulOptions.Workers, "Consul discovery workers")
 
 	// Processor Template
 	flags.StringVar(&pTemplateOptions.Content, "processor-template-content", pTemplateOptions.Content, "Processor template content or file")

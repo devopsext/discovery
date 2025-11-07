@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
@@ -12,10 +13,11 @@ import (
 )
 
 type ConsulOptions struct {
-	BaseUrl      string
-	Insecure     bool
-	Schedule     string
 	CommonLabels map[string]string
+	BaseUrl      string
+	Schedule     string
+	Workers      int
+	Insecure     bool
 }
 
 type Consul struct {
@@ -49,14 +51,19 @@ func (c *Consul) Discover() {
 
 	jobs := make(chan string, len(services))
 	results := make(chan common.SinkMap, len(services))
+	errCh := make(chan error, len(services))
+	defer close(results)
 
+	var wg sync.WaitGroup
 	worker := func() {
+		defer wg.Done()
 		for j := range jobs {
-			c.logger.Debug(fmt.Sprintf("conslul processing service %s", j))
+			c.logger.Debug(fmt.Sprintf("consul processing service %s", j))
 
 			nodes, _, err := c.catalog.Service(j, "", &capi.QueryOptions{})
 			if err != nil {
-				c.logger.Error(err)
+				// Do not log every error to avoid flooding; aggregate instead via errCh
+				errCh <- err
 				results <- make(common.SinkMap)
 				continue
 			}
@@ -104,8 +111,8 @@ func (c *Consul) Discover() {
 	}
 
 	// start fixed number of workers
-	workers := 10
-	for w := 0; w < workers; w++ {
+	for w := 0; w < c.options.Workers; w++ {
+		wg.Add(1)
 		go worker()
 	}
 
@@ -123,6 +130,33 @@ func (c *Consul) Discover() {
 		for k, v := range part {
 			sm[k] = v
 		}
+	}
+
+	// wait workers and close error channel for aggregation
+	wg.Wait()
+	close(errCh)
+
+	// aggregate errors to avoid log flooding
+	failedTotal := 0
+	errCounts := make(map[string]int)
+	for e := range errCh {
+		failedTotal++
+		errCounts[e.Error()]++
+	}
+	if failedTotal > 0 {
+		var sb strings.Builder
+		shown := 0
+		for msg, cnt := range errCounts {
+			if shown >= 3 {
+				break
+			}
+			if shown > 0 {
+				sb.WriteString("; ")
+			}
+			sb.WriteString(fmt.Sprintf("%dx '%s'", cnt, msg))
+			shown++
+		}
+		c.logger.Error("consul errors: failed to fetch %d/%d services. Unique errors: %d. Top: %s", failedTotal, nServices, len(errCounts), sb.String())
 	}
 
 	c.logger.Info("consul discovered object count: %d", len(sm))
