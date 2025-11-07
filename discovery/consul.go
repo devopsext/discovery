@@ -47,58 +47,85 @@ func (c *Consul) Discover() {
 		return
 	}
 
-	sm := make(common.SinkMap, len(services)*2)
+	jobs := make(chan string, len(services))
+	results := make(chan common.SinkMap, len(services))
 
-	nServices := len(services)
-	i := 0
+	worker := func() {
+		for j := range jobs {
+			c.logger.Debug(fmt.Sprintf("conslul processing service %s", j))
 
-	for serviceName := range services {
-		i++
-		c.logger.Debug(fmt.Sprintf("conslul processing service %s (%d from %d)", serviceName, i, nServices))
-		nodes, _, err := c.catalog.Service(serviceName, "", &capi.QueryOptions{})
-		if err != nil {
-			c.logger.Error(err)
-			continue
-		}
-		for _, node := range nodes {
-			labels := make(common.Labels)
-			labels["service"] = node.ServiceName
-			labels["address"] = node.Address
-			labels["port"] = strconv.Itoa(node.ServicePort)
-			labels["datacenter"] = node.Datacenter
-			labels["dns"] = node.NodeMeta["dns"]
-			if version, found := node.ServiceMeta["version"]; found {
-				labels["version"] = version
+			nodes, _, err := c.catalog.Service(j, "", &capi.QueryOptions{})
+			if err != nil {
+				c.logger.Error(err)
+				results <- make(common.SinkMap)
+				continue
 			}
-			if application, found := node.ServiceMeta["label_application"]; found {
-				labels["application"] = application
-			}
-			if component, found := node.ServiceMeta["label_component"]; found {
-				labels["component"] = component
-			}
-			tags := getTags(node.ServiceTags)
-			for tag, value := range tags {
-				switch tag {
-				case "version":
-					if _, ok := labels["version"]; !ok {
-						labels["version"] = value
-					}
-				case "application":
-					if _, ok := labels["application"]; !ok {
-						labels["application"] = value
-					}
-				case "component":
-					if _, ok := labels["component"]; !ok {
-						labels["component"] = value
+
+			local := make(common.SinkMap, len(nodes))
+			for _, node := range nodes {
+				labels := make(common.Labels)
+				labels["service"] = node.ServiceName
+				labels["address"] = node.Address
+				labels["port"] = strconv.Itoa(node.ServicePort)
+				labels["datacenter"] = node.Datacenter
+				labels["dns"] = node.NodeMeta["dns"]
+				if version, found := node.ServiceMeta["version"]; found {
+					labels["version"] = version
+				}
+				if application, found := node.ServiceMeta["label_application"]; found {
+					labels["application"] = application
+				}
+				if component, found := node.ServiceMeta["label_component"]; found {
+					labels["component"] = component
+				}
+				tags := getTags(node.ServiceTags)
+				for tag, value := range tags {
+					switch tag {
+					case "version":
+						if _, ok := labels["version"]; !ok {
+							labels["version"] = value
+						}
+					case "application":
+						if _, ok := labels["application"]; !ok {
+							labels["application"] = value
+						}
+					case "component":
+						if _, ok := labels["component"]; !ok {
+							labels["component"] = value
+						}
 					}
 				}
+				name := fmt.Sprintf("%s@%s", node.ServiceName, node.Node)
+				c.logger.Debug("consul found: %s", name)
+				local[name] = common.MergeLabels(c.options.CommonLabels, labels)
 			}
-			name := fmt.Sprintf("%s@%s", node.ServiceName, node.Node)
-			c.logger.Debug("consul found: %s", name)
-			sm[name] = common.MergeLabels(c.options.CommonLabels, labels)
+			results <- local
 		}
 	}
-	c.logger.Debug("consul discovered object count: %d", len(sm))
+
+	// start fixed number of workers
+	workers := 10
+	for w := 0; w < workers; w++ {
+		go worker()
+	}
+
+	// enqueue jobs
+	nServices := len(services)
+	for serviceName := range services {
+		jobs <- serviceName
+	}
+	close(jobs)
+
+	// collect results
+	sm := make(common.SinkMap, nServices*2)
+	for r := 0; r < nServices; r++ {
+		part := <-results
+		for k, v := range part {
+			sm[k] = v
+		}
+	}
+
+	c.logger.Info("consul discovered object count: %d", len(sm))
 	c.processors.Process(c, &ConsulSinkObject{
 		sinkMap: sm,
 		consul:  c,
