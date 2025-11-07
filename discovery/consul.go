@@ -170,7 +170,11 @@ func getTags(tags []string) map[string]string {
 	res := make(map[string]string)
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, "label_") {
-			parts := strings.Split(strings.TrimPrefix(tag, "label_"), "=")
+			parts := strings.SplitN(strings.TrimPrefix(tag, "label_"), "=", 2)
+			if len(parts) < 2 {
+				// Guard against malformed tags like "label_application" with no '='
+				continue
+			}
 			res[parts[0]] = parts[1]
 		}
 	}
