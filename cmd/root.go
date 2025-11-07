@@ -266,6 +266,12 @@ var dDumbOptions = discovery.DumbOptions{
 	Schedule: envGet("DUMB_SCHEDULE", "10s").(string),
 }
 
+var dConsulOptions = discovery.ConsulOptions{
+	BaseUrl:  envGet("CONSUL_URL", "").(string),
+	Insecure: envGet("CONSUL_INSECURE", false).(bool),
+	Schedule: envGet("CONSUL_SCHEDULE", "").(string),
+}
+
 var pTemplateOptions = processor.TemplateOptions{
 	Content:   envFileContentExpand("PROCESSOR_TEMPLATE_CONTENT", ""),
 	Files:     envFileContentExpand("PROCESSOR_TEMPLATE_FILES", ""),
@@ -641,6 +647,7 @@ func Execute() {
 			runSimpleDiscovery(wg, scheduler, dLdapOptions.Schedule, discovery.NewLdap(dLdapOptions, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dTeleportOptions.Schedule, discovery.NewTeleport(dTeleportOptions, obs, processors), logger)
 			runSimpleDiscovery(wg, scheduler, dDumbOptions.Schedule, discovery.NewDumb(dDumbOptions, obs, processors), logger)
+			runSimpleDiscovery(wg, scheduler, dConsulOptions.Schedule, discovery.NewConsul(dConsulOptions, obs, processors), logger)
 
 			// start scheduler
 			scheduler.StartAsync()
@@ -829,6 +836,11 @@ func Execute() {
 	flags.IntVar(&dTeleportOptions.Timeout, "teleport-timeout", dTeleportOptions.Timeout, "Teleport discovery timeout")
 	flags.BoolVar(&dTeleportOptions.Insecure, "teleport-insecure", dTeleportOptions.Insecure, "Teleport discovery insecure")
 	flags.StringSliceVar(&dTeleportOptions.Kinds, "teleport-kinds", dTeleportOptions.Kinds, "Teleport discovery kinds")
+
+	// Consul
+	flags.StringVar(&dConsulOptions.Schedule, "consul-schedule", dConsulOptions.Schedule, "Consul discovery schedule")
+	flags.StringVar(&dConsulOptions.BaseUrl, "consul-url", dConsulOptions.BaseUrl, "Consul discovery url")
+	flags.BoolVar(&dConsulOptions.Insecure, "consul-insecure", dConsulOptions.Insecure, "Consul discovery insecure")
 
 	// Processor Template
 	flags.StringVar(&pTemplateOptions.Content, "processor-template-content", pTemplateOptions.Content, "Processor template content or file")

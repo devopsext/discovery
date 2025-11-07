@@ -1,0 +1,159 @@
+package discovery
+
+import (
+	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
+
+	"github.com/devopsext/discovery/common"
+	sreCommon "github.com/devopsext/sre/common"
+	capi "github.com/hashicorp/consul/api"
+)
+
+type ConsulOptions struct {
+	BaseUrl      string
+	Insecure     bool
+	Schedule     string
+	CommonLabels map[string]string
+}
+
+type Consul struct {
+	catalog *capi.Catalog
+	options ConsulOptions
+	source  string
+	logger  sreCommon.Logger
+	//observability *common.Observability
+	processors *common.Processors
+}
+
+type ConsulSinkObject struct {
+	sinkMap common.SinkMap
+	consul  *Consul
+}
+
+func (so ConsulSinkObject) Map() common.SinkMap {
+	return so.sinkMap
+}
+
+func (so ConsulSinkObject) Options() interface{} {
+	return so.consul.options
+}
+
+func (c *Consul) Discover() {
+	services, _, err := c.catalog.Services(&capi.QueryOptions{})
+	if err != nil {
+		c.logger.Error(err)
+		return
+	}
+
+	sm := make(common.SinkMap, len(services)*2)
+
+	nServices := len(services)
+	i := 0
+
+	for serviceName := range services {
+		i++
+		c.logger.Debug(fmt.Sprintf("conslul processing service %s (%d from %d)", serviceName, i, nServices))
+		nodes, _, err := c.catalog.Service(serviceName, "", &capi.QueryOptions{})
+		if err != nil {
+			c.logger.Error(err)
+			continue
+		}
+		for _, node := range nodes {
+			labels := make(common.Labels)
+			labels["service"] = node.ServiceName
+			labels["address"] = node.Address
+			labels["port"] = strconv.Itoa(node.ServicePort)
+			labels["datacenter"] = node.Datacenter
+			labels["dns"] = node.NodeMeta["dns"]
+			if version, found := node.ServiceMeta["version"]; found {
+				labels["version"] = version
+			}
+			if application, found := node.ServiceMeta["label_application"]; found {
+				labels["application"] = application
+			}
+			if component, found := node.ServiceMeta["label_component"]; found {
+				labels["component"] = component
+			}
+			tags := getTags(node.ServiceTags)
+			for tag, value := range tags {
+				switch tag {
+				case "version":
+					if _, ok := labels["version"]; !ok {
+						labels["version"] = value
+					}
+				case "application":
+					if _, ok := labels["application"]; !ok {
+						labels["application"] = value
+					}
+				case "component":
+					if _, ok := labels["component"]; !ok {
+						labels["component"] = value
+					}
+				}
+			}
+			name := fmt.Sprintf("%s@%s", node.ServiceName, node.Node)
+			c.logger.Debug("consul found: %s", name)
+			sm[name] = common.MergeLabels(c.options.CommonLabels, labels)
+		}
+	}
+	c.logger.Debug("consul discovered object count: %d", len(sm))
+	c.processors.Process(c, &ConsulSinkObject{
+		sinkMap: sm,
+		consul:  c,
+	})
+}
+
+func getTags(tags []string) map[string]string {
+	res := make(map[string]string)
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "label_") {
+			parts := strings.Split(strings.TrimPrefix(tag, "label_"), "=")
+			res[parts[0]] = parts[1]
+		}
+	}
+	return res
+}
+
+func (c *Consul) Name() string {
+	return "Consul"
+}
+
+func (c *Consul) Source() string {
+	return c.source
+}
+
+func NewConsul(options ConsulOptions, obs *common.Observability, processors *common.Processors) common.Discovery {
+
+	if options.BaseUrl == "" {
+		obs.Logs().Error("consul options base url is empty")
+		return nil
+	}
+
+	u, err := url.Parse(options.BaseUrl)
+	if err != nil {
+		obs.Logs().Error(err.Error())
+		return nil
+	}
+
+	source := u.Host
+	conf := capi.DefaultConfig()
+	conf.Address = source
+	conf.Scheme = u.Scheme
+	conf.TLSConfig.InsecureSkipVerify = options.Insecure
+
+	client, err := capi.NewClient(conf)
+	if err != nil {
+		obs.Logs().Error(err.Error())
+		return nil
+	}
+
+	return &Consul{
+		options:    options,
+		source:     source,
+		processors: processors,
+		catalog:    client.Catalog(),
+		logger:     obs.Logs(),
+	}
+}
