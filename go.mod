@@ -1,6 +1,6 @@
 module github.com/devopsext/discovery
 
-go 1.25
+go 1.25.3
 
 //replace github.com/devopsext/sre => ../sre/
 //replace github.com/devopsext/tools => ../../devopsext/tools
