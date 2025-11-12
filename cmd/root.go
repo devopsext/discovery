@@ -392,7 +392,8 @@ var sinkPubSubOptions = sink.PubSubOptions{
 	Enabled:     envGet("SINK_PUBSUB_ENABLED", false).(bool),
 	Credentials: envGet("SINK_PUBSUB_CREDENTIALS", "").(string),
 	ProjectID:   envGet("SINK_PUBSUB_PROJECT", "").(string),
-	TopicID:     envGet("SINK_PUBSUB_TOPIC", "").(string),
+	Topic:       envGet("SINK_PUBSUB_TOPIC", "").(string),
+	Topics:      envGet("SINK_PUBSUB_TOPICS", "").(string),
 	Providers:   strings.Split(envStringExpand("SINK_PUBSUB_PROVIDERS", ""), ","),
 }
 

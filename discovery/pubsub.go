@@ -173,6 +173,10 @@ func (ps *PubSub) Discover() {
 					ps.logger.Error("PubSub couldn't unmarshall payload %s from %s to file error: %s", k, subID, err)
 					continue
 				}
+				if utils.IsEmpty(f.Path) {
+					ps.logger.Error("PubSub couldn't process payload %s from %s with empty file path", k, subID)
+					continue
+				}
 				name := filepath.Base(f.Path)
 				m[name] = &f
 
@@ -186,6 +190,10 @@ func (ps *PubSub) Discover() {
 				}
 
 				for _, f := range fs {
+					if utils.IsEmpty(f.Path) {
+						ps.logger.Error("PubSub couldn't process payload %s from %s with empty file path", k, subID)
+						continue
+					}
 					name := filepath.Base(f.Path)
 					m[name] = f
 				}

@@ -158,6 +158,9 @@ func (o *Observability) Process(d common.Discovery, so common.SinkObject) {
 		labels := make(sreCommon.Labels)
 		labels["name"] = k
 		labels["provider"] = dname
+		if !utils.IsEmpty(dsource) {
+			labels["source"] = dsource
+		}
 		labels = common.MergeStringMaps(labels, common.FilterStringMap(v, o.options.Labels))
 		labels = common.ReplaceLabelKeys(labels, wrongKeys)
 		labels = common.ReplaceLabelValues(labels, wrongValues)

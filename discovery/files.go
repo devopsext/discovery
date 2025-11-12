@@ -41,7 +41,7 @@ type Files struct {
 	observability *common.Observability
 	processors    *common.Processors
 	watcher       *fsnotify.Watcher
-	provideres    *FileProviders
+	providers     *FileProviders
 }
 
 type FilesSinkObject struct {
@@ -55,7 +55,7 @@ func (p *FileProvider) Name() string {
 }
 
 func (p *FileProvider) Source() string {
-	return ""
+	return "Files"
 }
 
 func (p *FileProvider) Discover() {
@@ -86,7 +86,7 @@ func (p *FileProvider) filter(obj interface{}, q string) interface{} {
 
 	query, err := gojq.Parse(q1)
 	if err != nil {
-		p.logger.Error("Files couldn't filter object error: %s", err)
+		p.logger.Error("Files couldn't use filter => (%s) error: %s", q1, err)
 		return obj
 	}
 
@@ -129,9 +129,9 @@ func (p *FileProvider) tryMap(obj interface{}) map[string]interface{} {
 				continue
 			}
 
-			key := m3["name"]
+			key := m3["id"]
 			if utils.IsEmpty(key) {
-				key = m3["id"]
+				key = m3["name"]
 			}
 
 			if !utils.IsEmpty(key) {
@@ -158,7 +158,11 @@ func (p *FileProvider) Map() common.SinkMap {
 	obj := p.filter(m, p.query)
 	m2, ok := obj.(map[string]interface{})
 	if !ok {
-		return def
+		m3 := p.tryMap(obj)
+		if m3 == nil {
+			return def
+		}
+		m2 = m3
 	}
 
 	lbsm := make(common.LabelsMap)
@@ -244,12 +248,12 @@ func (d *Files) Source() string {
 
 func (d *Files) discoverProviders(m map[string]interface{}) {
 
-	for provider, file := range d.provideres.list {
+	for provider, file := range d.providers.list {
 		path := m[file]
 		if path == nil {
 			continue
 		}
-		fp, err := d.provideres.discover(provider, path.(string), d.logger)
+		fp, err := d.providers.discover(provider, path.(string), d.logger)
 		if err != nil {
 			d.logger.Error("Files couldn't discover provider by %s due to error: %s", file, err)
 			continue
@@ -344,9 +348,9 @@ func NewFiles(options FilesOptions, observability *common.Observability, process
 		observability: observability,
 		processors:    processors,
 		watcher:       watcher,
-		provideres: &FileProviders{
-			list:       utils.MapGetKeyValues(options.Providers),
-			converters: utils.MapGetKeyValues(options.Converters),
+		providers: &FileProviders{
+			list:       utils.MapGetKeyValuesEx(options.Providers, ";", "="),
+			converters: utils.MapGetKeyValuesEx(options.Converters, ";", "="),
 		},
 	}
 }
