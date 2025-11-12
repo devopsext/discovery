@@ -3,6 +3,7 @@ package discovery
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,6 +12,8 @@ import (
 	sreCommon "github.com/devopsext/sre/common"
 	capi "github.com/hashicorp/consul/api"
 )
+
+var semverRe = regexp.MustCompile(`^[vV]?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?(\.(0|[1-9][0-9]*))?$`)
 
 type ConsulOptions struct {
 	CommonLabels map[string]string
@@ -178,6 +181,11 @@ func getTags(tags []string) map[string]string {
 				continue
 			}
 			res[parts[0]] = parts[1]
+		}
+		if semverRe.MatchString(tag) {
+			if _, exists := res["version"]; !exists {
+				res["version"] = tag
+			}
 		}
 	}
 	return res
