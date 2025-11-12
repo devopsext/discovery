@@ -78,6 +78,8 @@ func (c *Consul) Discover() {
 				labels["dns"] = node.NodeMeta["dns"]
 				if version, found := node.ServiceMeta["version"]; found {
 					labels["version"] = version
+				} else if version, found = node.ServiceMeta["label_version"]; found {
+					labels["version"] = version
 				}
 				if application, found := node.ServiceMeta["label_application"]; found {
 					labels["application"] = application
