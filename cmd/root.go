@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"time"
 
@@ -65,7 +66,7 @@ var prometheusMetricsOptions = sreProvider.PrometheusOptions{
 	GoRuntime: envGet("PROMETHEUS_METRICS_GO_RUNTIME", true).(bool),
 }
 
-var dPrometheusOptions = common.PrometheusOptions{
+var prometheusOptions = common.PrometheusOptions{
 	Names:    envStringExpand("PROMETHEUS_NAMES", ""),
 	URL:      envStringExpand("PROMETHEUS_URL", ""),
 	Timeout:  envGet("PROMETHEUS_TIMEOUT", 30).(int),
@@ -88,6 +89,7 @@ var dSignalOptions = discovery.SignalOptions{
 	BaseTemplate: envStringExpand("SIGNAL_BASE_TEMPLATE", ""),
 	BasePattern:  envStringExpand("SIGNAL_BASE_PATTERN", ".*"),
 	CacheSize:    envGet("SIGNAL_CACHE_SIZE", 0).(int),
+	Source:       envGet("SIGNAL_SOURCE", ".*").(string),
 }
 
 var dDNSOptions = discovery.DNSOptions{
@@ -98,6 +100,7 @@ var dDNSOptions = discovery.DNSOptions{
 	Pattern:     envGet("DNS_PATTERN", "").(string),
 	Names:       envFileContentExpand("DNS_NAMES", ""),
 	Exclusion:   envGet("DNS_EXCLUSION", "").(string),
+	Source:      envGet("DNS_SOURCE", ".*").(string),
 }
 
 var dHTTPOptions = discovery.HTTPOptions{
@@ -111,6 +114,7 @@ var dHTTPOptions = discovery.HTTPOptions{
 	Files:       envFileContentExpand("HTTP_FILES", ""),
 	NoSSL:       envGet("HTTP_NO_SSL", "").(string),
 	Path:        envFileContentExpand("HTTP_PATH", ""),
+	Source:      envGet("HTTP_SOURCE", ".*").(string),
 }
 
 var dTCPOptions = discovery.TCPOptions{
@@ -121,6 +125,7 @@ var dTCPOptions = discovery.TCPOptions{
 	Pattern:     envGet("TCP_PATTERN", "").(string),
 	Names:       envFileContentExpand("TCP_NAMES", ""),
 	Exclusion:   envGet("TCP_EXCLUSION", "").(string),
+	Source:      envGet("TCP_SOURCE", ".*").(string),
 }
 
 var dCertOptions = discovery.CertOptions{
@@ -131,6 +136,25 @@ var dCertOptions = discovery.CertOptions{
 	Pattern:     envGet("CERT_PATTERN", "").(string),
 	Names:       envFileContentExpand("CERT_NAMES", ""),
 	Exclusion:   envGet("CERT_EXCLUSION", "").(string),
+	Source:      envGet("CERT_SOURCE", ".*").(string),
+}
+
+var dLabelsOptions = discovery.LabelsOptions{
+	Schedule:    envGet("LABELS_SCHEDULE", "").(string),
+	Query:       envFileContentExpand("LABELS_QUERY", ""),
+	QueryPeriod: envGet("LABELS_QUERY_PERIOD", "").(string),
+	QueryStep:   envGet("LABELS_QUERY_STEP", "").(string),
+	Name:        envFileContentExpand("LABELS_NAME", ""),
+	Source:      envGet("LABELS_SOURCE", ".*").(string),
+}
+
+var dPrometheusOptions = discovery.PrometheusOptions{
+	Schedule:    envGet("PROMETHEUS_SCHEDULE", "").(string),
+	Query:       envStringExpand("PROMETHEUS_QUERY", ""),
+	QueryKeys:   envStringExpand("PROMETHEUS_QUERY_KEYS", ""),
+	QueryPeriod: envGet("PROMETHEUS_QUERY_PERIOD", "").(string),
+	QueryStep:   envGet("PROMETHEUS_QUERY_STEP", "").(string),
+	Source:      envGet("PROMETHEUS_SOURCE", ".*").(string),
 }
 
 var dObserviumOptions = discovery.ObserviumOptions{
@@ -241,14 +265,6 @@ var dFilesOptions = discovery.FilesOptions{
 	Folder:     envStringExpand("FILES_FOLDER", ""),
 	Providers:  envStringExpand("FILES_PROVIDERS", ""),
 	Converters: envStringExpand("FILES_CONVERTERS", ""),
-}
-
-var dLabelsOptions = discovery.LabelsOptions{
-	Schedule:    envGet("LABELS_SCHEDULE", "").(string),
-	Query:       envFileContentExpand("LABELS_QUERY", ""),
-	QueryPeriod: envGet("LABELS_QUERY_PERIOD", "").(string),
-	QueryStep:   envGet("LABELS_QUERY_STEP", "").(string),
-	Name:        envFileContentExpand("LABELS_NAME", ""),
 }
 
 var dTeleportOptions = discovery.TeleportOptions{
@@ -394,6 +410,7 @@ var sinkPubSubOptions = sink.PubSubOptions{
 	ProjectID:   envGet("SINK_PUBSUB_PROJECT", "").(string),
 	Topic:       envGet("SINK_PUBSUB_TOPIC", "").(string),
 	Topics:      envGet("SINK_PUBSUB_TOPICS", "").(string),
+	Files:       envGet("SINK_PUBSUB_FILES", "").(string),
 	Providers:   strings.Split(envStringExpand("SINK_PUBSUB_PROVIDERS", ""), ","),
 }
 
@@ -497,6 +514,16 @@ func runNamedDiscovery(wg *sync.WaitGroup, scheduler *gocron.Scheduler, schedule
 	}
 }
 
+func eligibleFor(name string, allowed string) bool {
+
+	re, err := regexp.Compile(allowed)
+	if err != nil {
+		logs.Error("Eligibility regex %s error: %s", allowed, err)
+		return false
+	}
+	return re.MatchString(name)
+}
+
 func runSimpleDiscovery(wg *sync.WaitGroup, scheduler *gocron.Scheduler, schedule string, discovery common.Discovery, logger *sreCommon.Logs) {
 
 	if utils.IsEmpty(discovery) {
@@ -573,12 +600,12 @@ func Execute() {
 			wg := &sync.WaitGroup{}
 
 			// run prometheus discoveries for each prometheus name for URLs and run related discoveries
-			proms := common.ParseNames(dPrometheusOptions.Names, obs.Logs())
+			proms := common.ParseNames(prometheusOptions.Names, obs.Logs())
 			for _, prom := range proms {
 
 				// create opts based on global prometheus options
 				opts := common.PrometheusOptions{}
-				err := copier.CopyWithOption(&opts, &dPrometheusOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+				err := copier.CopyWithOption(&opts, &prometheusOptions, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 				if err != nil {
 					logger.Error("Prometheus copy error: %s", err)
 					continue
@@ -590,7 +617,7 @@ func Execute() {
 				m["url"] = prom.URL
 				m["user"] = prom.User
 				m["password"] = prom.Password
-				opts.URL = common.Render(dPrometheusOptions.URL, m, obs)
+				opts.URL = common.Render(prometheusOptions.URL, m, obs)
 
 				if utils.IsEmpty(opts.URL) || utils.IsEmpty(prom.Name) {
 					logger.Debug("Prometheus discovery is not found")
@@ -601,12 +628,27 @@ func Execute() {
 				opts.User = prom.User
 				opts.Password = prom.Password
 
-				runNamedDiscovery(wg, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, processors), logger)
-				runNamedDiscovery(wg, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, processors), logger)
-				runNamedDiscovery(wg, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, processors), logger)
-				runNamedDiscovery(wg, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, processors), logger)
-				runNamedDiscovery(wg, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, processors), logger)
-				runNamedDiscovery(wg, scheduler, dLabelsOptions.Schedule, prom.Name, opts.URL, discovery.NewLabels(prom.Name, opts, dLabelsOptions, obs, processors), logger)
+				if eligibleFor(prom.Name, dSignalOptions.Source) {
+					runNamedDiscovery(wg, scheduler, dSignalOptions.Schedule, prom.Name, opts.URL, discovery.NewSignal(prom.Name, opts, dSignalOptions, obs, processors), logger)
+				}
+				if eligibleFor(prom.Name, dDNSOptions.Source) {
+					runNamedDiscovery(wg, scheduler, dDNSOptions.Schedule, prom.Name, opts.URL, discovery.NewDNS(prom.Name, opts, dDNSOptions, obs, processors), logger)
+				}
+				if eligibleFor(prom.Name, dHTTPOptions.Source) {
+					runNamedDiscovery(wg, scheduler, dHTTPOptions.Schedule, prom.Name, opts.URL, discovery.NewHTTP(prom.Name, opts, dHTTPOptions, obs, processors), logger)
+				}
+				if eligibleFor(prom.Name, dTCPOptions.Source) {
+					runNamedDiscovery(wg, scheduler, dTCPOptions.Schedule, prom.Name, opts.URL, discovery.NewTCP(prom.Name, opts, dTCPOptions, obs, processors), logger)
+				}
+				if eligibleFor(prom.Name, dCertOptions.Source) {
+					runNamedDiscovery(wg, scheduler, dCertOptions.Schedule, prom.Name, opts.URL, discovery.NewCert(prom.Name, opts, dCertOptions, obs, processors), logger)
+				}
+				if eligibleFor(prom.Name, dLabelsOptions.Source) {
+					runNamedDiscovery(wg, scheduler, dLabelsOptions.Schedule, prom.Name, opts.URL, discovery.NewLabels(prom.Name, opts, dLabelsOptions, obs, processors), logger)
+				}
+				if eligibleFor(prom.Name, dPrometheusOptions.Source) {
+					runNamedDiscovery(wg, scheduler, dPrometheusOptions.Schedule, prom.Name, opts.URL, discovery.NewPrometheus(prom.Name, opts, dPrometheusOptions, obs, processors), logger)
+				}
 			}
 
 			runSimpleDiscovery(wg, scheduler, dObserviumOptions.Schedule, discovery.NewObservium(dObserviumOptions, obs, processors), logger)
@@ -687,10 +729,10 @@ func Execute() {
 	flags.StringVar(&prometheusMetricsOptions.Listen, "prometheus-metrics-listen", prometheusMetricsOptions.Listen, "Prometheus metrics listen")
 	flags.StringVar(&prometheusMetricsOptions.Prefix, "prometheus-metrics-prefix", prometheusMetricsOptions.Prefix, "Prometheus metrics prefix")
 
-	flags.StringVar(&dPrometheusOptions.Names, "prometheus-names", dPrometheusOptions.Names, "Prometheus discovery names")
-	flags.StringVar(&dPrometheusOptions.URL, "prometheus-url", dPrometheusOptions.URL, "Prometheus discovery URL")
-	flags.IntVar(&dPrometheusOptions.Timeout, "prometheus-timeout", dPrometheusOptions.Timeout, "Prometheus discovery timeout in seconds")
-	flags.BoolVar(&dPrometheusOptions.Insecure, "prometheus-insecure", dPrometheusOptions.Insecure, "Prometheus discovery insecure")
+	flags.StringVar(&prometheusOptions.Names, "prometheus-names", prometheusOptions.Names, "Prometheus discovery names")
+	flags.StringVar(&prometheusOptions.URL, "prometheus-url", prometheusOptions.URL, "Prometheus discovery URL")
+	flags.IntVar(&prometheusOptions.Timeout, "prometheus-timeout", prometheusOptions.Timeout, "Prometheus discovery timeout in seconds")
+	flags.BoolVar(&prometheusOptions.Insecure, "prometheus-insecure", prometheusOptions.Insecure, "Prometheus discovery insecure")
 
 	// Signal
 	flags.StringVar(&dSignalOptions.Schedule, "signal-schedule", dSignalOptions.Schedule, "Signal discovery schedule")
@@ -705,6 +747,7 @@ func Execute() {
 	flags.StringSliceVar(&dSignalOptions.Disabled, "signal-disabled", dSignalOptions.Disabled, "Signal discovery disabled services")
 	flags.StringVar(&dSignalOptions.BaseTemplate, "signal-base-template", dSignalOptions.BaseTemplate, "Signal discovery base template")
 	flags.StringVar(&dSignalOptions.Vars, "signal-vars", dSignalOptions.Vars, "Signal discovery vars")
+	flags.StringVar(&dSignalOptions.Source, "signal-source", dSignalOptions.Source, "Signal discovery source")
 
 	// DNS
 	flags.StringVar(&dDNSOptions.Schedule, "dns-schedule", dDNSOptions.Schedule, "DNS discovery schedule")
@@ -714,6 +757,7 @@ func Execute() {
 	flags.StringVar(&dDNSOptions.Pattern, "dns-pattern", dDNSOptions.Pattern, "DNS discovery domain pattern")
 	flags.StringVar(&dDNSOptions.Names, "dns-names", dDNSOptions.Names, "DNS discovery domain names")
 	flags.StringVar(&dDNSOptions.Exclusion, "dns-exclusion", dDNSOptions.Exclusion, "DNS discovery domain exclusion")
+	flags.StringVar(&dDNSOptions.Source, "dns-source", dDNSOptions.Source, "DNS discovery source")
 
 	// HTTP
 	flags.StringVar(&dHTTPOptions.Schedule, "http-schedule", dHTTPOptions.Schedule, "HTTP discovery schedule")
@@ -725,6 +769,7 @@ func Execute() {
 	flags.StringVar(&dHTTPOptions.Files, "http-files", dHTTPOptions.Files, "Http files")
 	flags.StringVar(&dHTTPOptions.Exclusion, "http-exclusion", dHTTPOptions.Exclusion, "HTTP discovery exclusion")
 	flags.StringVar(&dHTTPOptions.NoSSL, "http-no-ssl", dHTTPOptions.NoSSL, "HTTP no SSL pattern")
+	flags.StringVar(&dHTTPOptions.Source, "http-source", dHTTPOptions.Source, "HTTP discovery source")
 
 	// TCP
 	flags.StringVar(&dTCPOptions.Schedule, "tcp-schedule", dTCPOptions.Schedule, "TCP discovery schedule")
@@ -734,6 +779,7 @@ func Execute() {
 	flags.StringVar(&dTCPOptions.Pattern, "tcp-pattern", dTCPOptions.Pattern, "TCP discovery pattern")
 	flags.StringVar(&dTCPOptions.Names, "tcp-names", dTCPOptions.Names, "TCP discovery names")
 	flags.StringVar(&dTCPOptions.Exclusion, "tcp-exclusion", dTCPOptions.Exclusion, "TCP discovery exclusion")
+	flags.StringVar(&dTCPOptions.Source, "tcp-source", dTCPOptions.Source, "TCP discovery source")
 
 	// CERT
 	flags.StringVar(&dCertOptions.Schedule, "cert-schedule", dCertOptions.Schedule, "Cert discovery schedule")
@@ -743,6 +789,22 @@ func Execute() {
 	flags.StringVar(&dCertOptions.Pattern, "cert-pattern", dCertOptions.Pattern, "Cert discovery pattern")
 	flags.StringVar(&dCertOptions.Names, "cert-names", dCertOptions.Names, "Cert discovery names")
 	flags.StringVar(&dCertOptions.Exclusion, "cert-exclusion", dCertOptions.Exclusion, "Cert discovery exclusion")
+	flags.StringVar(&dCertOptions.Source, "cert-source", dCertOptions.Source, "Cert discovery source")
+
+	// Labels
+	flags.StringVar(&dLabelsOptions.Schedule, "labels-schedule", dLabelsOptions.Schedule, "Labels discovery schedule")
+	flags.StringVar(&dLabelsOptions.Query, "labels-query", dLabelsOptions.Query, "Labels discovery query")
+	flags.StringVar(&dLabelsOptions.QueryPeriod, "labels-query-period", dLabelsOptions.QueryPeriod, "Labels discovery query period")
+	flags.StringVar(&dLabelsOptions.QueryStep, "labels-query-step", dLabelsOptions.QueryStep, "Labels discovery query step")
+	flags.StringVar(&dLabelsOptions.Name, "labels-name", dLabelsOptions.Name, "Labels discovery name")
+	flags.StringVar(&dLabelsOptions.Source, "labels-source", dLabelsOptions.Source, "Labels discovery source")
+
+	// Prometheus
+	flags.StringVar(&dPrometheusOptions.Schedule, "prometheus-schedule", dPrometheusOptions.Schedule, "Prometheus discovery schedule")
+	flags.StringVar(&dPrometheusOptions.Query, "prometheus-query", dPrometheusOptions.Query, "Prometheus discovery query")
+	flags.StringVar(&dPrometheusOptions.QueryPeriod, "prometheus-query-period", dPrometheusOptions.QueryPeriod, "Prometheus discovery query period")
+	flags.StringVar(&dPrometheusOptions.QueryStep, "prometheus-query-step", dPrometheusOptions.QueryStep, "Prometheus discovery query step")
+	flags.StringVar(&dPrometheusOptions.Source, "prometheus-source", dPrometheusOptions.Source, "Prometheus discovery source")
 
 	// Observium
 	flags.StringVar(&dObserviumOptions.Schedule, "observium-schedule", dObserviumOptions.Schedule, "Observium discovery schedule")
@@ -824,13 +886,6 @@ func Execute() {
 	flags.StringVar(&dFilesOptions.Folder, "files-folder", dFilesOptions.Folder, "Files folder")
 	flags.StringVar(&dFilesOptions.Providers, "files-providers", dFilesOptions.Providers, "Files providers")
 	flags.StringVar(&dFilesOptions.Converters, "files-coverters", dFilesOptions.Converters, "Files filters")
-
-	// Labels
-	flags.StringVar(&dLabelsOptions.Schedule, "labels-schedule", dLabelsOptions.Schedule, "Labels discovery schedule")
-	flags.StringVar(&dLabelsOptions.Query, "labels-query", dLabelsOptions.Query, "Labels discovery query")
-	flags.StringVar(&dLabelsOptions.QueryPeriod, "labels-query-period", dLabelsOptions.QueryPeriod, "Labels discovery query period")
-	flags.StringVar(&dLabelsOptions.QueryStep, "labels-query-step", dLabelsOptions.QueryStep, "Labels discovery query step")
-	flags.StringVar(&dLabelsOptions.Name, "labels-name", dLabelsOptions.Name, "Labels discovery name")
 
 	// Teleport
 	flags.StringVar(&dTeleportOptions.Schedule, "teleport-schedule", dTeleportOptions.Schedule, "Teleport discovery schedule")

@@ -23,6 +23,7 @@ type DNSOptions struct {
 	Pattern     string
 	Names       string
 	Exclusion   string
+	Source      string
 }
 
 type DNS struct {

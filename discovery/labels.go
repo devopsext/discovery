@@ -18,6 +18,7 @@ type LabelsOptions struct {
 	QueryStep   string
 	Schedule    string
 	Name        string
+	Source      string
 }
 
 type Labels struct {
@@ -165,8 +166,9 @@ func NewLabels(source string, prometheusOptions common.PrometheusOptions, option
 	}
 
 	nameOpts := toolsRender.TemplateOptions{
-		Content: options.Name,
-		Name:    "labels-name",
+		Content:     options.Name,
+		Name:        "labels-name",
+		FilterFuncs: true,
 	}
 	nameTemplate, err := toolsRender.NewTextTemplate(nameOpts, observability)
 	if err != nil {

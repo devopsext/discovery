@@ -23,6 +23,7 @@ type CertOptions struct {
 	Pattern     string
 	Names       string
 	Exclusion   string
+	Source      string
 }
 
 type Cert struct {

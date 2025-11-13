@@ -24,6 +24,7 @@ type TCPOptions struct {
 	Names       string
 	Exclusion   string
 	NoSSL       string
+	Source      string
 }
 
 type TCP struct {

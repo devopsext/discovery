@@ -39,6 +39,7 @@ type SignalOptions struct {
 	Vars         string
 	Files        string
 	CacheSize    int
+	Source       string
 }
 
 type SignalCache struct {
@@ -604,6 +605,7 @@ func (s *Signal) Discover() {
 
 	configs := s.readBaseConfigs()
 	objects := make(map[string]*common.Object)
+
 	for path, config := range configs {
 		if config.Disabled {
 			continue

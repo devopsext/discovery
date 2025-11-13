@@ -30,6 +30,7 @@ type HTTPOptions struct {
 	Exclusion   string
 	NoSSL       string
 	Path        string
+	Source      string
 }
 
 type HTTP struct {

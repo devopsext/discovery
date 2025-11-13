@@ -134,7 +134,7 @@ func (ps *PubSub) processLabels(ctx context.Context, d common.Discovery, so comm
 	return nil
 }
 
-func (ps *PubSub) processNetbox(ctx context.Context, d common.Discovery, so common.SinkObject, topic *pubsub.Topic) error {
+func (ps *PubSub) processFile(ctx context.Context, d common.Discovery, so common.SinkObject, topic *pubsub.Topic, path string) error {
 
 	name := d.Name()
 
@@ -142,9 +142,8 @@ func (ps *PubSub) processNetbox(ctx context.Context, d common.Discovery, so comm
 		return nil
 	}
 
-	path := ps.files[name]
 	if utils.IsEmpty(path) {
-		return fmt.Errorf("PubSub Sink: file path for %s is not defined", name)
+		return nil
 	}
 
 	data, err := json.Marshal(so.Map())
@@ -218,15 +217,19 @@ func (ps *PubSub) Process(d common.Discovery, so common.SinkObject) {
 		return
 	}
 
-	switch name {
-	case "K8s":
-		err = ps.processK8sWorkload(ctx, d, so, topic)
-	case "Labels":
-		err = ps.processLabels(ctx, d, so, topic)
-	case "Netbox":
-		err = ps.processNetbox(ctx, d, so, topic)
-	default:
-		err = ps.processDefault(ctx, d, so, topic)
+	path := ps.files[name]
+	if !utils.IsEmpty(path) {
+		err = ps.processFile(ctx, d, so, topic, path)
+	} else {
+
+		switch name {
+		case "K8s":
+			err = ps.processK8sWorkload(ctx, d, so, topic)
+		case "Labels":
+			err = ps.processLabels(ctx, d, so, topic)
+		default:
+			err = ps.processDefault(ctx, d, so, topic)
+		}
 	}
 
 	if err != nil {
@@ -281,7 +284,7 @@ func NewPubSub(options PubSubOptions, observability *common.Observability) *PubS
 
 	topics := make(map[string]*pubsub.Topic)
 	if !utils.IsEmpty(options.Topics) {
-		m := utils.MapGetKeyValuesEx(options.Topics, ";", "=")
+		m := utils.MapGetKeyValues(options.Topics)
 		for k, v := range m {
 			topics[k] = client.Topic(v)
 		}
