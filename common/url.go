@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	sreCommon "github.com/devopsext/sre/common"
-	"github.com/devopsext/utils"
 )
 
 type URL struct {
@@ -18,33 +17,24 @@ type URL struct {
 
 func ParseURL(s string, defSchema string) (*url.URL, error) {
 
-	schema := defSchema
-	rest := s
+	schema, ur, sfound := strings.Cut(s, "://")
 
-	arr := strings.Split(s, "://")
+	if !sfound {
+		// If no schema is found, then ur = input
+		ur = schema
+		schema = defSchema
 
-	if len(arr) == 2 {
-		s1 := arr[0]
-		if !utils.IsEmpty(s1) {
-			schema = s1
-		}
-		rest = arr[1]
 	}
 
-	var up string
+	host, path, _ := strings.Cut(ur, "/")
+	// Extract user credentials from input string, if such are present
+	up, hostup, ufound := strings.Cut(host, "@")
+
 	var userInfo *url.Userinfo
 
-	host := rest
-	arr = strings.Split(rest, "@")
-	if len(arr) > 2 {
-		host = arr[len(arr)-1]
-		up = strings.Join(arr[:len(arr)-1], "@")
-	} else if len(arr) == 2 {
-		up = arr[0]
-		host = arr[1]
-	}
-
-	if !utils.IsEmpty(up) {
+	if ufound {
+		// if user-pass was present in input string, then 'ur' value will still have it, hence we need result of the second cut
+		host = hostup
 		var user, pass string
 		uspa := strings.Split(up, ":")
 		if len(uspa) == 2 {
@@ -60,6 +50,7 @@ func ParseURL(s string, defSchema string) (*url.URL, error) {
 		Scheme: strings.TrimSpace(schema),
 		User:   userInfo,
 		Host:   strings.TrimSpace(host),
+		Path:   path,
 	}
 
 	return u, nil
