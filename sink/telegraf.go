@@ -119,7 +119,7 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 			continue
 		}
 
-		fieldIdentValue := fmt.Sprintf("%s/%s/%v", fieldIdent, ident, ns)
+		fieldIdentValue := fmt.Sprintf("%s/%s/%s", fieldIdent, ident, ns)
 
 		existingObj, exists := identObjects[fieldIdentValue]
 		if !exists {
