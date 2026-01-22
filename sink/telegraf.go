@@ -113,8 +113,13 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 			t.logger.Error("%s: missing 'fieldIdent' in Vars for key: %s", source, k)
 			continue
 		}
+		ns, ok := s1.Vars["namespace"]
+		if !ok {
+			t.logger.Error("%s: missing 'namespace' in Vars for key: %s", source, k)
+			continue
+		}
 
-		fieldIdentValue := fmt.Sprintf("%s/%s", fieldIdent, ident)
+		fieldIdentValue := fmt.Sprintf("%s/%s/%s", fieldIdent, ident, ns)
 
 		existingObj, exists := identObjects[fieldIdentValue]
 		if !exists {
