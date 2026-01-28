@@ -113,6 +113,7 @@ func (k *K8s) podsToSinkMap(pods []v1.Pod) common.SinkMap {
 			"ip":          pod.Status.PodIP,
 			"environment": k.options.Environment,
 			"type":        "container",
+			"pod":         pod.Name,
 		}, k.options.CommonLabels)
 	}
 
