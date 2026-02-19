@@ -75,10 +75,11 @@ func (c *Consul) Discover() {
 			for _, node := range nodes {
 				labels := make(common.Labels)
 				labels["service"] = node.ServiceName
-				labels["address"] = node.Address
+				labels["ip"] = node.Address
 				labels["port"] = strconv.Itoa(node.ServicePort)
-				labels["datacenter"] = node.Datacenter
+				labels["dc"] = node.Datacenter
 				labels["dns"] = node.NodeMeta["dns"]
+				labels["node"] = node.Node
 				if version, found := node.ServiceMeta["version"]; found {
 					labels["version"] = version
 				} else if version, found = node.ServiceMeta["label_version"]; found {
