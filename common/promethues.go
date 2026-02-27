@@ -4,14 +4,14 @@ type PromDiscoveryObject struct {
 	Name     string
 	URL      string
 	User     string
-	Password string
+	Password string // #nosec G117
 }
 
 type PrometheusOptions struct {
 	Names    string
 	URL      string
 	User     string
-	Password string
+	Password string // #nosec G117
 	Timeout  int
 	Insecure bool
 }

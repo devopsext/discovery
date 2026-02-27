@@ -52,7 +52,7 @@ func (os *TeleportSinkObject) Map() common.SinkMap {
 	return os.sinkMap
 }
 
-func (os *TeleportSinkObject) Options() interface{} {
+func (os *TeleportSinkObject) Options() any {
 	return os.teleport.options
 }
 

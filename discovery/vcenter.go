@@ -86,7 +86,7 @@ func (os *VCenterSinkObject) Map() common.SinkMap {
 	return os.sinkMap
 }
 
-func (os *VCenterSinkObject) Options() interface{} {
+func (os *VCenterSinkObject) Options() any {
 	return os.VCenter.options
 }
 

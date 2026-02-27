@@ -74,7 +74,7 @@ func (so *PubSubSinkObject) Map() common.SinkMap {
 	return so.sinkMap
 }
 
-func (so *PubSubSinkObject) Options() interface{} {
+func (so *PubSubSinkObject) Options() any {
 	return so.pubsub.options
 }
 
@@ -147,7 +147,7 @@ func (ps *PubSub) Discover() {
 			return
 		}
 
-		m := make(map[string]interface{})
+		m := make(map[string]any)
 
 		for k, v := range pm.Payload {
 

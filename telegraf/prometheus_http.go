@@ -36,7 +36,7 @@ type InputPrometheusHttp struct {
 	Name             string                             `toml:"name"`
 	URL              string                             `toml:"url"`
 	User             string                             `toml:"user,omitempty"`
-	Password         string                             `toml:"password,omitempty"`
+	Password         string                             `toml:"password,omitempty"` // #nosec G117
 	Version          string                             `toml:"version"`
 	Params           string                             `toml:"params,omitempty"`
 	CollectionOffset string                             `toml:"collection_offset"`
@@ -58,7 +58,7 @@ type InputPrometheusHttpOptions struct {
 	Interval         string
 	URL              string
 	User             string
-	Password         string
+	Password         string // #nosec G117
 	Version          string
 	Params           string
 	Timeout          string
@@ -114,7 +114,7 @@ func (ti *InputPrometheusHttp) setVars(q, f string, vars map[string]string) stri
 	return q
 }
 
-func (ti *InputPrometheusHttp) render(def string, obj interface{}) string {
+func (ti *InputPrometheusHttp) render(def string, obj any) string {
 
 	tpl, err := toolsRender.NewTextTemplate(toolsRender.TemplateOptions{Content: def}, ti.observability)
 	if err != nil {
@@ -131,9 +131,9 @@ func (ti *InputPrometheusHttp) render(def string, obj interface{}) string {
 }
 
 func (ti *InputPrometheusHttp) renderLabels(name, tpl string, tags map[string]string,
-	vars map[string]string, files map[string]interface{}) map[string]string {
+	vars map[string]string, files map[string]any) map[string]string {
 
-	m := make(map[string]interface{})
+	m := make(map[string]any)
 	m["name"] = name
 	m["tags"] = tags
 	m["vars"] = vars
@@ -156,7 +156,7 @@ func (ti *InputPrometheusHttp) buildTags(labels map[string]string, f string, var
 
 func (ti *InputPrometheusHttp) buildQualities(s *common.Object, qualities []*common.BaseQuality, tpl string,
 	opts InputPrometheusHttpOptions,
-	labels map[string]string, vars map[string]string, files map[string]interface{}, persistMetrics bool) {
+	labels map[string]string, vars map[string]string, files map[string]any, persistMetrics bool) {
 
 	if utils.IsEmpty(opts.QualityQuery) {
 		return
@@ -202,7 +202,7 @@ func (ti *InputPrometheusHttp) buildQualities(s *common.Object, qualities []*com
 
 func (ti *InputPrometheusHttp) buildAvailability(s *common.Object, baseAvailability *common.BaseAvailability, tpl string,
 	opts InputPrometheusHttpOptions,
-	labels map[string]string, vars map[string]string, files map[string]interface{}, persistMetrics bool) {
+	labels map[string]string, vars map[string]string, files map[string]any, persistMetrics bool) {
 
 	if baseAvailability == nil {
 		return
@@ -244,7 +244,7 @@ func (ti *InputPrometheusHttp) buildAvailability(s *common.Object, baseAvailabil
 
 func (ti *InputPrometheusHttp) buildMetrics(s *common.Object, metrics []*common.BaseMetric, tpl string,
 	opts InputPrometheusHttpOptions,
-	labels map[string]string, vars map[string]string, files map[string]interface{}, persistMetrics bool) {
+	labels map[string]string, vars map[string]string, files map[string]any, persistMetrics bool) {
 
 	for _, m := range metrics {
 

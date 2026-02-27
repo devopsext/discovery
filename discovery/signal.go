@@ -23,7 +23,7 @@ import (
 type SignalOptions struct {
 	URL          string
 	User         string
-	Password     string
+	Password     string // #nosec G117
 	Disabled     []string
 	Schedule     string
 	Query        string
@@ -71,7 +71,7 @@ type SignalSinkObject struct {
 }
 
 type SignalFileCache struct {
-	Content      interface{}
+	Content      any
 	ModifiedTime time.Time
 	contentHash  string
 }
@@ -80,7 +80,7 @@ func (ss *SignalSinkObject) Map() common.SinkMap {
 	return ss.sinkMap
 }
 
-func (ss *SignalSinkObject) Options() interface{} {
+func (ss *SignalSinkObject) Options() any {
 	return ss.signal.options
 }
 
@@ -92,7 +92,7 @@ func (s *Signal) Source() string {
 	return s.source
 }
 
-func (s *Signal) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
+func (s *Signal) render(tpl *toolsRender.TextTemplate, def string, obj any) string {
 
 	s1, err := common.RenderTemplate(tpl, def, obj)
 	if err != nil {
@@ -176,7 +176,7 @@ func (s *Signal) getFiles(vars map[string]string, wContent bool) map[string]*com
 			}
 			modTime := fileInfo.ModTime()
 
-			var obj interface{}
+			var obj any
 			needReload := true
 
 			//  load from cache
@@ -199,12 +199,12 @@ func (s *Signal) getFiles(vars map[string]string, wContent bool) map[string]*com
 
 				// parse the file based on its type
 				var parseErr error
-				switch {
-				case typ == "json":
+				switch typ {
+				case "json":
 					obj, parseErr = common.ReadJson(content)
-				case typ == "toml":
+				case "toml":
 					obj, parseErr = common.ReadToml(content)
-				case (typ == "yaml") || (typ == "yml"):
+				case "yaml", "yml":
 					obj, parseErr = common.ReadYaml(content)
 				default:
 					obj, parseErr = common.ReadJson(content)
@@ -245,9 +245,9 @@ func (s *Signal) getFiles(vars map[string]string, wContent bool) map[string]*com
 func (s *Signal) expandDisabled(files map[string]*common.File, vars map[string]string) []string {
 
 	r := make([]string, 0)
-	m := make(map[string]interface{})
+	m := make(map[string]any)
 
-	fls := make(map[string]interface{})
+	fls := make(map[string]any)
 	for k, v := range files {
 		fls[k] = v.Obj
 	}
@@ -322,7 +322,7 @@ func (s *Signal) filterVectors(name string, config *common.BaseConfig, vectors [
 	return r
 }
 
-func (sc *SignalCache) fRegexMatchObjectByFieldCached(obj interface{}, field, value, cacheKey string) interface{} {
+func (sc *SignalCache) fRegexMatchObjectByFieldCached(obj any, field, value, cacheKey string) any {
 
 	if obj == nil || utils.IsEmpty(field) || utils.IsEmpty(value) {
 		return nil
@@ -337,13 +337,13 @@ func (sc *SignalCache) fRegexMatchObjectByFieldCached(obj interface{}, field, va
 
 		ks := string(entry)
 
-		a, ok := obj.([]interface{})
+		a, ok := obj.([]any)
 		ka, err := strconv.Atoi(ks)
 		if ok && err == nil {
 			return a[ka]
 		}
 
-		m, ok := obj.(map[string]interface{})
+		m, ok := obj.(map[string]any)
 		if ok {
 			return m[ks]
 		}
@@ -356,16 +356,16 @@ func (sc *SignalCache) fRegexMatchObjectByFieldCached(obj interface{}, field, va
 
 	ks := fmt.Sprintf("%v", ki)
 
-	a, ok := obj.([]interface{})
+	a, ok := obj.([]any)
 	ka, err := strconv.Atoi(ks)
 	if ok && err == nil {
-		sc.cache.Set(key, []byte(ks))
+		_ = sc.cache.Set(key, []byte(ks))
 		return a[ka]
 	}
 
-	m, ok := obj.(map[string]interface{})
+	m, ok := obj.(map[string]any)
 	if ok {
-		sc.cache.Set(key, []byte(ks))
+		_ = sc.cache.Set(key, []byte(ks))
 		return m[ks]
 	}
 	return nil
@@ -466,13 +466,13 @@ func (s *Signal) findObjects(objects map[string]*common.Object, vectors []*commo
 			continue
 		}
 
-		m := make(map[string]interface{})
+		m := make(map[string]any)
 		for k, v := range v.Labels {
 			m[k] = v
 		}
 
 		fls := s.getFiles(v.Labels, true)
-		files := make(map[string]interface{})
+		files := make(map[string]any)
 		for k, v := range fls {
 			files[k] = v.Obj
 		}
@@ -775,7 +775,7 @@ func NewSignal(source string, prometheusOptions common.PrometheusOptions, option
 
 	filesOpts := toolsRender.TemplateOptions{
 		Content:     options.Files,
-		Name:        "signal-fiels",
+		Name:        "signal-files",
 		FilterFuncs: true,
 	}
 	filesTemplate, err := toolsRender.NewTextTemplate(filesOpts, observability)

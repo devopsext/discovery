@@ -72,7 +72,7 @@ func (t *Telegraf) Providers() []string {
 	return t.options.Providers
 }
 
-func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so interface{}) error {
+func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so any) error {
 
 	opts, ok := so.(discovery.SignalOptions)
 	if !ok {
@@ -140,9 +140,9 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so inter
 			}
 		}
 		// Merge Configs with existing object
-		for path := range s1.Configs {
-			if _, exists := existingObj.Configs[path]; !exists {
-				existingObj.Configs[path] = s1.Configs[path]
+		for p := range s1.Configs {
+			if _, exists := existingObj.Configs[p]; !exists {
+				existingObj.Configs[p] = s1.Configs[p]
 			}
 		}
 		// Update other fields (keep the latest vars, files)

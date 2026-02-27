@@ -66,7 +66,7 @@ func (ps *PrometheusQuerySinkObject) Map() common.SinkMap {
 	return ps.sinkMap
 }
 
-func (ps *PrometheusQuerySinkObject) Options() interface{} {
+func (ps *PrometheusQuerySinkObject) Options() any {
 	return nil
 }
 
@@ -79,7 +79,7 @@ func (p *Prometheus) Source() string {
 	return p.source
 }
 
-func (p *Prometheus) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
+func (p *Prometheus) render(tpl *toolsRender.TextTemplate, def string, obj any) string {
 
 	s1, err := common.RenderTemplate(tpl, def, obj)
 	if err != nil {

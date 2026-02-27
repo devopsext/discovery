@@ -46,7 +46,7 @@ func (ds *DNSSinkObject) Map() common.SinkMap {
 	return ds.sinkMap
 }
 
-func (ds *DNSSinkObject) Options() interface{} {
+func (ds *DNSSinkObject) Options() any {
 	return ds.dns.options
 }
 
@@ -58,7 +58,7 @@ func (d *DNS) Source() string {
 	return d.source
 }
 
-func (d *DNS) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
+func (d *DNS) render(tpl *toolsRender.TextTemplate, def string, obj any) string {
 
 	s1, err := common.RenderTemplate(tpl, def, obj)
 	if err != nil {

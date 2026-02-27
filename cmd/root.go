@@ -6,10 +6,9 @@ import (
 	"os/signal"
 	"regexp"
 	"strings"
-	"time"
-
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
@@ -434,7 +433,7 @@ func getOnlyEnv(key string) string {
 	return fmt.Sprintf("$%s", key)
 }
 
-func envGet(s string, def interface{}) interface{} {
+func envGet(s string, def any) any {
 	return utils.EnvGet(fmt.Sprintf("%s_%s", APPNAME, s), def)
 }
 
@@ -463,7 +462,7 @@ func interceptSyscall() {
 	}()
 }
 
-func runSchedule(s *gocron.Scheduler, schedule string, wait bool, jobFun interface{}) {
+func runSchedule(s *gocron.Scheduler, schedule string, wait bool, jobFun any) {
 
 	var ss *gocron.Scheduler
 	if len(strings.Split(schedule, " ")) == 1 {

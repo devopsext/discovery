@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
 	"regexp"
 	"strconv"
 	"strings"
@@ -53,7 +52,7 @@ type HTTPSinkObject struct {
 }
 
 type HTTPFileCache struct {
-	Content      interface{}
+	Content      any
 	ContentHash  string
 	ModifiedTime time.Time
 }
@@ -62,7 +61,7 @@ func (hs *HTTPSinkObject) Map() common.SinkMap {
 	return hs.sinkMap
 }
 
-func (hs *HTTPSinkObject) Options() interface{} {
+func (hs *HTTPSinkObject) Options() any {
 	return hs.http.options
 }
 
@@ -74,7 +73,7 @@ func (h *HTTP) Source() string {
 	return h.source
 }
 
-func (h *HTTP) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
+func (h *HTTP) render(tpl *toolsRender.TextTemplate, def string, obj any) string {
 
 	s1, err := common.RenderTemplate(tpl, def, obj)
 	if err != nil {
@@ -116,11 +115,11 @@ func (h *HTTP) appendURL(name string, urls map[string]common.Labels, labels map[
 		port = fmt.Sprintf(":%s", port)
 	}
 
-	labelsWithFiles := make(map[string]interface{})
+	labelsWithFiles := make(map[string]any)
 	for key, value := range labels {
 		labelsWithFiles[key] = value
 	}
-	files := make(map[string]interface{})
+	files := make(map[string]any)
 	for k, file := range fls {
 
 		files[k] = file.Obj
@@ -175,7 +174,7 @@ func (h *HTTP) getFiles(vars map[string]string) map[string]*common.File {
 			}
 			modTime := fileInfo.ModTime()
 
-			var obj interface{}
+			var obj any
 			needReload := true
 
 			if cached, ok := h.files.Load(pathHash); ok {
@@ -199,12 +198,12 @@ func (h *HTTP) getFiles(vars map[string]string) map[string]*common.File {
 
 				// parse the file based on its type
 				var parseErr error
-				switch {
-				case typ == "json":
+				switch typ {
+				case "json":
 					obj, parseErr = common.ReadJson(content)
-				case typ == "toml":
+				case "toml":
 					obj, parseErr = common.ReadToml(content)
-				case (typ == "yaml") || (typ == "yml"):
+				case "yaml", "yml":
 					obj, parseErr = common.ReadYaml(content)
 				default:
 					obj, parseErr = common.ReadJson(content)
@@ -381,7 +380,7 @@ func NewHTTP(source string, prometheusOptions common.PrometheusOptions, options 
 
 	filesOpts := toolsRender.TemplateOptions{
 		Content:     options.Files,
-		Name:        "http-fiels",
+		Name:        "http-files",
 		FilterFuncs: true,
 	}
 	filesTemplate, err := toolsRender.NewTextTemplate(filesOpts, observability)

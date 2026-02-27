@@ -44,7 +44,7 @@ func (os *ObserviumSinkObject) Map() common.SinkMap {
 	return os.sinkMap
 }
 
-func (os *ObserviumSinkObject) Options() interface{} {
+func (os *ObserviumSinkObject) Options() any {
 	return os.observium.options
 }
 

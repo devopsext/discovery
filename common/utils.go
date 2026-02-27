@@ -1,12 +1,14 @@
 package common
 
 import (
-	"crypto/md5"
+	"crypto/md5" // #nosec G501
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -47,30 +49,26 @@ func FilterStringMap(m map[string]string, keys []string) map[string]string {
 	return r
 }
 
-func MergeStringMaps(maps ...map[string]string) map[string]string {
+func MergeStringMaps(mm ...map[string]string) map[string]string {
 
 	r := make(map[string]string)
-	for _, m := range maps {
-		for k, v := range m {
-			r[k] = v
-		}
+	for _, m := range mm {
+		maps.Copy(r, m)
 	}
 	return r
 }
 
-func MergeInterfacegMaps(maps ...map[string]interface{}) map[string]interface{} {
+func MergeInterfacegMaps(mm ...map[string]any) map[string]any {
 
-	r := make(map[string]interface{})
-	for _, m := range maps {
-		for k, v := range m {
-			r[k] = v
-		}
+	r := make(map[string]any)
+	for _, m := range mm {
+		maps.Copy(r, m)
 	}
 	return r
 }
 
 func Md5(b []byte) []byte {
-	h := md5.New()
+	h := md5.New() // #nosec G401
 	h.Write(b)
 	return h.Sum(nil)
 }
@@ -90,9 +88,11 @@ func FileMD5(path string) []byte {
 	if err != nil {
 		return nil
 	}
-	defer f.Close()
+	defer func(f *os.File) {
+		_ = f.Close()
+	}(f)
 
-	h := md5.New()
+	h := md5.New() // #nosec G401
 	if _, err := io.Copy(h, f); err != nil {
 		return nil
 	}
@@ -108,7 +108,7 @@ func FileMd5ToString(path string) string {
 	return ""
 }
 
-func IfDef(v, def interface{}) interface{} {
+func IfDef(v, def any) any {
 	if utils.IsEmpty(v) {
 		return def
 	}
@@ -125,15 +125,10 @@ func IfDef(v, def interface{}) interface{} {
 	return v
 }
 func StringInArr(a string, arr []string) bool {
-	for _, b := range arr {
-		if b == a {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(arr, a)
 }
 
-func RenderTemplate(tpl *toolsRender.TextTemplate, def string, obj interface{}) (string, error) {
+func RenderTemplate(tpl *toolsRender.TextTemplate, def string, obj any) (string, error) {
 
 	if tpl == nil {
 		return def, nil
@@ -148,7 +143,7 @@ func RenderTemplate(tpl *toolsRender.TextTemplate, def string, obj interface{}) 
 	return strings.ReplaceAll(r, "<no value>", ""), nil
 }
 
-func Render(def string, obj interface{}, observability *Observability) string {
+func Render(def string, obj any, observability *Observability) string {
 
 	logger := observability.Logs()
 	tpl, err := toolsRender.NewTextTemplate(toolsRender.TemplateOptions{Content: def}, observability)
@@ -353,7 +348,9 @@ func FileWriteWithCheckSum(path string, data []byte, checksum bool) (bool, error
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func(f *os.File) {
+		_ = f.Close()
+	}(f)
 
 	_, err = f.Write(data)
 	if err != nil {
@@ -388,9 +385,9 @@ func ReplaceLabelValues(labels map[string]string, replacements map[string]string
 	return lbs
 }
 
-func ReadJson(bytes []byte) (interface{}, error) {
+func ReadJson(bytes []byte) (any, error) {
 
-	var v interface{}
+	var v any
 	err := json.Unmarshal(bytes, &v)
 	if err != nil {
 		return nil, err
@@ -398,9 +395,9 @@ func ReadJson(bytes []byte) (interface{}, error) {
 	return v, nil
 }
 
-func ReadToml(bytes []byte) (interface{}, error) {
+func ReadToml(bytes []byte) (any, error) {
 
-	var v interface{}
+	var v any
 	err := toml.Unmarshal(bytes, &v)
 	if err != nil {
 		return nil, err
@@ -408,9 +405,9 @@ func ReadToml(bytes []byte) (interface{}, error) {
 	return v, nil
 }
 
-func ReadYaml(bytes []byte) (interface{}, error) {
+func ReadYaml(bytes []byte) (any, error) {
 
-	var v interface{}
+	var v any
 	err := yaml.Unmarshal(bytes, &v)
 	if err != nil {
 		return nil, err
@@ -418,7 +415,7 @@ func ReadYaml(bytes []byte) (interface{}, error) {
 	return v, nil
 }
 
-func ReadFile(path, typ string) (interface{}, error) {
+func ReadFile(path, typ string) (any, error) {
 
 	if _, err := os.Stat(path); err != nil {
 		return nil, err
@@ -434,13 +431,13 @@ func ReadFile(path, typ string) (interface{}, error) {
 		tp = typ
 	}
 
-	var obj interface{}
-	switch {
-	case tp == "json":
+	var obj any
+	switch tp {
+	case "json":
 		obj, err = ReadJson(bytes)
-	case tp == "toml":
+	case "toml":
 		obj, err = ReadToml(bytes)
-	case (tp == "yaml") || (tp == "yml"):
+	case "yaml", "yml":
 		obj, err = ReadYaml(bytes)
 	default:
 		obj, err = ReadJson(bytes)

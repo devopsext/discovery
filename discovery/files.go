@@ -11,16 +11,15 @@ import (
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
-	"gopkg.in/fsnotify.v1"
-
 	"github.com/itchyny/gojq"
+	"gopkg.in/fsnotify.v1"
 )
 
 type FileProvider struct {
 	name   string
 	path   string
 	query  string
-	obj    interface{}
+	obj    any
 	logger sreCommon.Logger
 }
 
@@ -62,7 +61,7 @@ func (p *FileProvider) Discover() {
 	// dumb method
 }
 
-func (p *FileProvider) filter(obj interface{}, q string) interface{} {
+func (p *FileProvider) filter(obj any, q string) any {
 
 	if utils.IsEmpty(q) {
 		return obj
@@ -90,7 +89,7 @@ func (p *FileProvider) filter(obj interface{}, q string) interface{} {
 		return obj
 	}
 
-	var arr []interface{}
+	var arr []any
 	iter := query.Run(obj)
 	for {
 		v, ok := iter.Next()
@@ -112,19 +111,19 @@ func (p *FileProvider) filter(obj interface{}, q string) interface{} {
 	return arr
 }
 
-func (p *FileProvider) tryMap(obj interface{}) map[string]interface{} {
+func (p *FileProvider) tryMap(obj any) map[string]any {
 
-	m, ok := obj.(map[string]interface{})
+	m, ok := obj.(map[string]any)
 	if ok {
 		return m
 	}
 
-	arr, ok := obj.([]interface{})
+	arr, ok := obj.([]any)
 	if ok {
-		m2 := make(map[string]interface{})
+		m2 := make(map[string]any)
 		for _, v := range arr {
 
-			m3, ok := v.(map[string]interface{})
+			m3, ok := v.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -156,7 +155,7 @@ func (p *FileProvider) Map() common.SinkMap {
 	}
 
 	obj := p.filter(m, p.query)
-	m2, ok := obj.(map[string]interface{})
+	m2, ok := obj.(map[string]any)
 	if !ok {
 		m3 := p.tryMap(obj)
 		if m3 == nil {
@@ -168,7 +167,7 @@ func (p *FileProvider) Map() common.SinkMap {
 	lbsm := make(common.LabelsMap)
 	for k, v := range m2 {
 
-		mv, ok := v.(map[string]interface{})
+		mv, ok := v.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -183,14 +182,14 @@ func (p *FileProvider) Map() common.SinkMap {
 	return common.ConvertLabelsMapToSinkMap(lbsm)
 }
 
-func (p *FileProvider) Options() interface{} {
+func (p *FileProvider) Options() any {
 	return nil
 }
 
 // FileProviders
-func (fp *FileProviders) readJson(bytes []byte) (interface{}, error) {
+func (fp *FileProviders) readJson(bytes []byte) (any, error) {
 
-	var v interface{}
+	var v any
 	err := json.Unmarshal(bytes, &v)
 	if err != nil {
 		return nil, err
@@ -233,7 +232,7 @@ func (do *FilesSinkObject) Map() common.SinkMap {
 	return do.sinkMap
 }
 
-func (do *FilesSinkObject) Options() interface{} {
+func (do *FilesSinkObject) Options() any {
 	return do.Files.options
 }
 
@@ -246,7 +245,7 @@ func (d *Files) Source() string {
 	return ""
 }
 
-func (d *Files) discoverProviders(m map[string]interface{}) {
+func (d *Files) discoverProviders(m map[string]any) {
 
 	for provider, file := range d.providers.list {
 		path := m[file]
