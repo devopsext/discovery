@@ -97,7 +97,7 @@ func (bc *BaseConfig) LabelsExist(c *BaseCondition, labels Labels) bool {
 		if err != nil {
 			continue
 		}
-		if !r.MatchString(labels[k]) && labels[k] != v {
+		if !r.MatchString(labels[k]) || labels[k] == v {
 			return false
 		}
 	}
