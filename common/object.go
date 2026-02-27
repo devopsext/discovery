@@ -34,15 +34,15 @@ type BaseAvailability struct {
 }
 
 type BaseAvailabilityQuery struct {
-	Query     string      `yaml:"query"`
-	Round     *int        `yaml:"round"`
-	Suffix    string      `yaml:"suffix"`
-	Weight    interface{} `yaml:"weight"`
-	Labels    Labels      `yaml:"labels"`
-	UseCRD    string      `yaml:"crd"`
-	Composite string      `yaml:"composite"`
-	Source    string      `yaml:"source"`
-	Timeout   string      `yaml:"timeout"`
+	Query     string `yaml:"query"`
+	Round     *int   `yaml:"round"`
+	Suffix    string `yaml:"suffix"`
+	Weight    any    `yaml:"weight"`
+	Labels    Labels `yaml:"labels"`
+	UseCRD    string `yaml:"crd"`
+	Composite string `yaml:"composite"`
+	Source    string `yaml:"source"`
+	Timeout   string `yaml:"timeout"`
 }
 
 type BaseCondition struct {
@@ -67,7 +67,7 @@ type BaseConfig struct {
 type File struct {
 	Path string
 	Type string
-	Obj  interface{}
+	Obj  any
 }
 
 type Files map[string]*File
@@ -97,7 +97,7 @@ func (bc *BaseConfig) LabelsExist(c *BaseCondition, labels Labels) bool {
 		if err != nil {
 			continue
 		}
-		if !(r.MatchString(labels[k]) || labels[k] == v) {
+		if !r.MatchString(labels[k]) && labels[k] != v {
 			return false
 		}
 	}

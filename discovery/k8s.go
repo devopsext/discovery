@@ -46,7 +46,7 @@ func (kso *K8sSinkObject) Map() common.SinkMap {
 	return kso.sinkMap
 }
 
-func (kso *K8sSinkObject) Options() interface{} {
+func (kso *K8sSinkObject) Options() any {
 	return kso.k8s.options
 }
 
@@ -180,95 +180,6 @@ func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
 	}
 
 	return r
-}
-
-func testPods() []v1.Pod {
-	return []v1.Pod{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-pod-1",
-				Namespace: "test-ns-1",
-				Labels: map[string]string{
-					"application": "test-app-1",
-					"component":   "test-component-1",
-				},
-			},
-			Spec: v1.PodSpec{
-				NodeName: "test-node-1",
-				Containers: []v1.Container{
-					{
-						Name:  "test-container-1",
-						Image: "test-image-1",
-					},
-				},
-			},
-			Status: v1.PodStatus{
-				PodIP: "10.0.0.1",
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-pod-2",
-				Namespace: "test-ns-2",
-				Labels: map[string]string{
-					"application": "test-app-2",
-				},
-			},
-			Spec: v1.PodSpec{
-				NodeName: "test-node-2",
-				Containers: []v1.Container{
-					{
-						Name:  "test-container-1",
-						Image: "test-image-1:1.1",
-					},
-					{
-						Name:  "test-container-2",
-						Image: "test-image-1:notask-21",
-					},
-				},
-			},
-			Status: v1.PodStatus{
-				PodIP: "10.0.0.2",
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-pod-3",
-				Namespace: "test-ns-3",
-				Labels: map[string]string{
-					"component": "test-component-3",
-				},
-			},
-			Spec: v1.PodSpec{
-				NodeName: "test-node-3",
-				Containers: []v1.Container{
-					{
-						Name:  "test-container-1",
-						Image: "bla-bla.com/test-image-1:1.1",
-					},
-					{
-						Name:  "test-container-2",
-						Image: "bla-bla.com:5000/test-image-1:notask-21",
-					},
-				},
-			},
-			Status: v1.PodStatus{
-				PodIP: "10.0.0.3",
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-pod-4",
-				Namespace: "test-ns-4",
-			},
-			Spec: v1.PodSpec{
-				NodeName: "test-node-4",
-			},
-			Status: v1.PodStatus{
-				PodIP: "10.0.0.4",
-			},
-		},
-	}
 }
 
 func (k *K8s) Name() string {

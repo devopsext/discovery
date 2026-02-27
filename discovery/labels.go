@@ -41,7 +41,7 @@ func (ls *LabelsSinkObject) Map() common.SinkMap {
 	return ls.sinkMap
 }
 
-func (ls *LabelsSinkObject) Options() interface{} {
+func (ls *LabelsSinkObject) Options() any {
 	return ls.labels.options
 }
 
@@ -53,7 +53,7 @@ func (l *Labels) Source() string {
 	return l.source
 }
 
-func (l *Labels) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
+func (l *Labels) render(tpl *toolsRender.TextTemplate, def string, obj any) string {
 
 	s1, err := common.RenderTemplate(tpl, def, obj)
 	if err != nil {

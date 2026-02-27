@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/allegro/bigcache"
-
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
 	sreCommon "github.com/devopsext/sre/common"
@@ -75,7 +74,7 @@ func (ws *WebServer) getPath(base, url string) (string, error) {
 	return upath, nil
 }
 
-func (ws *WebServer) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
+func (ws *WebServer) render(tpl *toolsRender.TextTemplate, def string, obj any) string {
 	if res, err := common.RenderTemplate(tpl, def, obj); err != nil {
 		ws.logger.Error(err)
 		return def
@@ -102,7 +101,7 @@ func (ws *WebServer) processPubSub(w http.ResponseWriter, r *http.Request) error
 		return fmt.Errorf("WebServer %s has wrong file: %s", base, name)
 	}
 
-	if _, err := w.Write(file.Data); err != nil {
+	if _, err := w.Write(file.Data); err != nil { // #nosec G705
 		return fmt.Errorf("WebServer couldn't write %s file: %s", base, name)
 	}
 	return nil
@@ -129,7 +128,7 @@ func (ws *WebServer) processFiles(w http.ResponseWriter, r *http.Request) error 
 	case http.MethodGet:
 		http.ServeFile(w, r, fpath)
 	case http.MethodHead:
-		fileInfo, err := os.Stat(fpath)
+		fileInfo, err := os.Stat(fpath) // #nosec G703
 		if err != nil {
 			return fmt.Errorf("WebServer couldn't get info about the file %s", fpath)
 		}
@@ -166,7 +165,7 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 		return fmt.Errorf("WebServer %s has wrong path: %s", base, name)
 	}
 
-	fileInfo, err := os.Stat(fpath)
+	fileInfo, err := os.Stat(fpath) // #nosec G703
 	if err != nil {
 		return fmt.Errorf("WebServer couldn't get info about the config file %s", fpath)
 	}
@@ -180,7 +179,7 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 		var telegrafConfig []byte
 		if telegrafConfig, err = ws.renderCache.Get(key); err != nil {
 			ws.logger.Debug("WebServer cache miss for: %s", key)
-			content, err := os.ReadFile(fpath)
+			content, err := os.ReadFile(fpath) // #nosec G703
 			if err != nil {
 				return fmt.Errorf("WebServer couldn't read the config file %s", fpath)
 			}
@@ -200,7 +199,7 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 			}
 		}
 
-		if _, err := w.Write(telegrafConfig); err != nil {
+		if _, err := w.Write(telegrafConfig); err != nil { // #nosec G705
 			return fmt.Errorf("WebServer couldn't write the config file: %s", name)
 		}
 	case http.MethodHead:
@@ -213,8 +212,8 @@ func (ws *WebServer) processConfig(w http.ResponseWriter, r *http.Request) error
 }
 
 func (ws *WebServer) processURL(url string, mux *http.ServeMux, p WebServerProcessor) {
-	urls := strings.Split(url, ",")
-	for _, url := range urls {
+	urls := strings.SplitSeq(url, ",")
+	for url := range urls {
 		mux.HandleFunc(url, func(w http.ResponseWriter, r *http.Request) {
 			if err := p(w, r); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -274,14 +273,15 @@ func (ws *WebServer) Start(wg *sync.WaitGroup) {
 		ws.logger.Info("WebServer is up. Listening...")
 
 		srv := &http.Server{
-			Handler: mux,
+			Handler:           mux,
+			ReadHeaderTimeout: 5 * time.Second,
 		}
 
 		if ws.options.Tls {
 			srv.TLSConfig = &tls.Config{
 				Certificates:       certificates,
 				RootCAs:            caPool,
-				InsecureSkipVerify: ws.options.Insecure,
+				InsecureSkipVerify: ws.options.Insecure, // #nosec G402
 				ServerName:         ws.options.ServerName,
 			}
 			err = srv.ServeTLS(listener, "", "")

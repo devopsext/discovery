@@ -27,7 +27,7 @@ func (d *DumbSinkObject) Map() common.SinkMap {
 	return common.ConvertLabelsMapToSinkMap(d.dumb.options.LabelsMap)
 }
 
-func (d *DumbSinkObject) Options() interface{} {
+func (d *DumbSinkObject) Options() any {
 	return d.dumb.options
 }
 

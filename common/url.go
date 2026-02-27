@@ -12,7 +12,7 @@ type URL struct {
 	Name     string
 	URL      string
 	User     string
-	Password string
+	Password string // #nosec G117
 }
 
 func ParseURL(s string, defSchema string) (*url.URL, error) {

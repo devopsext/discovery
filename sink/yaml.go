@@ -1,12 +1,13 @@
 package sink
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
 	"gopkg.in/yaml.v3"
-	"os"
-	"path/filepath"
 )
 
 type YamlOptions struct {

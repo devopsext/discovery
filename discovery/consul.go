@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"fmt"
+	"maps"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -41,7 +42,7 @@ func (so ConsulSinkObject) Map() common.SinkMap {
 	return so.sinkMap
 }
 
-func (so ConsulSinkObject) Options() interface{} {
+func (so ConsulSinkObject) Options() any {
 	return so.consul.options
 }
 
@@ -131,11 +132,9 @@ func (c *Consul) Discover() {
 
 	// collect results
 	sm := make(common.SinkMap, nServices*2)
-	for r := 0; r < nServices; r++ {
+	for range nServices {
 		part := <-results
-		for k, v := range part {
-			sm[k] = v
-		}
+		maps.Copy(sm, part)
 	}
 
 	// wait workers and close error channel for aggregation
@@ -159,7 +158,7 @@ func (c *Consul) Discover() {
 			if shown > 0 {
 				sb.WriteString("; ")
 			}
-			sb.WriteString(fmt.Sprintf("%dx '%s'", cnt, msg))
+			fmt.Fprintf(&sb, "%dx '%s'", cnt, msg)
 			shown++
 		}
 		c.logger.Error("consul errors: failed to fetch %d/%d services. Unique errors: %d. Top: %s", failedTotal, nServices, len(errCounts), sb.String())
@@ -175,8 +174,8 @@ func (c *Consul) Discover() {
 func getTags(tags []string) map[string]string {
 	res := make(map[string]string)
 	for _, tag := range tags {
-		if strings.HasPrefix(tag, "label_") {
-			parts := strings.SplitN(strings.TrimPrefix(tag, "label_"), "=", 2)
+		if after, ok := strings.CutPrefix(tag, "label_"); ok {
+			parts := strings.SplitN(after, "=", 2)
 			if len(parts) < 2 {
 				// Guard against malformed tags like "label_application" with no '='
 				continue

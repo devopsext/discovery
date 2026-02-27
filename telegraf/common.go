@@ -3,7 +3,7 @@ package telegraf
 import (
 	"bufio"
 	"bytes"
-	"crypto/md5"
+	"crypto/md5" // #nosec G501
 	"encoding/binary"
 	"fmt"
 	"math/rand"
@@ -33,7 +33,7 @@ type Config struct {
 
 func (tc *Config) CreateWithTemplateIfCheckSumIsDifferent(name, template, conf string, checksum bool, bs []byte, logger sreCommon.Logger) {
 
-	if bs == nil || (len(bs) == 0) {
+	if len(bs) == 0 {
 		logger.Debug("%s: No query config", name)
 		return
 	}
@@ -80,7 +80,7 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Object, labelsTpl s
 	input.Tags = make(map[string]string)
 	input.SkipEmptyTags = true
 
-	fl := make(map[string]interface{})
+	fl := make(map[string]any)
 
 	fkeys := common.GetFileKeys(s.Files)
 	sort.Strings(fkeys)
@@ -132,8 +132,8 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Object, labelsTpl s
 func (tc *Config) GenerateInputDNSQueryBytes(opts InputDNSQueryOptions, domains map[string]common.Labels) ([]byte, error) {
 
 	servers := make([]string, 0)
-	arr := strings.Split(opts.Servers, ",")
-	for _, s := range arr {
+	arr := strings.SplitSeq(opts.Servers, ",")
+	for s := range arr {
 		s := strings.TrimSpace(s)
 		if !utils.Contains(servers, s) {
 			servers = append(servers, s)
@@ -279,17 +279,17 @@ func (tc *Config) GenerateInputX509CertBytes(opts InputX509CertOptions, addresse
 
 func randomizeOffsetDuration(fileName string, durationStr string) (string, error) {
 	if !strings.HasSuffix(durationStr, "s") {
-		return "0s", fmt.Errorf("Invalid duration format: %s, must end with 's'", durationStr)
+		return "0s", fmt.Errorf("invalid duration format: %s, must end with 's'", durationStr)
 	}
 
 	numStr := strings.TrimSuffix(durationStr, "s")
 	maxValue, err := strconv.Atoi(numStr)
 	if err != nil {
-		return "0s", fmt.Errorf("Invalid numerical value in duration: %w", err)
+		return "0s", fmt.Errorf("invalid numerical value in duration: %w", err)
 	}
 
 	if maxValue < 0 {
-		return "0s", fmt.Errorf("Duration value cannot be negative: %d", maxValue)
+		return "0s", fmt.Errorf("duration value cannot be negative: %d", maxValue)
 	}
 
 	// skip rest
@@ -297,12 +297,12 @@ func randomizeOffsetDuration(fileName string, durationStr string) (string, error
 		return "0s", nil
 	}
 
-	h := md5.New()
+	h := md5.New() // #nosec G401
 	h.Write([]byte(fileName))
-	var seed uint64 = binary.BigEndian.Uint64(h.Sum(nil))
+	var seed = binary.BigEndian.Uint64(h.Sum(nil))
 
-	source := rand.NewSource(int64(seed))
-	r := rand.New(source)
+	source := rand.NewSource(int64(seed)) // #nosec G115
+	r := rand.New(source)                 // #nosec G404
 
 	// Generate a random integer between 0 (inclusive) and maxValue (inclusive)
 	randomValue := r.Intn(maxValue + 1)

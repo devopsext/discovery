@@ -1,17 +1,18 @@
 package common
 
 import (
+	"maps"
 	"reflect"
 
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
 )
 
-type SinkMap map[string]interface{}
+type SinkMap map[string]any
 
 type SinkObject interface {
 	Map() SinkMap
-	Options() interface{}
+	Options() any
 }
 
 type Sink interface {
@@ -41,9 +42,7 @@ func AppendSinkLabels(m SinkMap, name string, lbs Labels) {
 	}
 
 	labels := make(Labels)
-	for k, v := range lbs {
-		labels[k] = v
-	}
+	maps.Copy(labels, lbs)
 	m[name] = labels
 }
 
@@ -77,9 +76,7 @@ func AppendHostSinkLabels(m SinkMap, name string, hs HostSink, lbs Labels) {
 		labels["server"] = hs.Server
 	}
 
-	for k, v := range lbs {
-		labels[k] = v
-	}
+	maps.Copy(labels, lbs)
 	m[name] = labels
 }
 

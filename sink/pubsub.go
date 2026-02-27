@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 
 	"cloud.google.com/go/pubsub"
@@ -37,10 +38,10 @@ type PubSub struct {
 }
 
 type PubSubK8sWorkload struct {
-	Source  string      `json:"source"`
-	Type    string      `json:"type"`
-	Cluster string      `json:"cluster"`
-	Data    interface{} `json:"data"`
+	Source  string `json:"source"`
+	Type    string `json:"type"`
+	Cluster string `json:"cluster"`
+	Data    any    `json:"data"`
 }
 
 type PubSubLabel struct {
@@ -76,9 +77,7 @@ func (ps *PubSub) publish(ctx context.Context, topic *pubsub.Topic, name string,
 		},
 	}
 	for _, a := range attrs {
-		for k, v := range a {
-			msg.Attributes[k] = v
-		}
+		maps.Copy(msg.Attributes, a)
 	}
 	ps.logger.Debug("PubSub Sink has to publish %s %d bytes...", name, len(data))
 	id, err := topic.Publish(ctx, msg).Get(ctx)

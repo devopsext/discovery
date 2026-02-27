@@ -48,7 +48,7 @@ func (os *ZabbixSinkObject) Map() common.SinkMap {
 	return os.sinkMap
 }
 
-func (os *ZabbixSinkObject) Options() interface{} {
+func (os *ZabbixSinkObject) Options() any {
 	return os.zabbix.options
 }
 
@@ -60,7 +60,7 @@ func (o *Zabbix) Source() string {
 	return ""
 }
 
-func (o *ZabbixHost) inventoryIsMap() (map[string]interface{}, bool) {
+func (o *ZabbixHost) inventoryIsMap() (map[string]any, bool) {
 	if utils.IsEmpty(o.Inventory) {
 		return nil, false
 	}
@@ -68,7 +68,7 @@ func (o *ZabbixHost) inventoryIsMap() (map[string]interface{}, bool) {
 	if ok {
 		return nil, false
 	}
-	m, ok := o.Inventory.(map[string]interface{})
+	m, ok := o.Inventory.(map[string]any)
 	return m, ok
 }
 

@@ -44,7 +44,7 @@ type NestedNetboxType struct {
 		Name        string `json:"name,omitempty"`
 		Slug        string `json:"slug,omitempty"`
 		Description string `json:"description,omitempty"`
-	} `json:"manufacturer,omitempty"`
+	} `json:"manufacturer,omitzero"`
 }
 
 // Choice represents a field in NetBox that is chosen from a predefined list of options.
@@ -89,7 +89,7 @@ func (ns *NetboxSinkObject) Map() common.SinkMap {
 	return ns.sinkMap
 }
 
-func (ns *NetboxSinkObject) Options() interface{} {
+func (ns *NetboxSinkObject) Options() any {
 	return ns.Netbox.options
 }
 

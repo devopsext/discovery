@@ -33,7 +33,7 @@ func (os *AWSEC2SinkObject) Map() common.SinkMap {
 	return os.sinkMap
 }
 
-func (os *AWSEC2SinkObject) Options() interface{} {
+func (os *AWSEC2SinkObject) Options() any {
 	return os.EC2.options
 }
 

@@ -46,7 +46,7 @@ func (cs *CertSinkObject) Map() common.SinkMap {
 	return cs.sinkMap
 }
 
-func (cs *CertSinkObject) Options() interface{} {
+func (cs *CertSinkObject) Options() any {
 	return cs.cert.options
 }
 
@@ -58,7 +58,7 @@ func (c *Cert) Source() string {
 	return c.source
 }
 
-func (c *Cert) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
+func (c *Cert) render(tpl *toolsRender.TextTemplate, def string, obj any) string {
 
 	s1, err := common.RenderTemplate(tpl, def, obj)
 	if err != nil {

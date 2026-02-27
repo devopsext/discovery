@@ -31,9 +31,9 @@ func (t *Template) Providers() []string {
 	return t.options.Providers
 }
 
-func (t *Template) render(name string, files map[string]interface{}, sm common.SinkMap) error {
+func (t *Template) render(name string, files map[string]any, sm common.SinkMap) error {
 
-	m := make(map[string]interface{})
+	m := make(map[string]any)
 	m["name"] = name
 	m["files"] = files
 	m["fields"] = sm
@@ -45,9 +45,9 @@ func (t *Template) render(name string, files map[string]interface{}, sm common.S
 	return nil
 }
 
-func (t *Template) loadFiles() map[string]interface{} {
+func (t *Template) loadFiles() map[string]any {
 
-	files := make(map[string]interface{})
+	files := make(map[string]any)
 
 	list := utils.MapGetKeyValues(t.options.Files)
 

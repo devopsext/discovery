@@ -72,7 +72,7 @@ func (t *Telegraf) Providers() []string {
 	return t.options.Providers
 }
 
-func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so interface{}) error {
+func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so any) error {
 
 	opts, ok := so.(discovery.SignalOptions)
 	if !ok {

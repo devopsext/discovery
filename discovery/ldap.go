@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -15,7 +16,7 @@ import (
 
 type LdapGlobalOptions struct {
 	ConfigString string
-	Password     string
+	Password     string // #nosec G117
 	Timeout      int
 	Insecure     bool
 	Schedule     string
@@ -26,7 +27,7 @@ type LdapOptions struct {
 	Insecure         bool
 	URL              string
 	User             string
-	Password         string
+	Password         string // #nosec G117
 	BaseDN           string
 	Kind             string
 	Scope            int //ScopeBaseObject   = 0 ScopeSingleLevel  = 1 ScopeWholeSubtree = 2
@@ -52,7 +53,7 @@ type LdapSinkObject struct {
 
 type Credential struct {
 	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
+	Password string `json:"password,omitempty"` // #nosec G117
 }
 
 type Credentials map[string]Credential
@@ -61,7 +62,7 @@ func (ls *LdapSinkObject) Map() common.SinkMap {
 	return ls.sinkMap
 }
 
-func (ls *LdapSinkObject) Options() interface{} {
+func (ls *LdapSinkObject) Options() any {
 	// there is always at least one target
 	return ls.ldap.targets[0]
 }
@@ -88,12 +89,12 @@ func (ldo *LdapOptions) PrepareLabels(data map[string]string) common.Labels {
 
 func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, credentials Credentials, logger sreCommon.Logger) ([]LdapOptions, error) {
 	var optionsArray []LdapOptions
-	for _, target := range strings.Split(strings.TrimSpace(GlobalOptions.ConfigString), ";") {
+	for target := range strings.SplitSeq(strings.TrimSpace(GlobalOptions.ConfigString), ";") {
 		var options LdapOptions
 
 		conf := make(map[string]string)
 		fieldconf := make(map[string]string)
-		for _, param := range strings.Split(strings.TrimSpace(target), "|") {
+		for param := range strings.SplitSeq(strings.TrimSpace(target), "|") {
 			name, value, found := strings.Cut(strings.TrimSpace(param), "=")
 			if found {
 				if strings.HasPrefix(name, "f:") {
@@ -104,6 +105,9 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, credentials Creden
 			}
 		}
 		options.URL = conf["url"]
+		if !utils.IsEmpty(options.URL) && !strings.Contains(options.URL, "://") {
+			options.URL = "ldaps://" + options.URL
+		}
 		options.Timeout = GlobalOptions.Timeout
 		options.BaseDN = conf["basedn"]
 		domain := getDomain(options.BaseDN)
@@ -126,7 +130,7 @@ func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, credentials Creden
 
 func getDomain(dn string) string {
 	var res strings.Builder
-	for _, part := range strings.Split(dn, ",") {
+	for part := range strings.SplitSeq(dn, ",") {
 		if strings.HasPrefix(part, "DC=") {
 			res.WriteString(strings.Split(part, "=")[1] + ".")
 		}
@@ -135,12 +139,19 @@ func getDomain(dn string) string {
 }
 
 func (ldo *LdapOptions) CustomGetObjects() (map[string]map[string]string, error) {
-	// TODO: Replace with ldap.DialURL
-	conn, err := ldap.DialTLS("tcp", ldo.URL, &tls.Config{InsecureSkipVerify: ldo.Insecure})
+
+	dialOpts := []ldap.DialOpt{
+		ldap.DialWithTLSConfig(&tls.Config{
+			InsecureSkipVerify: ldo.Insecure, // #nosec G402,SA1019
+		}),
+	}
+	conn, err := ldap.DialURL(ldo.URL, dialOpts...)
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func(conn *ldap.Conn) {
+		_ = conn.Close()
+	}(conn)
 
 	if err := conn.Bind(ldo.User, ldo.Password); err != nil {
 		return nil, err
@@ -207,9 +218,7 @@ func (ld *Ldap) Discover() {
 
 		objects := target.makeObjectSinkMap(data)
 		ld.logger.Debug("Ldap %s found %d objects. Processing...", target.URL, len(objects))
-		for k, v := range objects {
-			res[k] = v
-		}
+		maps.Copy(res, objects)
 	}
 
 	ld.processors.Process(ld, &LdapSinkObject{

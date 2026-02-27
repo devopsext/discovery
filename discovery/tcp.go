@@ -47,7 +47,7 @@ func (ts *TCPSinkObject) Map() common.SinkMap {
 	return ts.sinkMap
 }
 
-func (ts *TCPSinkObject) Options() interface{} {
+func (ts *TCPSinkObject) Options() any {
 	return ts.tcp.options
 }
 
@@ -59,7 +59,7 @@ func (t *TCP) Source() string {
 	return t.source
 }
 
-func (t *TCP) render(tpl *toolsRender.TextTemplate, def string, obj interface{}) string {
+func (t *TCP) render(tpl *toolsRender.TextTemplate, def string, obj any) string {
 
 	s1, err := common.RenderTemplate(tpl, def, obj)
 	if err != nil {
