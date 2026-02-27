@@ -87,7 +87,7 @@ func (ldo *LdapOptions) PrepareLabels(data map[string]string) common.Labels {
 	return labels
 }
 
-func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, credentials Credentials, logger sreCommon.Logger) ([]LdapOptions, error) {
+func GetLdapDiscoveryTargets(GlobalOptions LdapGlobalOptions, credentials Credentials, _ sreCommon.Logger) ([]LdapOptions, error) {
 	var optionsArray []LdapOptions
 	for target := range strings.SplitSeq(strings.TrimSpace(GlobalOptions.ConfigString), ";") {
 		var options LdapOptions

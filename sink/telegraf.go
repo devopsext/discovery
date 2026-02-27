@@ -140,9 +140,9 @@ func (t *Telegraf) processSignal(d common.Discovery, sm common.SinkMap, so any) 
 			}
 		}
 		// Merge Configs with existing object
-		for path := range s1.Configs {
-			if _, exists := existingObj.Configs[path]; !exists {
-				existingObj.Configs[path] = s1.Configs[path]
+		for p := range s1.Configs {
+			if _, exists := existingObj.Configs[p]; !exists {
+				existingObj.Configs[p] = s1.Configs[p]
 			}
 		}
 		// Update other fields (keep the latest vars, files)

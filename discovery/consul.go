@@ -158,7 +158,7 @@ func (c *Consul) Discover() {
 			if shown > 0 {
 				sb.WriteString("; ")
 			}
-			fmt.Fprintf(&sb, "%dx '%s'", cnt, msg)
+			_, _ = fmt.Fprintf(&sb, "%dx '%s'", cnt, msg)
 			shown++
 		}
 		c.logger.Error("consul errors: failed to fetch %d/%d services. Unique errors: %d. Top: %s", failedTotal, nServices, len(errCounts), sb.String())

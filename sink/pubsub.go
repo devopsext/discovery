@@ -250,7 +250,7 @@ func (ps *PubSub) Close() {
 		ps.topic.Stop()
 	}
 	if ps.client != nil {
-		ps.client.Close()
+		_ = ps.client.Close()
 	}
 }
 

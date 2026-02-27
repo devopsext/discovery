@@ -97,7 +97,7 @@ func templateGetCommonLabelValue(labels common.Labels, key string) string {
 	return labels[key]
 }
 
-func NewTemplate(options TemplateOptions, observability *common.Observability, sinks *common.Sinks) *Template {
+func NewTemplate(options TemplateOptions, observability *common.Observability, _ *common.Sinks) *Template {
 
 	logger := observability.Logs()
 	options.Providers = common.RemoveEmptyStrings(options.Providers)
