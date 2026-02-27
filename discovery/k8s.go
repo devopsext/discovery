@@ -151,6 +151,9 @@ func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
 			continue
 		}
 
+		application := common.IfDef(pod.Labels[k.options.AppLabel], "unknown").(string)
+		component := common.IfDef(pod.Labels[k.options.ComponentLabel], "unknown").(string)
+
 		for _, c := range pod.Spec.Containers {
 
 			// resolve repo and tag from image uri "git.example.org:5000/namespace/image:tag" -> "git.example.org/namespace/image", "tag"
@@ -164,6 +167,8 @@ func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
 				"environment": k.options.Environment,
 				"cluster":     k.options.ClusterName,
 				"namespace":   pod.Namespace,
+				"application": application,
+				"component":   component,
 				"pod":         pod.Name,
 				"container":   c.Name,
 				"repo":        repo,
