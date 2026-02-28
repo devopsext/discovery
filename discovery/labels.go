@@ -69,7 +69,7 @@ func (l *Labels) findLabels(vectors []*common.PrometheusResponseDataVector) comm
 	gid := utils.GoRoutineID()
 
 	l1 := len(vectors)
-	l.logger.Debug("[%d] %s: Labels found %d series", gid, l.source, l1)
+	l.observability.Debug("[%d] %s: Labels found %d series", gid, l.source, l1)
 	if len(vectors) == 0 {
 		return ret
 	}
@@ -77,13 +77,13 @@ func (l *Labels) findLabels(vectors []*common.PrometheusResponseDataVector) comm
 	for _, v := range vectors {
 
 		if len(v.Labels) < 2 {
-			l.logger.Debug("[%d] %s: Labels not found, min requirements (2): %v", gid, l.source, v.Labels)
+			l.observability.Debug("[%d] %s: Labels not found, min requirements (2): %v", gid, l.source, v.Labels)
 			continue
 		}
 
 		name := l.render(l.nameTemplate, l.options.Name, v.Labels)
 		if utils.IsEmpty(name) {
-			l.logger.Debug("[%d] %s: Labels no name found in labels, but: %v", gid, l.source, v.Labels)
+			l.observability.Debug("[%d] %s: Labels no name found in labels, but: %v", gid, l.source, v.Labels)
 			continue
 		}
 		ret[name] = v.Labels
@@ -148,20 +148,18 @@ func (l *Labels) Discover() {
 
 func NewLabels(source string, prometheusOptions common.PrometheusOptions, options LabelsOptions, observability *common.Observability, processors *common.Processors) *Labels {
 
-	logger := observability.Logs()
-
 	if utils.IsEmpty(prometheusOptions.URL) {
-		logger.Debug("%s: Labels has no prometheus URL. Skipped", source)
+		observability.Debug("%s: Labels has no prometheus URL. Skipped", source)
 		return nil
 	}
 
 	if utils.IsEmpty(options.Query) {
-		logger.Debug("%s: Labels has no query. Skipped", source)
+		observability.Debug("%s: Labels has no query. Skipped", source)
 		return nil
 	}
 
 	if utils.IsEmpty(options.Name) {
-		logger.Debug("%s: Labels has no name. Skipped", source)
+		observability.Debug("%s: Labels has no name. Skipped", source)
 		return nil
 	}
 
@@ -172,7 +170,7 @@ func NewLabels(source string, prometheusOptions common.PrometheusOptions, option
 	}
 	nameTemplate, err := toolsRender.NewTextTemplate(nameOpts, observability)
 	if err != nil {
-		logger.Error(err)
+		observability.Error(err)
 		return nil
 	}
 
@@ -190,7 +188,7 @@ func NewLabels(source string, prometheusOptions common.PrometheusOptions, option
 		prometheus:     toolsVendors.NewPrometheus(prometheusOpts),
 		prometheusOpts: prometheusOpts,
 		options:        options,
-		logger:         logger,
+		logger:         observability.Logs(),
 		observability:  observability,
 		processors:     processors,
 		nameTemplate:   nameTemplate,

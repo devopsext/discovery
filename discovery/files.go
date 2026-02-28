@@ -328,22 +328,20 @@ func (d *Files) Discover() {
 
 func NewFiles(options FilesOptions, observability *common.Observability, processors *common.Processors) *Files {
 
-	logger := observability.Logs()
-
 	if utils.IsEmpty(options.Folder) {
-		logger.Debug("Files has no folder. Skipped")
+		observability.Debug("Files has no folder. Skipped")
 		return nil
 	}
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		logger.Error("Files couldn't create watcher: %s", err)
+		observability.Error("Files couldn't create watcher: %s", err)
 		return nil
 	}
 
 	return &Files{
 		options:       options,
-		logger:        logger,
+		logger:        observability.Logs(),
 		observability: observability,
 		processors:    processors,
 		watcher:       watcher,
