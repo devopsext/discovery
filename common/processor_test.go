@@ -3,6 +3,7 @@ package common
 import (
 	"testing"
 
+	sreCommon "github.com/devopsext/sre/common"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -69,10 +70,33 @@ func TestProcessors_Process(t *testing.T) {
 }
 
 func TestProcessors_Process_Skipped(t *testing.T) {
-	// To avoid panic, we need a logger that doesn't panic on nil or just ensure it is not called.
-	// But in common/processor.go:36, ps.logger.Debug is called.
-	// Since sreCommon.Logger is an interface, if we can provide a dummy implementation that does nothing.
-	// However, NewObservability(nil, nil).Logs() returns a pointer to sre.Logs which is a struct, not an interface.
-	// Wait, common/processor.go:19: logger sreCommon.Logger
-	// Let's check what sreCommon.Logger is.
+	// sreCommon.NewLogs() returns a *Logs with no registered loggers — safe no-op, satisfies Logger interface.
+	// This is required because the skip path at processor.go:36 calls ps.logger.Debug directly.
+	obs := NewObservability(sreCommon.NewLogs(), nil)
+	sinks := NewSinks(obs)
+	ps := NewProcessors(obs, sinks)
+
+	mockDiscovery := new(MockDiscovery)
+	mockDiscovery.On("Name").Return("test-discovery")
+
+	mockProcessor := new(MockProcessor)
+	mockProcessor.On("Name").Return("test-processor")
+	// Provider list does not include "test-discovery", so this processor should be skipped.
+	mockProcessor.On("Providers").Return([]string{"other-discovery"})
+
+	mockSink := new(MockSink)
+	mockSink.On("Name").Return("test-sink")
+	mockSink.On("Providers").Return([]string{})
+	mockSink.On("Process", mockDiscovery, mock.Anything).Return()
+
+	ps.Add(mockProcessor)
+	sinks.Add(mockSink)
+
+	so := new(MockSinkObject)
+	ps.Process(mockDiscovery, so)
+
+	// Processor must be skipped because "test-discovery" is not in ["other-discovery"].
+	mockProcessor.AssertNotCalled(t, "Process", mockDiscovery, so)
+	// Sinks are always called regardless of processor filtering.
+	mockSink.AssertCalled(t, "Process", mockDiscovery, so)
 }

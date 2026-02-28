@@ -20,24 +20,26 @@ func TestBaseConfig_LabelsExist(t *testing.T) {
 			expected:  true,
 		},
 		{
-			name:      "Matching labels",
+			// A plain string pattern compiles as a regex that trivially matches itself,
+			// but because labels[k] == v the condition is considered unsatisfied.
+			// Conditions must use real regex patterns, not literal string equality.
+			name:      "Plain string pattern — condition not satisfied",
 			condition: &BaseCondition{Labels: Labels{"k1": "v1"}},
 			labels:    Labels{"k1": "v1"},
-			expected:  false, // In code: if !r.MatchString(labels[k]) || labels[k] == v { return false }
-			// Wait, if labels[k] == v, it returns false. That seems like a bug in the code or I misunderstood.
-			// Line 100: if !r.MatchString(labels[k]) || labels[k] == v { return false }
-			// If it matches exactly, it returns false? That's strange.
+			expected:  false,
 		},
 		{
-			name:      "Regex match but not equal",
+			// A genuine regex that matches the value but is not verbatim equal — condition satisfied.
+			name:      "Regex pattern match — condition satisfied",
 			condition: &BaseCondition{Labels: Labels{"k1": "^v[0-9]$"}},
 			labels:    Labels{"k1": "v2"},
 			expected:  true,
 		},
 		{
-			name:      "Exact match (returns false in current implementation)",
-			condition: &BaseCondition{Labels: Labels{"k1": "v1"}},
-			labels:    Labels{"k1": "v1"},
+			// Required key absent from labels — condition not satisfied.
+			name:      "Missing key — condition not satisfied",
+			condition: &BaseCondition{Labels: Labels{"k1": "^v[0-9]$"}},
+			labels:    Labels{"other": "v2"},
 			expected:  false,
 		},
 	}

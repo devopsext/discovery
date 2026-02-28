@@ -6,28 +6,11 @@ import (
 	"testing"
 
 	"github.com/devopsext/discovery/common"
-	sreCommon "github.com/devopsext/sre/common"
 	"github.com/stretchr/testify/assert"
 )
 
-type yamlMockDiscovery struct {
-	name string
-}
-
-func (m *yamlMockDiscovery) Discover()      {}
-func (m *yamlMockDiscovery) Name() string   { return m.name }
-func (m *yamlMockDiscovery) Source() string { return "mock" }
-
-type yamlMockSinkObject struct {
-	m common.SinkMap
-}
-
-func (m *yamlMockSinkObject) Map() common.SinkMap { return m.m }
-func (m *yamlMockSinkObject) Options() any        { return nil }
-
 func TestYaml_Process(t *testing.T) {
-	logger := sreCommon.NewLogs()
-	obs := common.NewObservability(logger, nil)
+	obs := newTestObs()
 	dir := t.TempDir()
 	options := YamlOptions{
 		Dir: dir,
@@ -36,8 +19,8 @@ func TestYaml_Process(t *testing.T) {
 	y := NewYaml(options, obs)
 	assert.NotNil(t, y)
 
-	discovery := &yamlMockDiscovery{name: "test-discovery"}
-	sinkObject := &yamlMockSinkObject{
+	discovery := &testDiscovery{name: "test-discovery"}
+	sinkObject := &testSinkObject{
 		m: common.SinkMap{
 			"key": "value",
 		},
@@ -54,8 +37,7 @@ func TestYaml_Process(t *testing.T) {
 }
 
 func TestYaml_New_EmptyDir(t *testing.T) {
-	logger := sreCommon.NewLogs()
-	obs := common.NewObservability(logger, nil)
+	obs := newTestObs()
 	options := YamlOptions{
 		Dir: "",
 	}

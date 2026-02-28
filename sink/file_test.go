@@ -7,32 +7,12 @@ import (
 
 	"github.com/devopsext/discovery/common"
 	"github.com/devopsext/discovery/discovery"
-	sreCommon "github.com/devopsext/sre/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type fileMockDiscovery struct {
-	name string
-}
-
-func (m *fileMockDiscovery) Discover()      {}
-func (m *fileMockDiscovery) Name() string   { return m.name }
-func (m *fileMockDiscovery) Source() string { return "mock" }
-
-type fileMockSinkObject struct {
-	m common.SinkMap
-}
-
-func (m *fileMockSinkObject) Map() common.SinkMap { return m.m }
-func (m *fileMockSinkObject) Options() any        { return nil }
-
-func newFileObs() *common.Observability {
-	return common.NewObservability(sreCommon.NewLogs(), nil)
-}
-
 func TestFile_New(t *testing.T) {
-	obs := newFileObs()
+	obs := newTestObs()
 
 	tests := []struct {
 		name      string
@@ -65,11 +45,11 @@ func TestFile_New(t *testing.T) {
 }
 
 func TestFile_Process_UnknownDiscovery(t *testing.T) {
-	obs := newFileObs()
+	obs := newTestObs()
 	f := NewFile(FileOptions{}, obs)
 
-	d := &fileMockDiscovery{name: "Unknown"}
-	so := &fileMockSinkObject{m: common.SinkMap{}}
+	d := &testDiscovery{name: "Unknown"}
+	so := &testSinkObject{m: common.SinkMap{}}
 
 	// Should not panic — logs and returns without processing
 	f.Process(d, so)
@@ -77,7 +57,7 @@ func TestFile_Process_UnknownDiscovery(t *testing.T) {
 
 func TestFile_Process_PubSub_WritesFile(t *testing.T) {
 	dir := t.TempDir()
-	obs := newFileObs()
+	obs := newTestObs()
 	f := NewFile(FileOptions{}, obs)
 
 	filePath := filepath.Join(dir, "output.txt")
@@ -86,8 +66,8 @@ func TestFile_Process_PubSub_WritesFile(t *testing.T) {
 		Data: []byte("test data"),
 	}
 
-	d := &fileMockDiscovery{name: "PubSub"}
-	so := &fileMockSinkObject{
+	d := &testDiscovery{name: "PubSub"}
+	so := &testSinkObject{
 		m: common.SinkMap{"file1": pf},
 	}
 
@@ -100,11 +80,11 @@ func TestFile_Process_PubSub_WritesFile(t *testing.T) {
 }
 
 func TestFile_Process_PubSub_NonPayloadFileSkipped(t *testing.T) {
-	obs := newFileObs()
+	obs := newTestObs()
 	f := NewFile(FileOptions{}, obs)
 
-	d := &fileMockDiscovery{name: "PubSub"}
-	so := &fileMockSinkObject{
+	d := &testDiscovery{name: "PubSub"}
+	so := &testSinkObject{
 		m: common.SinkMap{
 			"notAFile": "just-a-string",
 		},
@@ -116,7 +96,7 @@ func TestFile_Process_PubSub_NonPayloadFileSkipped(t *testing.T) {
 
 func TestFile_Process_PubSub_Checksum(t *testing.T) {
 	dir := t.TempDir()
-	obs := newFileObs()
+	obs := newTestObs()
 	f := NewFile(FileOptions{Checksum: true}, obs)
 
 	filePath := filepath.Join(dir, "checksummed.txt")
@@ -124,8 +104,8 @@ func TestFile_Process_PubSub_Checksum(t *testing.T) {
 
 	// Write twice with same data — second call should see checksum match
 	pf := &discovery.PubSubMessagePayloadFile{Path: filePath, Data: data}
-	d := &fileMockDiscovery{name: "PubSub"}
-	so := &fileMockSinkObject{m: common.SinkMap{"f": pf}}
+	d := &testDiscovery{name: "PubSub"}
+	so := &testSinkObject{m: common.SinkMap{"f": pf}}
 
 	f.Process(d, so)
 	require.FileExists(t, filePath)

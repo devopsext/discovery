@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/devopsext/discovery/common"
+	sreCommon "github.com/devopsext/sre/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLabels_Basic(t *testing.T) {
@@ -34,9 +36,17 @@ func TestLabels_Basic(t *testing.T) {
 }
 
 func TestLabels_FindLabels(t *testing.T) {
-	obs := common.NewObservability(nil, nil)
-	l := &Labels{source: "test", options: LabelsOptions{Name: "{{.instance}}"}, observability: obs}
-	// In a real scenario nameTemplate would be initialized
+	logs := sreCommon.NewLogs()
+	obs := common.NewObservability(logs, nil)
+	sinks := common.NewSinks(obs)
+	ps := common.NewProcessors(obs, sinks)
+
+	// Use NewLabels so nameTemplate is properly initialized from the Name option.
+	l := NewLabels("test",
+		common.PrometheusOptions{URL: "http://localhost"},
+		LabelsOptions{Query: "up", Name: `{{index . "instance"}}`},
+		obs, ps)
+	require.NotNil(t, l)
 
 	tests := []struct {
 		name     string
@@ -49,13 +59,31 @@ func TestLabels_FindLabels(t *testing.T) {
 			expected: common.LabelsMap{},
 		},
 		{
-			name: "Vector with too few labels",
+			name: "Vector with too few labels (< 2) — skipped",
 			vectors: []*common.PrometheusResponseDataVector{
-				{
-					Labels: map[string]string{"instance": "host1"},
-				},
+				{Labels: map[string]string{"instance": "host1"}},
 			},
 			expected: common.LabelsMap{},
+		},
+		{
+			name: "Valid vector — name rendered from instance label",
+			vectors: []*common.PrometheusResponseDataVector{
+				{Labels: map[string]string{"instance": "host1", "job": "prometheus"}},
+			},
+			expected: common.LabelsMap{
+				"host1": map[string]string{"instance": "host1", "job": "prometheus"},
+			},
+		},
+		{
+			name: "Multiple vectors — all keyed by rendered name",
+			vectors: []*common.PrometheusResponseDataVector{
+				{Labels: map[string]string{"instance": "host1", "job": "node"}},
+				{Labels: map[string]string{"instance": "host2", "job": "node"}},
+			},
+			expected: common.LabelsMap{
+				"host1": map[string]string{"instance": "host1", "job": "node"},
+				"host2": map[string]string{"instance": "host2", "job": "node"},
+			},
 		},
 	}
 
