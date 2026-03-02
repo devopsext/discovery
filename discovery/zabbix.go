@@ -170,17 +170,15 @@ func (o *Zabbix) Discover() {
 
 func NewZabbix(options ZabbixOptions, observability *common.Observability, processors *common.Processors) *Zabbix {
 
-	logger := observability.Logs()
-
 	if utils.IsEmpty(options.URL) {
-		logger.Debug("Zabbix has no URL. Skipped")
+		observability.Debug("Zabbix has no URL. Skipped")
 		return nil
 	}
 
 	return &Zabbix{
 		client:        toolsVendors.NewZabbix(options.ZabbixOptions),
 		options:       options,
-		logger:        logger,
+		logger:        observability.Logs(),
 		observability: observability,
 		processors:    processors,
 	}

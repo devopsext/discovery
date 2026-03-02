@@ -94,27 +94,27 @@ func (p *Prometheus) transform(gid uint64, name string, vectors []*common.Promet
 	ret := make(common.LabelsMap)
 
 	l1 := len(vectors)
-	p.logger.Debug("[%d] %s: Prometheus found %d series on query %s", gid, p.source, l1, name)
+	p.observability.Debug("[%d] %s: Prometheus found %d series on query %s", gid, p.source, l1, name)
 	if len(vectors) == 0 {
 		return ret
 	}
 
 	tpl, ok := p.keys[name]
 	if !ok {
-		p.logger.Error("[%d] %s: Prometheus has not found name template on query %s", gid, p.source, name)
+		p.observability.Error("[%d] %s: Prometheus has not found name template on query %s", gid, p.source, name)
 		return ret
 	}
 
 	for _, v := range vectors {
 
 		if len(v.Labels) < 1 {
-			p.logger.Debug("[%d] %s: Prometheus has not found data, min requirements (1) for query %s: %v", gid, p.source, name, v.Labels)
+			p.observability.Debug("[%d] %s: Prometheus has not found data, min requirements (1) for query %s: %v", gid, p.source, name, v.Labels)
 			continue
 		}
 
 		key := p.render(tpl, name, v.Labels)
 		if utils.IsEmpty(key) {
-			p.logger.Debug("[%d] %s: Prometheus has no key found in labels for query %s, but: %v", gid, p.source, name, v.Labels)
+			p.observability.Debug("[%d] %s: Prometheus has no key found in labels for query %s, but: %v", gid, p.source, name, v.Labels)
 			continue
 		}
 		ret[key] = v.Labels
@@ -126,42 +126,42 @@ func (p *Prometheus) discoveryByQuery(name string, promOpts toolsVendors.Prometh
 
 	gid := utils.GoRoutineID()
 
-	p.logger.Debug("[%d] %s: Prometheus discovery by query %s: %s", gid, p.source, name, promOpts.Query)
-	p.logger.Debug("[%d] %s: Prometheus discovery range %s: %s <-> %s", gid, p.source, name, promOpts.From, promOpts.To)
+	p.observability.Debug("[%d] %s: Prometheus discovery by query %s: %s", gid, p.source, name, promOpts.Query)
+	p.observability.Debug("[%d] %s: Prometheus discovery range %s: %s <-> %s", gid, p.source, name, promOpts.From, promOpts.To)
 
 	data, err := p.prometheus.CustomGet(promOpts)
 	if err != nil {
-		p.logger.Error("[%d] %s: Prometheus query %s failed: %v", gid, p.source, name, err)
+		p.observability.Error("[%d] %s: Prometheus query %s failed: %v", gid, p.source, name, err)
 		return
 	}
 
 	var res common.PrometheusResponse
 	if err := json.Unmarshal(data, &res); err != nil {
-		p.logger.Error(err)
+		p.observability.Error(err)
 		return
 	}
 
 	if res.Status != "success" {
-		p.logger.Error(res.Status)
+		p.observability.Error(res.Status)
 		return
 	}
 
 	if (res.Data == nil) || (len(res.Data.Result) == 0) {
-		p.logger.Error("[%d] %s: Prometheus empty data on query %s response", gid, p.source, name)
+		p.observability.Error("[%d] %s: Prometheus empty data on query %s response", gid, p.source, name)
 		return
 	}
 
 	if !utils.Contains([]string{"vector", "matrix"}, res.Data.ResultType) {
-		p.logger.Error("[%d] %s: Prometheus only vector and matrix are allowed on query %s", gid, p.source, name)
+		p.observability.Error("[%d] %s: Prometheus only vector and matrix are allowed on query %s", gid, p.source, name)
 		return
 	}
 
 	tdata := p.transform(gid, name, res.Data.Result)
 	if len(tdata) == 0 {
-		p.logger.Debug("[%d] %s: Prometheus not found any data according query %s", gid, p.source, name)
+		p.observability.Debug("[%d] %s: Prometheus not found any data according query %s", gid, p.source, name)
 		return
 	}
-	p.logger.Debug("[%d] %s: Prometheus found %d data according query %s. Processing...", gid, p.source, len(tdata), name)
+	p.observability.Debug("[%d] %s: Prometheus found %d data according query %s. Processing...", gid, p.source, len(tdata), name)
 
 	pq := &PrometheusQuery{
 		name:       name,
@@ -209,20 +209,18 @@ func (p *Prometheus) Discover() {
 
 func NewPrometheus(source string, prometheusOptions common.PrometheusOptions, options PrometheusOptions, observability *common.Observability, processors *common.Processors) *Prometheus {
 
-	logger := observability.Logs()
-
 	if utils.IsEmpty(prometheusOptions.URL) {
-		logger.Debug("%s: Prometheus has no URL. Skipped", source)
+		observability.Debug("%s: Prometheus has no URL. Skipped", source)
 		return nil
 	}
 
 	if utils.IsEmpty(options.Query) {
-		logger.Debug("%s: Prometheus has no query. Skipped", source)
+		observability.Debug("%s: Prometheus has no query. Skipped", source)
 		return nil
 	}
 
 	if utils.IsEmpty(options.QueryKeys) {
-		logger.Debug("%s: Prometheus has no query keys. Skipped", source)
+		observability.Debug("%s: Prometheus has no query keys. Skipped", source)
 		return nil
 	}
 
@@ -262,7 +260,7 @@ func NewPrometheus(source string, prometheusOptions common.PrometheusOptions, op
 	}
 
 	if len(queries) == 0 {
-		logger.Debug("%s: Prometheus has no queries. Skipped", source)
+		observability.Debug("%s: Prometheus has no queries. Skipped", source)
 		return nil
 	}
 
@@ -279,7 +277,7 @@ func NewPrometheus(source string, prometheusOptions common.PrometheusOptions, op
 		}
 		tpl, err := toolsRender.NewTextTemplate(nameOpts, observability)
 		if err != nil {
-			logger.Error(err)
+			observability.Error(err)
 			return nil
 		}
 		keys[k] = tpl
@@ -295,14 +293,14 @@ func NewPrometheus(source string, prometheusOptions common.PrometheusOptions, op
 		}
 		tpl, err := toolsRender.NewTextTemplate(nameOpts, observability)
 		if err != nil {
-			logger.Error(err)
+			observability.Error(err)
 			return nil
 		}
 		keys[prometheusName] = tpl
 	}
 
 	if len(keys) == 0 {
-		logger.Debug("%s: Prometheus has no query keys. Skipped", source)
+		observability.Debug("%s: Prometheus has no query keys. Skipped", source)
 		return nil
 	}
 
@@ -311,7 +309,7 @@ func NewPrometheus(source string, prometheusOptions common.PrometheusOptions, op
 		prometheus:     toolsVendors.NewPrometheus(prometheusOpts),
 		prometheusOpts: prometheusOpts,
 		options:        options,
-		logger:         logger,
+		logger:         observability.Logs(),
 		observability:  observability,
 		processors:     processors,
 		queries:        queries,
