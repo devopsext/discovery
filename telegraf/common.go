@@ -74,7 +74,7 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Object, labelsTpl s
 	input.Version = opts.Version
 	input.Params = opts.Params
 	input.Interval = opts.Interval
-	input.CollectionOffset, _ = randomizeOffsetDuration("", opts.Interval)
+	input.CollectionOffset, _ = randomizeOffsetDuration(name, opts.Interval)
 	input.Timeout = opts.Timeout
 	input.Duration = opts.Duration
 	input.Prefix = opts.Prefix
