@@ -7,6 +7,7 @@ import "github.com/devopsext/discovery/common"
 
 type InputHTTPResponse struct {
 	Interval           string            `toml:"interval,omitempty"`
+	CollectionOffset   string            `toml:"collection_offset"`
 	URLs               []string          `toml:"urls"`
 	Timeout            string            `toml:"response_timeout,omitempty"`
 	Method             string            `toml:"method,omitempty"`
@@ -20,14 +21,15 @@ type InputHTTPResponse struct {
 }
 
 type InputHTTPResponseOptions struct {
-	Interval        string
-	URLs            string
-	Method          string
-	FollowRedirects bool
-	StringMatch     string
-	StatusCode      int
-	Timeout         string
-	Tags            []string
+	Interval         string
+	CollectionOffset string
+	URLs             string
+	Method           string
+	FollowRedirects  bool
+	StringMatch      string
+	StatusCode       int
+	Timeout          string
+	Tags             []string
 }
 
 func (hr *InputHTTPResponse) updateIncludeTags(tags []string) {

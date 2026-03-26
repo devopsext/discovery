@@ -4,9 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/md5" // #nosec G501
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"sort"
 	"strconv"
 	"strings"
@@ -73,7 +74,7 @@ func (tc *Config) GenerateInputPrometheusHttpBytes(s *common.Object, labelsTpl s
 	input.Version = opts.Version
 	input.Params = opts.Params
 	input.Interval = opts.Interval
-	input.CollectionOffset, _ = randomizeOffsetDuration(name, input.Interval)
+	input.CollectionOffset, _ = randomizeOffsetDuration("", opts.Interval)
 	input.Timeout = opts.Timeout
 	input.Duration = opts.Duration
 	input.Prefix = opts.Prefix
@@ -149,6 +150,7 @@ func (tc *Config) GenerateInputDNSQueryBytes(opts InputDNSQueryOptions, domains 
 		input := &InputDNSQuery{
 			observability: tc.Observability,
 		}
+		input.CollectionOffset, _ = randomizeOffsetDuration("", opts.Interval)
 		input.Interval = opts.Interval
 		input.Servers = servers
 		input.Domains = []string{k}
@@ -182,6 +184,7 @@ func (tc *Config) GenerateInputHTTPResponseBytes(opts InputHTTPResponseOptions, 
 		input := &InputHTTPResponse{
 			observability: tc.Observability,
 		}
+		input.CollectionOffset, _ = randomizeOffsetDuration("", opts.Interval)
 		input.Interval = opts.Interval
 		input.URLs = []string{k}
 		input.Timeout = opts.Timeout
@@ -216,6 +219,7 @@ func (tc *Config) GenerateInputNETResponseBytes(opts InputNetResponseOptions, ad
 		input := &InputNetResponse{
 			observability: tc.Observability,
 		}
+		input.CollectionOffset, _ = randomizeOffsetDuration("", opts.Interval)
 		input.Interval = opts.Interval
 		input.Address = k
 		input.Protocol = protocol
@@ -249,6 +253,7 @@ func (tc *Config) GenerateInputX509CertBytes(opts InputX509CertOptions, addresse
 		input := &InputX509Cert{
 			observability: tc.Observability,
 		}
+		input.CollectionOffset, _ = randomizeOffsetDuration("", opts.Interval)
 		input.Interval = opts.Interval
 		input.Sources = []string{k}
 		input.Timeout = opts.Timeout
@@ -279,33 +284,39 @@ func (tc *Config) GenerateInputX509CertBytes(opts InputX509CertOptions, addresse
 
 func randomizeOffsetDuration(fileName string, durationStr string) (string, error) {
 	if !strings.HasSuffix(durationStr, "s") {
-		return "0s", fmt.Errorf("invalid duration format: %s, must end with 's'", durationStr)
+		return "0s", fmt.Errorf("Invalid duration format: %s, must end with 's'", durationStr)
 	}
 
 	numStr := strings.TrimSuffix(durationStr, "s")
 	maxValue, err := strconv.Atoi(numStr)
 	if err != nil {
-		return "0s", fmt.Errorf("invalid numerical value in duration: %w", err)
+		return "0s", fmt.Errorf("Invalid numerical value in duration: %w", err)
 	}
 
+	// negative interval is outrageous thing, so this one is unlikely to ever pop-up, but anyway
 	if maxValue < 0 {
-		return "0s", fmt.Errorf("duration value cannot be negative: %d", maxValue)
+		return "0s", fmt.Errorf("Interval value cannot be negative: %d", maxValue)
 	}
 
-	// skip rest
 	if maxValue == 0 {
 		return "0s", nil
 	}
 
-	h := md5.New() // #nosec G401
-	h.Write([]byte(fileName))
-	var seed = binary.BigEndian.Uint64(h.Sum(nil))
+	var randomValue int64
 
-	source := rand.NewSource(int64(seed)) // #nosec G115
-	r := rand.New(source)                 // #nosec G404
-
-	// Generate a random integer between 0 (inclusive) and maxValue (inclusive)
-	randomValue := r.Intn(maxValue + 1)
+	if utils.IsEmpty(fileName) {
+		maxBigInt := big.NewInt(int64(maxValue + 1))
+		n, err := rand.Int(rand.Reader, maxBigInt)
+		if err != nil {
+			return "0s", fmt.Errorf("Failed to generate random number: %w", err)
+		}
+		randomValue = n.Int64()
+	} else {
+		h := md5.New() // #nosec G401
+		h.Write([]byte(fileName))
+		hashSeed := binary.BigEndian.Uint64(h.Sum(nil))
+		randomValue = int64(hashSeed % uint64(maxValue+1))
+	}
 
 	return fmt.Sprintf("%ds", randomValue), nil
 }

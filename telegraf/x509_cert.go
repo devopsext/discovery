@@ -7,6 +7,7 @@ import "github.com/devopsext/discovery/common"
 
 type InputX509Cert struct {
 	Interval         string            `toml:"interval,omitempty"`
+	CollectionOffset string            `toml:"collection_offset"`
 	Sources          []string          `toml:"sources"`
 	Timeout          string            `toml:"timeout,omitempty"`
 	ServerName       string            `toml:"server_name,omitempty"`
@@ -24,6 +25,7 @@ type InputX509Cert struct {
 
 type InputX509CertOptions struct {
 	Interval         string
+	CollectionOffset string
 	Sources          string
 	Timeout          string
 	ServerName       string

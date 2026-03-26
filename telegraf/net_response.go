@@ -6,27 +6,29 @@ import "github.com/devopsext/discovery/common"
 //[[inputs.net_response]]
 
 type InputNetResponse struct {
-	Interval      string            `toml:"interval,omitempty"`
-	Address       string            `toml:"address"`
-	Protocol      string            `toml:"protocol"`
-	Timeout       string            `toml:"timeout,omitempty"`
-	ReadTimeout   string            `toml:"read_timeout,omitempty"`
-	Send          string            `toml:"send,omitempty"`
-	Expect        string            `toml:"expect,omitempty"`
-	Tags          map[string]string `toml:"tags,omitempty"`
-	Include       []string          `toml:"taginclude,omitempty"`
-	observability *common.Observability
+	Interval         string            `toml:"interval,omitempty"`
+	CollectionOffset string            `toml:"collection_offset"`
+	Address          string            `toml:"address"`
+	Protocol         string            `toml:"protocol"`
+	Timeout          string            `toml:"timeout,omitempty"`
+	ReadTimeout      string            `toml:"read_timeout,omitempty"`
+	Send             string            `toml:"send,omitempty"`
+	Expect           string            `toml:"expect,omitempty"`
+	Tags             map[string]string `toml:"tags,omitempty"`
+	Include          []string          `toml:"taginclude,omitempty"`
+	observability    *common.Observability
 }
 
 type InputNetResponseOptions struct {
-	Interval    string
-	Address     string
-	Protocol    string
-	Timeout     string
-	ReadTimeout string
-	Send        string
-	Expect      string
-	Tags        []string
+	Interval         string
+	CollectionOffset string
+	Address          string
+	Protocol         string
+	Timeout          string
+	ReadTimeout      string
+	Send             string
+	Expect           string
+	Tags             []string
 }
 
 func (nr *InputNetResponse) updateIncludeTags(tags []string) {

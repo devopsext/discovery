@@ -6,27 +6,29 @@ import "github.com/devopsext/discovery/common"
 //[[inputs.dns_query]]
 
 type InputDNSQuery struct {
-	Interval      string            `toml:"interval,omitempty"`
-	Servers       []string          `toml:"servers"`
-	Network       string            `toml:"network,omitempty"`
-	Domains       []string          `toml:"domains"`
-	RecordType    string            `toml:"record_type,omitempty"`
-	Port          int               `toml:"port,omitempty"`
-	Timeout       int               `toml:"timeout,omitempty"`
-	Tags          map[string]string `toml:"tags,omitempty"`
-	Include       []string          `toml:"taginclude,omitempty"`
-	observability *common.Observability
+	Interval         string            `toml:"interval,omitempty"`
+	CollectionOffset string            `toml:"collection_offset"`
+	Servers          []string          `toml:"servers"`
+	Network          string            `toml:"network,omitempty"`
+	Domains          []string          `toml:"domains"`
+	RecordType       string            `toml:"record_type,omitempty"`
+	Port             int               `toml:"port,omitempty"`
+	Timeout          int               `toml:"timeout,omitempty"`
+	Tags             map[string]string `toml:"tags,omitempty"`
+	Include          []string          `toml:"taginclude,omitempty"`
+	observability    *common.Observability
 }
 
 type InputDNSQueryOptions struct {
-	Interval   string
-	Servers    string
-	Network    string
-	Domains    string
-	RecordType string
-	Port       int
-	Timeout    int
-	Tags       []string
+	Interval         string
+	CollectionOffset string
+	Servers          string
+	Network          string
+	Domains          string
+	RecordType       string
+	Port             int
+	Timeout          int
+	Tags             []string
 }
 
 func (dq *InputDNSQuery) updateIncludeTags(tags []string) {
