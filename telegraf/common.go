@@ -282,18 +282,18 @@ func (tc *Config) GenerateInputX509CertBytes(opts InputX509CertOptions, addresse
 
 func randomizeOffsetDuration(fileName string, durationStr string) (string, error) {
 	if !strings.HasSuffix(durationStr, "s") {
-		return "0s", fmt.Errorf("Invalid duration format: %s, must end with 's'", durationStr)
+		return "0s", fmt.Errorf("invalid duration format: %s, must end with 's'", durationStr)
 	}
 
 	numStr := strings.TrimSuffix(durationStr, "s")
 	maxValue, err := strconv.Atoi(numStr)
 	if err != nil {
-		return "0s", fmt.Errorf("Invalid numerical value in duration: %w", err)
+		return "0s", fmt.Errorf("invalid numerical value in duration: %w", err)
 	}
 
 	// negative interval is outrageous thing, so this one is unlikely to ever pop-up, but anyway
 	if maxValue < 0 {
-		return "0s", fmt.Errorf("Interval value cannot be negative: %d", maxValue)
+		return "0s", fmt.Errorf("interval value cannot be negative: %d", maxValue)
 	}
 
 	if maxValue == 0 {
