@@ -4,10 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/md5" // #nosec G501
-	"crypto/rand"
 	"encoding/binary"
 	"fmt"
-	"math/big"
 	"sort"
 	"strconv"
 	"strings"
@@ -150,7 +148,7 @@ func (tc *Config) GenerateInputDNSQueryBytes(opts InputDNSQueryOptions, domains 
 		input := &InputDNSQuery{
 			observability: tc.Observability,
 		}
-		input.CollectionOffset, _ = randomizeOffsetDuration("", opts.Interval)
+		input.CollectionOffset, _ = randomizeOffsetDuration(k, opts.Interval)
 		input.Interval = opts.Interval
 		input.Servers = servers
 		input.Domains = []string{k}
@@ -184,7 +182,7 @@ func (tc *Config) GenerateInputHTTPResponseBytes(opts InputHTTPResponseOptions, 
 		input := &InputHTTPResponse{
 			observability: tc.Observability,
 		}
-		input.CollectionOffset, _ = randomizeOffsetDuration("", opts.Interval)
+		input.CollectionOffset, _ = randomizeOffsetDuration(k, opts.Interval)
 		input.Interval = opts.Interval
 		input.URLs = []string{k}
 		input.Timeout = opts.Timeout
@@ -219,7 +217,7 @@ func (tc *Config) GenerateInputNETResponseBytes(opts InputNetResponseOptions, ad
 		input := &InputNetResponse{
 			observability: tc.Observability,
 		}
-		input.CollectionOffset, _ = randomizeOffsetDuration("", opts.Interval)
+		input.CollectionOffset, _ = randomizeOffsetDuration(k, opts.Interval)
 		input.Interval = opts.Interval
 		input.Address = k
 		input.Protocol = protocol
@@ -253,7 +251,7 @@ func (tc *Config) GenerateInputX509CertBytes(opts InputX509CertOptions, addresse
 		input := &InputX509Cert{
 			observability: tc.Observability,
 		}
-		input.CollectionOffset, _ = randomizeOffsetDuration("", opts.Interval)
+		input.CollectionOffset, _ = randomizeOffsetDuration(k, opts.Interval)
 		input.Interval = opts.Interval
 		input.Sources = []string{k}
 		input.Timeout = opts.Timeout
@@ -304,19 +302,10 @@ func randomizeOffsetDuration(fileName string, durationStr string) (string, error
 
 	var randomValue int64
 
-	if utils.IsEmpty(fileName) {
-		maxBigInt := big.NewInt(int64(maxValue + 1))
-		n, err := rand.Int(rand.Reader, maxBigInt)
-		if err != nil {
-			return "0s", fmt.Errorf("Failed to generate random number: %w", err)
-		}
-		randomValue = n.Int64()
-	} else {
-		h := md5.New() // #nosec G401
-		h.Write([]byte(fileName))
-		hashSeed := binary.BigEndian.Uint64(h.Sum(nil))
-		randomValue = int64(hashSeed % uint64(maxValue+1))
-	}
+	h := md5.New() // #nosec G401
+	h.Write([]byte(fileName))
+	hashSeed := binary.BigEndian.Uint64(h.Sum(nil))
+	randomValue = int64(hashSeed % uint64(maxValue+1))
 
 	return fmt.Sprintf("%ds", randomValue), nil
 }
