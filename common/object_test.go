@@ -7,47 +7,78 @@ import (
 )
 
 func TestBaseConfig_LabelsExist(t *testing.T) {
+	// BaseConfig receiver is unused in the function logic, so an empty struct is fine.
+	bc := &BaseConfig{}
+
 	tests := []struct {
 		name      string
 		condition *BaseCondition
 		labels    Labels
-		expected  bool
+		want      bool
 	}{
 		{
-			name:      "Nil labels",
-			condition: &BaseCondition{Labels: Labels{"k1": "v1"}},
+			name:      "Nil labels should return true",
+			condition: &BaseCondition{Labels: map[string]string{"app": "backend"}},
 			labels:    nil,
-			expected:  true,
+			want:      true,
 		},
 		{
-			// A plain string pattern compiles as a regex that trivially matches itself,
-			// but because labels[k] == v the condition is considered unsatisfied.
-			// Conditions must use real regex patterns, not literal string equality.
-			name:      "Plain string pattern — condition not satisfied",
-			condition: &BaseCondition{Labels: Labels{"k1": "v1"}},
-			labels:    Labels{"k1": "v1"},
-			expected:  false,
+			name:      "Empty condition labels should return true",
+			condition: &BaseCondition{Labels: map[string]string{}},
+			labels:    Labels{"app": "backend"},
+			want:      true,
 		},
 		{
-			// A genuine regex that matches the value but is not verbatim equal — condition satisfied.
-			name:      "Regex pattern match — condition satisfied",
-			condition: &BaseCondition{Labels: Labels{"k1": "^v[0-9]$"}},
-			labels:    Labels{"k1": "v2"},
-			expected:  true,
+			name:      "Missing key in provided labels should return false",
+			condition: &BaseCondition{Labels: map[string]string{"env": "prod"}},
+			labels:    Labels{"app": "backend"}, // "env" key is missing
+			want:      false,
 		},
 		{
-			// Required key absent from labels — condition not satisfied.
-			name:      "Missing key — condition not satisfied",
-			condition: &BaseCondition{Labels: Labels{"k1": "^v[0-9]$"}},
-			labels:    Labels{"other": "v2"},
-			expected:  false,
+			name:      "Exact value match should return true",
+			condition: &BaseCondition{Labels: map[string]string{"env": "prod"}},
+			labels:    Labels{"env": "prod", "app": "backend"},
+			want:      true,
+		},
+		{
+			name:      "Regex value match should return true",
+			condition: &BaseCondition{Labels: map[string]string{"env": "^prod-.*"}},
+			labels:    Labels{"env": "prod-eu-west"},
+			want:      true,
+		},
+		{
+			name:      "Regex value mismatch should return false",
+			condition: &BaseCondition{Labels: map[string]string{"env": "^prod-.*"}},
+			labels:    Labels{"env": "dev-eu-west"},
+			want:      false,
+		},
+		{
+			name: "Invalid regex skips check and continues (evaluates to true if no other constraints fail)",
+			// Because your code has `if err != nil { continue }`, it skips the check and proceeds
+			condition: &BaseCondition{Labels: map[string]string{"env": "[invalid-regex"}},
+			labels:    Labels{"env": "anything"},
+			want:      true,
+		},
+		{
+			name:      "Multiple constraints - all matching returns true",
+			condition: &BaseCondition{Labels: map[string]string{"env": "prod", "tier": "frontend"}},
+			labels:    Labels{"env": "prod", "tier": "frontend", "extra": "data"},
+			want:      true,
+		},
+		{
+			name:      "Multiple constraints - one failing returns false",
+			condition: &BaseCondition{Labels: map[string]string{"env": "prod", "tier": "frontend"}},
+			labels:    Labels{"env": "prod", "tier": "backend"},
+			want:      false,
 		},
 	}
 
-	bc := &BaseConfig{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, bc.LabelsExist(tt.condition, tt.labels))
+			got := bc.LabelsExist(tt.condition, tt.labels)
+			if got != tt.want {
+				t.Errorf("BaseConfig.LabelsExist() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
