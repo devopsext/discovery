@@ -146,28 +146,17 @@ func TestServicesToEndpointMap(t *testing.T) {
 		name     string
 		k8s      *K8s
 		services []v1.Service
-		pods     []v1.Pod
+		cache    map[string]string
 		expected map[string]string
 	}{
 		{
-			name: "fast path: application in selector",
+			name: "service in cache emits one key per port",
 			k8s:  newTestK8s("application", false, nil, nil),
 			services: []v1.Service{
-				makeSvc("my-svc", "my-ns", map[string]string{"application": "my-app"}, 80),
+				makeSvc("my-svc", "ns", map[string]string{"application": "my-app"}, 80),
 			},
-			pods:     nil,
-			expected: map[string]string{"my-svc.my-ns.svc.cluster.local:80": "my-app"},
-		},
-		{
-			name: "slow path: application from matching pod labels",
-			k8s:  newTestK8s("application", false, nil, nil),
-			services: []v1.Service{
-				makeSvc("my-svc", "my-ns", map[string]string{"app": "my-app"}, 8080),
-			},
-			pods: []v1.Pod{
-				makePod("pod-1", "my-ns", map[string]string{"app": "my-app", "application": "real-app"}),
-			},
-			expected: map[string]string{"my-svc.my-ns.svc.cluster.local:8080": "real-app"},
+			cache:    map[string]string{"ns/my-svc": "my-app"},
+			expected: map[string]string{"my-svc.ns.svc.cluster.local:80": "my-app"},
 		},
 		{
 			name: "multi-port service emits one key per port",
@@ -175,7 +164,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 			services: []v1.Service{
 				makeSvc("multi-svc", "ns", map[string]string{"application": "svc-app"}, 80, 8080, 9090),
 			},
-			pods: nil,
+			cache: map[string]string{"ns/multi-svc": "svc-app"},
 			expected: map[string]string{
 				"multi-svc.ns.svc.cluster.local:80":   "svc-app",
 				"multi-svc.ns.svc.cluster.local:8080": "svc-app",
@@ -183,21 +172,12 @@ func TestServicesToEndpointMap(t *testing.T) {
 			},
 		},
 		{
-			name: "no matching pods, SkipUnknown=false -> unknown",
+			name: "service not in cache -> omitted",
 			k8s:  newTestK8s("application", false, nil, nil),
 			services: []v1.Service{
-				makeSvc("orphan-svc", "ns", map[string]string{"app": "something"}, 80),
+				makeSvc("orphan-svc", "ns", map[string]string{"app": "x"}, 80),
 			},
-			pods:     nil,
-			expected: map[string]string{"orphan-svc.ns.svc.cluster.local:80": "unknown"},
-		},
-		{
-			name: "no matching pods, SkipUnknown=true -> omitted",
-			k8s:  newTestK8s("application", true, nil, nil),
-			services: []v1.Service{
-				makeSvc("orphan-svc", "ns", map[string]string{"app": "something"}, 80),
-			},
-			pods:     nil,
+			cache:    map[string]string{},
 			expected: map[string]string{},
 		},
 		{
@@ -206,7 +186,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 			services: []v1.Service{
 				makeSvc("headless-svc", "ns", map[string]string{}, 80),
 			},
-			pods:     nil,
+			cache:    map[string]string{},
 			expected: map[string]string{},
 		},
 		{
@@ -216,7 +196,10 @@ func TestServicesToEndpointMap(t *testing.T) {
 				makeSvc("svc-a", "allowed-ns", map[string]string{"application": "app-a"}, 80),
 				makeSvc("svc-b", "other-ns", map[string]string{"application": "app-b"}, 80),
 			},
-			pods: nil,
+			cache: map[string]string{
+				"allowed-ns/svc-a": "app-a",
+				"other-ns/svc-b":   "app-b",
+			},
 			expected: map[string]string{
 				"svc-a.allowed-ns.svc.cluster.local:80": "app-a",
 			},
@@ -228,38 +211,19 @@ func TestServicesToEndpointMap(t *testing.T) {
 				makeSvc("svc-a", "default", map[string]string{"application": "app-a"}, 80),
 				makeSvc("svc-b", "kube-system", map[string]string{"application": "app-b"}, 80),
 			},
-			pods: nil,
+			cache: map[string]string{
+				"default/svc-a":     "app-a",
+				"kube-system/svc-b": "app-b",
+			},
 			expected: map[string]string{
 				"svc-a.default.svc.cluster.local:80": "app-a",
 			},
-		},
-		{
-			name: "pod in wrong namespace not matched",
-			k8s:  newTestK8s("application", false, nil, nil),
-			services: []v1.Service{
-				makeSvc("my-svc", "ns-a", map[string]string{"app": "x"}, 80),
-			},
-			pods: []v1.Pod{
-				makePod("pod-1", "ns-b", map[string]string{"app": "x", "application": "wrong-ns-app"}),
-			},
-			expected: map[string]string{"my-svc.ns-a.svc.cluster.local:80": "unknown"},
-		},
-		{
-			name: "unlabeled pods excluded from pre-filter",
-			k8s:  newTestK8s("application", false, nil, nil),
-			services: []v1.Service{
-				makeSvc("my-svc", "ns", map[string]string{"app": "x"}, 80),
-			},
-			pods: []v1.Pod{
-				makePod("unlabeled-pod", "ns", map[string]string{"app": "x"}), // has selector match but no application label
-			},
-			expected: map[string]string{"my-svc.ns.svc.cluster.local:80": "unknown"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.k8s.servicesToEndpointMap(tt.services, tt.pods)
+			result := tt.k8s.servicesToEndpointMap(tt.services, tt.cache)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

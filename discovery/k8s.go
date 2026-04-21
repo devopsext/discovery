@@ -71,7 +71,7 @@ func (k *K8s) Discover() {
 	//m["image"] = k.podImagesToSinkMap(testPods())
 	m["workload"] = k.podsToSinkMap(pods.Items)
 	m["image"] = k.podImagesToSinkMap(pods.Items)
-	m["endpoint"] = k.servicesToEndpointMap(services.Items, pods.Items)
+	m["endpoint"] = k.servicesToEndpointMap(services.Items, map[string]string{})
 
 	k.processors.Process(k, &K8sSinkObject{
 		sinkMap: m,
@@ -189,16 +189,8 @@ func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
 	return r
 }
 
-func (k *K8s) servicesToEndpointMap(services []v1.Service, pods []v1.Pod) map[string]string {
+func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]string) map[string]string {
 	r := make(map[string]string)
-
-	// pre-filter: only pods with AppLabel set (avoids scanning unlabeled system pods)
-	labeledPods := make([]v1.Pod, 0, len(pods))
-	for _, pod := range pods {
-		if !utils.IsEmpty(pod.Labels[k.options.AppLabel]) {
-			labeledPods = append(labeledPods, pod)
-		}
-	}
 
 	for _, svc := range services {
 		if !utils.IsEmpty(k.options.NsInclude) && !utils.Contains(k.options.NsInclude, svc.Namespace) {
@@ -211,19 +203,9 @@ func (k *K8s) servicesToEndpointMap(services []v1.Service, pods []v1.Pod) map[st
 			continue
 		}
 
-		// fast path: selector directly specifies the application label
-		application := svc.Spec.Selector[k.options.AppLabel]
-
-		// slow path: find application from matching pods
-		if utils.IsEmpty(application) {
-			application = k.findApplicationFromPods(labeledPods, svc.Namespace, svc.Spec.Selector)
-		}
-
-		if utils.IsEmpty(application) {
-			if k.options.SkipUnknown {
-				continue
-			}
-			application = "unknown"
+		application, ok := cache[svc.Namespace+"/"+svc.Name]
+		if !ok {
+			continue
 		}
 
 		fqdn := fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace)
