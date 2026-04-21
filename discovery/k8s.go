@@ -67,13 +67,32 @@ func (k *K8s) Discover() {
 		return
 	}
 
+	ingresses, err := k.client.NetworkingV1().Ingresses("").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		k.logger.Error(err)
+		return
+	}
+
+	labeledPods := make([]v1.Pod, 0, len(pods.Items))
+	for _, pod := range pods.Items {
+		if !utils.IsEmpty(pod.Labels[k.options.AppLabel]) {
+			labeledPods = append(labeledPods, pod)
+		}
+	}
+
+	cache := k.buildServiceAppCache(services.Items, labeledPods)
+
+	endpoints := k.servicesToEndpointMap(services.Items, cache)
+	for key, app := range k.ingressesToEndpointMap(ingresses.Items, cache) {
+		endpoints[key] = app
+	}
+
 	m := common.SinkMap{}
 	//m["workload"] = k.podsToSinkMap(testPods())
 	//m["image"] = k.podImagesToSinkMap(testPods())
 	m["workload"] = k.podsToSinkMap(pods.Items)
 	m["image"] = k.podImagesToSinkMap(pods.Items)
-	// TODO(Task 4): replace empty cache with buildServiceAppCache result; endpoint map is currently always empty
-	m["endpoint"] = k.servicesToEndpointMap(services.Items, map[string]string{})
+	m["endpoint"] = endpoints
 
 	k.processors.Process(k, &K8sSinkObject{
 		sinkMap: m,
