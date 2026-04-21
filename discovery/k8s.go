@@ -215,13 +215,16 @@ func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]stri
 	r := make(map[string]string)
 
 	for _, svc := range services {
+		// Namespace guards applied independently of buildServiceAppCache: defensive against
+		// callers that pass a more permissive cache than current filter options would produce.
 		if !utils.IsEmpty(k.options.NsInclude) && !utils.Contains(k.options.NsInclude, svc.Namespace) {
 			continue
 		}
 		if !utils.IsEmpty(k.options.NsExclude) && utils.Contains(k.options.NsExclude, svc.Namespace) {
 			continue
 		}
-		// defence-in-depth: buildServiceAppCache already excludes empty-selector services
+		// Dead code in normal use: buildServiceAppCache already excludes empty-selector services,
+		// so they are never in the cache. Kept as a backstop if the cache contract changes.
 		if len(svc.Spec.Selector) == 0 {
 			continue
 		}
