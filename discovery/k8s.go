@@ -258,6 +258,37 @@ func (k *K8s) findApplicationFromPods(pods []v1.Pod, namespace string, selector 
 	return ""
 }
 
+func (k *K8s) buildServiceAppCache(services []v1.Service, labeledPods []v1.Pod) map[string]string {
+	cache := make(map[string]string, len(services))
+
+	for _, svc := range services {
+		if !utils.IsEmpty(k.options.NsInclude) && !utils.Contains(k.options.NsInclude, svc.Namespace) {
+			continue
+		}
+		if !utils.IsEmpty(k.options.NsExclude) && utils.Contains(k.options.NsExclude, svc.Namespace) {
+			continue
+		}
+		if len(svc.Spec.Selector) == 0 {
+			continue
+		}
+
+		application := svc.Spec.Selector[k.options.AppLabel]
+		if utils.IsEmpty(application) {
+			application = k.findApplicationFromPods(labeledPods, svc.Namespace, svc.Spec.Selector)
+		}
+		if utils.IsEmpty(application) {
+			if k.options.SkipUnknown {
+				continue
+			}
+			application = "unknown"
+		}
+
+		cache[svc.Namespace+"/"+svc.Name] = application
+	}
+
+	return cache
+}
+
 func (k *K8s) Name() string {
 	return "K8s"
 }

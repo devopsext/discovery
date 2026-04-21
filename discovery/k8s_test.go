@@ -46,6 +46,101 @@ func makeSvc(name, namespace string, selector map[string]string, ports ...int32)
 	}
 }
 
+func TestBuildServiceAppCache(t *testing.T) {
+	tests := []struct {
+		name     string
+		k8s      *K8s
+		services []v1.Service
+		pods     []v1.Pod
+		expected map[string]string
+	}{
+		{
+			name: "fast path: application in selector",
+			k8s:  newTestK8s("application", false, nil, nil),
+			services: []v1.Service{
+				makeSvc("my-svc", "ns", map[string]string{"application": "my-app"}, 80),
+			},
+			pods:     nil,
+			expected: map[string]string{"ns/my-svc": "my-app"},
+		},
+		{
+			name: "slow path: application from matching pod",
+			k8s:  newTestK8s("application", false, nil, nil),
+			services: []v1.Service{
+				makeSvc("my-svc", "ns", map[string]string{"app": "x"}, 80),
+			},
+			pods: []v1.Pod{
+				makePod("pod-1", "ns", map[string]string{"app": "x", "application": "pod-app"}),
+			},
+			expected: map[string]string{"ns/my-svc": "pod-app"},
+		},
+		{
+			name: "empty selector -> not in cache",
+			k8s:  newTestK8s("application", false, nil, nil),
+			services: []v1.Service{
+				makeSvc("headless", "ns", map[string]string{}, 80),
+			},
+			pods:     nil,
+			expected: map[string]string{},
+		},
+		{
+			name: "SkipUnknown=false, no app found -> unknown in cache",
+			k8s:  newTestK8s("application", false, nil, nil),
+			services: []v1.Service{
+				makeSvc("orphan", "ns", map[string]string{"app": "x"}, 80),
+			},
+			pods:     nil,
+			expected: map[string]string{"ns/orphan": "unknown"},
+		},
+		{
+			name: "SkipUnknown=true, no app found -> not in cache",
+			k8s:  newTestK8s("application", true, nil, nil),
+			services: []v1.Service{
+				makeSvc("orphan", "ns", map[string]string{"app": "x"}, 80),
+			},
+			pods:     nil,
+			expected: map[string]string{},
+		},
+		{
+			name: "NsInclude filters out other namespaces",
+			k8s:  newTestK8s("application", false, []string{"allowed"}, nil),
+			services: []v1.Service{
+				makeSvc("svc-a", "allowed", map[string]string{"application": "app-a"}, 80),
+				makeSvc("svc-b", "blocked", map[string]string{"application": "app-b"}, 80),
+			},
+			pods:     nil,
+			expected: map[string]string{"allowed/svc-a": "app-a"},
+		},
+		{
+			name: "NsExclude filters out excluded namespace",
+			k8s:  newTestK8s("application", false, nil, []string{"kube-system"}),
+			services: []v1.Service{
+				makeSvc("svc-a", "default", map[string]string{"application": "app-a"}, 80),
+				makeSvc("svc-b", "kube-system", map[string]string{"application": "app-b"}, 80),
+			},
+			pods:     nil,
+			expected: map[string]string{"default/svc-a": "app-a"},
+		},
+		{
+			name: "multiple services all cached",
+			k8s:  newTestK8s("application", false, nil, nil),
+			services: []v1.Service{
+				makeSvc("svc-a", "ns", map[string]string{"application": "app-a"}, 80),
+				makeSvc("svc-b", "ns", map[string]string{"application": "app-b"}, 8080),
+			},
+			pods:     nil,
+			expected: map[string]string{"ns/svc-a": "app-a", "ns/svc-b": "app-b"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.k8s.buildServiceAppCache(tt.services, tt.pods)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestServicesToEndpointMap(t *testing.T) {
 	tests := []struct {
 		name     string
