@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	networkingv1 "k8s.io/api/networking/v1"
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -467,6 +467,34 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					Spec: networkingv1.IngressSpec{
 						Rules: []networkingv1.IngressRule{
 							{Host: "tcp.example.com"},
+						},
+					},
+				},
+			},
+			cache:    map[string]string{},
+			expected: map[string]string{},
+		},
+		{
+			name: "resource backend (nil Service) skipped",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing", Namespace: "ns"},
+					Spec: networkingv1.IngressSpec{
+						Rules: []networkingv1.IngressRule{
+							{
+								Host: "api.example.com",
+								IngressRuleValue: networkingv1.IngressRuleValue{
+									HTTP: &networkingv1.HTTPIngressRuleValue{
+										Paths: []networkingv1.HTTPIngressPath{
+											{
+												Path:    "/",
+												Backend: networkingv1.IngressBackend{},
+											},
+										},
+									},
+								},
+							},
 						},
 					},
 				},

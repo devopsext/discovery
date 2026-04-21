@@ -9,8 +9,8 @@ import (
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
-	networkingv1 "k8s.io/api/networking/v1"
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -306,6 +306,9 @@ func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map
 			}
 
 			for _, hp := range rule.HTTP.Paths {
+				if hp.Backend.Service == nil {
+					continue
+				}
 				svcName := hp.Backend.Service.Name
 				application, ok := cache[ing.Namespace+"/"+svcName]
 				if !ok {
