@@ -71,6 +71,7 @@ func (k *K8s) Discover() {
 	//m["image"] = k.podImagesToSinkMap(testPods())
 	m["workload"] = k.podsToSinkMap(pods.Items)
 	m["image"] = k.podImagesToSinkMap(pods.Items)
+	// TODO(Task 4): replace empty cache with buildServiceAppCache result; endpoint map is currently always empty
 	m["endpoint"] = k.servicesToEndpointMap(services.Items, map[string]string{})
 
 	k.processors.Process(k, &K8sSinkObject{
@@ -199,6 +200,7 @@ func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]stri
 		if !utils.IsEmpty(k.options.NsExclude) && utils.Contains(k.options.NsExclude, svc.Namespace) {
 			continue
 		}
+		// defence-in-depth: buildServiceAppCache already excludes empty-selector services
 		if len(svc.Spec.Selector) == 0 {
 			continue
 		}
