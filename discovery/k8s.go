@@ -60,11 +60,18 @@ func (k *K8s) Discover() {
 		return
 	}
 
+	services, err := k.client.CoreV1().Services("").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		k.logger.Error(err)
+		return
+	}
+
 	m := common.SinkMap{}
 	//m["workload"] = k.podsToSinkMap(testPods())
 	//m["image"] = k.podImagesToSinkMap(testPods())
 	m["workload"] = k.podsToSinkMap(pods.Items)
 	m["image"] = k.podImagesToSinkMap(pods.Items)
+	m["endpoint"] = k.servicesToEndpointMap(services.Items, pods.Items)
 
 	k.processors.Process(k, &K8sSinkObject{
 		sinkMap: m,
@@ -180,6 +187,75 @@ func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
 	}
 
 	return r
+}
+
+func (k *K8s) servicesToEndpointMap(services []v1.Service, pods []v1.Pod) map[string]string {
+	r := make(map[string]string)
+
+	// pre-filter: only pods with AppLabel set (avoids scanning unlabeled system pods)
+	labeledPods := make([]v1.Pod, 0, len(pods))
+	for _, pod := range pods {
+		if !utils.IsEmpty(pod.Labels[k.options.AppLabel]) {
+			labeledPods = append(labeledPods, pod)
+		}
+	}
+
+	for _, svc := range services {
+		if !utils.IsEmpty(k.options.NsInclude) && !utils.Contains(k.options.NsInclude, svc.Namespace) {
+			continue
+		}
+		if !utils.IsEmpty(k.options.NsExclude) && utils.Contains(k.options.NsExclude, svc.Namespace) {
+			continue
+		}
+		if len(svc.Spec.Selector) == 0 {
+			continue
+		}
+
+		// fast path: selector directly specifies the application label
+		application := svc.Spec.Selector[k.options.AppLabel]
+
+		// slow path: find application from matching pods
+		if utils.IsEmpty(application) {
+			application = k.findApplicationFromPods(labeledPods, svc.Namespace, svc.Spec.Selector)
+		}
+
+		if utils.IsEmpty(application) {
+			if k.options.SkipUnknown {
+				continue
+			}
+			application = "unknown"
+		}
+
+		fqdn := fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace)
+		for _, port := range svc.Spec.Ports {
+			key := fmt.Sprintf("%s:%d", fqdn, port.Port)
+			r[key] = application
+		}
+	}
+
+	return r
+}
+
+// findApplicationFromPods returns the AppLabel value from the first pod in namespace
+// whose labels contain all selector key/value pairs.
+// pods should be pre-filtered to only those with AppLabel set.
+func (k *K8s) findApplicationFromPods(pods []v1.Pod, namespace string, selector map[string]string) string {
+	for _, pod := range pods {
+		if pod.Namespace != namespace {
+			continue
+		}
+		match := true
+		for sk, sv := range selector {
+			if pod.Labels[sk] != sv {
+				match = false
+				break
+			}
+		}
+		if match {
+			return pod.Labels[k.options.AppLabel]
+		}
+	}
+	return ""
 }
 
 func (k *K8s) Name() string {
