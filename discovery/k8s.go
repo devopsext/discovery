@@ -83,6 +83,7 @@ func (k *K8s) Discover() {
 	cache := k.buildServiceAppCache(services.Items, labeledPods)
 
 	endpoints := k.servicesToEndpointMap(services.Items, cache)
+	// Ingress entries overwrite service entries on key collision (ingresses are authoritative for host-based routing).
 	for key, app := range k.ingressesToEndpointMap(ingresses.Items, cache) {
 		endpoints[key] = app
 	}
