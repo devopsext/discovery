@@ -9,6 +9,7 @@ import (
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
+	networkingv1 "k8s.io/api/networking/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -271,6 +272,62 @@ func (k *K8s) buildServiceAppCache(services []v1.Service, labeledPods []v1.Pod) 
 	}
 
 	return cache
+}
+
+func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map[string]string) map[string]string {
+	r := make(map[string]string)
+
+	for _, ing := range ingresses {
+		if !utils.IsEmpty(k.options.NsInclude) && !utils.Contains(k.options.NsInclude, ing.Namespace) {
+			continue
+		}
+		if !utils.IsEmpty(k.options.NsExclude) && utils.Contains(k.options.NsExclude, ing.Namespace) {
+			continue
+		}
+
+		tlsHosts := make(map[string]bool)
+		for _, tls := range ing.Spec.TLS {
+			for _, host := range tls.Hosts {
+				tlsHosts[host] = true
+			}
+		}
+
+		for _, rule := range ing.Spec.Rules {
+			if utils.IsEmpty(rule.Host) {
+				continue
+			}
+			if rule.HTTP == nil {
+				continue
+			}
+
+			port := 80
+			if tlsHosts[rule.Host] {
+				port = 443
+			}
+
+			for _, hp := range rule.HTTP.Paths {
+				svcName := hp.Backend.Service.Name
+				application, ok := cache[ing.Namespace+"/"+svcName]
+				if !ok {
+					if k.options.SkipUnknown {
+						continue
+					}
+					application = "unknown"
+				}
+
+				p := hp.Path
+				var key string
+				if p == "" || p == "/" {
+					key = fmt.Sprintf("%s:%d", rule.Host, port)
+				} else {
+					key = fmt.Sprintf("%s:%d%s", rule.Host, port, p)
+				}
+				r[key] = application
+			}
+		}
+	}
+
+	return r
 }
 
 func (k *K8s) Name() string {

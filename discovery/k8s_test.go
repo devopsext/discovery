@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	networkingv1 "k8s.io/api/networking/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -42,6 +43,45 @@ func makeSvc(name, namespace string, selector map[string]string, ports ...int32)
 		Spec: v1.ServiceSpec{
 			Selector: selector,
 			Ports:    svcPorts,
+		},
+	}
+}
+
+func makeIngressRule(host string, paths map[string]string) networkingv1.IngressRule {
+	httpPaths := make([]networkingv1.HTTPIngressPath, 0, len(paths))
+	for path, svcName := range paths {
+		httpPaths = append(httpPaths, networkingv1.HTTPIngressPath{
+			Path: path,
+			Backend: networkingv1.IngressBackend{
+				Service: &networkingv1.IngressServiceBackend{
+					Name: svcName,
+				},
+			},
+		})
+	}
+	return networkingv1.IngressRule{
+		Host: host,
+		IngressRuleValue: networkingv1.IngressRuleValue{
+			HTTP: &networkingv1.HTTPIngressRuleValue{
+				Paths: httpPaths,
+			},
+		},
+	}
+}
+
+func makeIngress(name, namespace string, tlsHosts []string, rules ...networkingv1.IngressRule) networkingv1.Ingress {
+	var tls []networkingv1.IngressTLS
+	if len(tlsHosts) > 0 {
+		tls = []networkingv1.IngressTLS{{Hosts: tlsHosts}}
+	}
+	return networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: networkingv1.IngressSpec{
+			TLS:   tls,
+			Rules: rules,
 		},
 	}
 }
@@ -288,6 +328,157 @@ func TestFindApplicationFromPods(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := k.findApplicationFromPods(tt.pods, tt.namespace, tt.selector)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIngressesToEndpointMap(t *testing.T) {
+	tests := []struct {
+		name      string
+		k8s       *K8s
+		ingresses []networkingv1.Ingress
+		cache     map[string]string
+		expected  map[string]string
+	}{
+		{
+			name: "HTTP rule (no TLS) uses port 80",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				makeIngress("ing", "ns", nil,
+					makeIngressRule("api.example.com", map[string]string{"/": "my-svc"}),
+				),
+			},
+			cache:    map[string]string{"ns/my-svc": "my-app"},
+			expected: map[string]string{"api.example.com:80": "my-app"},
+		},
+		{
+			name: "HTTPS rule (host in TLS) uses port 443",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				makeIngress("ing", "ns", []string{"secure.example.com"},
+					makeIngressRule("secure.example.com", map[string]string{"/": "my-svc"}),
+				),
+			},
+			cache:    map[string]string{"ns/my-svc": "my-app"},
+			expected: map[string]string{"secure.example.com:443": "my-app"},
+		},
+		{
+			name: "non-root path included in key",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				makeIngress("ing", "ns", []string{"api.example.com"},
+					makeIngressRule("api.example.com", map[string]string{"/v1": "svc-v1", "/v2": "svc-v2"}),
+				),
+			},
+			cache: map[string]string{
+				"ns/svc-v1": "app-v1",
+				"ns/svc-v2": "app-v2",
+			},
+			expected: map[string]string{
+				"api.example.com:443/v1": "app-v1",
+				"api.example.com:443/v2": "app-v2",
+			},
+		},
+		{
+			name: "empty path produces key without path",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				makeIngress("ing", "ns", nil,
+					makeIngressRule("api.example.com", map[string]string{"": "my-svc"}),
+				),
+			},
+			cache:    map[string]string{"ns/my-svc": "my-app"},
+			expected: map[string]string{"api.example.com:80": "my-app"},
+		},
+		{
+			name: "empty host rule skipped",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				makeIngress("ing", "ns", nil,
+					makeIngressRule("", map[string]string{"/": "my-svc"}),
+				),
+			},
+			cache:    map[string]string{"ns/my-svc": "my-app"},
+			expected: map[string]string{},
+		},
+		{
+			name: "backend not in cache, SkipUnknown=false -> unknown",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				makeIngress("ing", "ns", nil,
+					makeIngressRule("api.example.com", map[string]string{"/": "missing-svc"}),
+				),
+			},
+			cache:    map[string]string{},
+			expected: map[string]string{"api.example.com:80": "unknown"},
+		},
+		{
+			name: "backend not in cache, SkipUnknown=true -> omitted",
+			k8s:  newTestK8s("application", true, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				makeIngress("ing", "ns", nil,
+					makeIngressRule("api.example.com", map[string]string{"/": "missing-svc"}),
+				),
+			},
+			cache:    map[string]string{},
+			expected: map[string]string{},
+		},
+		{
+			name: "NsInclude filters out other namespaces",
+			k8s:  newTestK8s("application", false, []string{"allowed"}, nil),
+			ingresses: []networkingv1.Ingress{
+				makeIngress("ing-a", "allowed", nil,
+					makeIngressRule("a.example.com", map[string]string{"/": "svc-a"}),
+				),
+				makeIngress("ing-b", "blocked", nil,
+					makeIngressRule("b.example.com", map[string]string{"/": "svc-b"}),
+				),
+			},
+			cache: map[string]string{
+				"allowed/svc-a": "app-a",
+				"blocked/svc-b": "app-b",
+			},
+			expected: map[string]string{"a.example.com:80": "app-a"},
+		},
+		{
+			name: "NsExclude filters out excluded namespace",
+			k8s:  newTestK8s("application", false, nil, []string{"kube-system"}),
+			ingresses: []networkingv1.Ingress{
+				makeIngress("ing-a", "default", nil,
+					makeIngressRule("a.example.com", map[string]string{"/": "svc-a"}),
+				),
+				makeIngress("ing-b", "kube-system", nil,
+					makeIngressRule("b.example.com", map[string]string{"/": "svc-b"}),
+				),
+			},
+			cache: map[string]string{
+				"default/svc-a":     "app-a",
+				"kube-system/svc-b": "app-b",
+			},
+			expected: map[string]string{"a.example.com:80": "app-a"},
+		},
+		{
+			name: "rule with nil HTTP block skipped",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing", Namespace: "ns"},
+					Spec: networkingv1.IngressSpec{
+						Rules: []networkingv1.IngressRule{
+							{Host: "tcp.example.com"},
+						},
+					},
+				},
+			},
+			cache:    map[string]string{},
+			expected: map[string]string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.k8s.ingressesToEndpointMap(tt.ingresses, tt.cache)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
