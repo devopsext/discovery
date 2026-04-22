@@ -174,7 +174,7 @@ func TestBuildServiceAppCache(t *testing.T) {
 		k8s      *K8s
 		services []v1.Service
 		pods     []v1.Pod
-		expected map[string]string
+		expected map[string]appCacheEntry
 	}{
 		{
 			name: "fast path: application in selector",
@@ -183,7 +183,7 @@ func TestBuildServiceAppCache(t *testing.T) {
 				makeSvc("my-svc", "ns", map[string]string{"application": "my-app"}, 80),
 			},
 			pods:     nil,
-			expected: map[string]string{"ns/my-svc": "my-app"},
+			expected: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 		},
 		{
 			name: "slow path: application from matching pod",
@@ -194,7 +194,7 @@ func TestBuildServiceAppCache(t *testing.T) {
 			pods: []v1.Pod{
 				makePod("pod-1", "ns", map[string]string{"app": "x", "application": "pod-app"}),
 			},
-			expected: map[string]string{"ns/my-svc": "pod-app"},
+			expected: map[string]appCacheEntry{"ns/my-svc": {application: "pod-app"}},
 		},
 		{
 			name: "empty selector -> not in cache",
@@ -203,7 +203,7 @@ func TestBuildServiceAppCache(t *testing.T) {
 				makeSvc("headless", "ns", map[string]string{}, 80),
 			},
 			pods:     nil,
-			expected: map[string]string{},
+			expected: map[string]appCacheEntry{},
 		},
 		{
 			name: "SkipUnknown=false, no app found -> unknown in cache",
@@ -212,7 +212,7 @@ func TestBuildServiceAppCache(t *testing.T) {
 				makeSvc("orphan", "ns", map[string]string{"app": "x"}, 80),
 			},
 			pods:     nil,
-			expected: map[string]string{"ns/orphan": "unknown"},
+			expected: map[string]appCacheEntry{"ns/orphan": {application: "unknown"}},
 		},
 		{
 			name: "SkipUnknown=true, no app found -> not in cache",
@@ -221,7 +221,7 @@ func TestBuildServiceAppCache(t *testing.T) {
 				makeSvc("orphan", "ns", map[string]string{"app": "x"}, 80),
 			},
 			pods:     nil,
-			expected: map[string]string{},
+			expected: map[string]appCacheEntry{},
 		},
 		{
 			name: "NsInclude filters out other namespaces",
@@ -231,7 +231,7 @@ func TestBuildServiceAppCache(t *testing.T) {
 				makeSvc("svc-b", "blocked", map[string]string{"application": "app-b"}, 80),
 			},
 			pods:     nil,
-			expected: map[string]string{"allowed/svc-a": "app-a"},
+			expected: map[string]appCacheEntry{"allowed/svc-a": {application: "app-a"}},
 		},
 		{
 			name: "NsExclude filters out excluded namespace",
@@ -241,7 +241,7 @@ func TestBuildServiceAppCache(t *testing.T) {
 				makeSvc("svc-b", "kube-system", map[string]string{"application": "app-b"}, 80),
 			},
 			pods:     nil,
-			expected: map[string]string{"default/svc-a": "app-a"},
+			expected: map[string]appCacheEntry{"default/svc-a": {application: "app-a"}},
 		},
 		{
 			name: "multiple services all cached",
@@ -251,7 +251,10 @@ func TestBuildServiceAppCache(t *testing.T) {
 				makeSvc("svc-b", "ns", map[string]string{"application": "app-b"}, 8080),
 			},
 			pods:     nil,
-			expected: map[string]string{"ns/svc-a": "app-a", "ns/svc-b": "app-b"},
+			expected: map[string]appCacheEntry{
+				"ns/svc-a": {application: "app-a"},
+				"ns/svc-b": {application: "app-b"},
+			},
 		},
 	}
 
@@ -268,7 +271,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 		name     string
 		k8s      *K8s
 		services []v1.Service
-		cache    map[string]string
+		cache    map[string]appCacheEntry
 		expected common.SinkMap
 	}{
 		{
@@ -277,7 +280,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 			services: []v1.Service{
 				makeSvc("my-svc", "ns", map[string]string{"application": "my-app"}, 80),
 			},
-			cache: map[string]string{"ns/my-svc": "my-app"},
+			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"my-svc.ns.svc.cluster.local:80": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
@@ -290,7 +293,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 			services: []v1.Service{
 				makeSvc("multi-svc", "ns", map[string]string{"application": "svc-app"}, 80, 8080, 9090),
 			},
-			cache: map[string]string{"ns/multi-svc": "svc-app"},
+			cache: map[string]appCacheEntry{"ns/multi-svc": {application: "svc-app"}},
 			expected: common.SinkMap{
 				"multi-svc.ns.svc.cluster.local:80": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "svc-app",
@@ -309,7 +312,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 			services: []v1.Service{
 				makeSvc("orphan-svc", "ns", map[string]string{"app": "x"}, 80),
 			},
-			cache:    map[string]string{},
+			cache:    map[string]appCacheEntry{},
 			expected: common.SinkMap{},
 		},
 		{
@@ -318,7 +321,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 			services: []v1.Service{
 				makeSvc("headless-svc", "ns", map[string]string{}, 80),
 			},
-			cache:    map[string]string{},
+			cache:    map[string]appCacheEntry{},
 			expected: common.SinkMap{},
 		},
 		{
@@ -328,9 +331,9 @@ func TestServicesToEndpointMap(t *testing.T) {
 				makeSvc("svc-a", "allowed-ns", map[string]string{"application": "app-a"}, 80),
 				makeSvc("svc-b", "other-ns", map[string]string{"application": "app-b"}, 80),
 			},
-			cache: map[string]string{
-				"allowed-ns/svc-a": "app-a",
-				"other-ns/svc-b":   "app-b",
+			cache: map[string]appCacheEntry{
+				"allowed-ns/svc-a": {application: "app-a"},
+				"other-ns/svc-b":   {application: "app-b"},
 			},
 			expected: common.SinkMap{
 				"svc-a.allowed-ns.svc.cluster.local:80": common.Labels{
@@ -345,9 +348,9 @@ func TestServicesToEndpointMap(t *testing.T) {
 				makeSvc("svc-a", "default", map[string]string{"application": "app-a"}, 80),
 				makeSvc("svc-b", "kube-system", map[string]string{"application": "app-b"}, 80),
 			},
-			cache: map[string]string{
-				"default/svc-a":     "app-a",
-				"kube-system/svc-b": "app-b",
+			cache: map[string]appCacheEntry{
+				"default/svc-a":     {application: "app-a"},
+				"kube-system/svc-b": {application: "app-b"},
 			},
 			expected: common.SinkMap{
 				"svc-a.default.svc.cluster.local:80": common.Labels{
@@ -365,66 +368,107 @@ func TestServicesToEndpointMap(t *testing.T) {
 	}
 }
 
-func TestFindApplicationFromPods(t *testing.T) {
+func TestFindLabelsFromPods(t *testing.T) {
 	k := newTestK8s("application", false, nil, nil)
+	k.options.ComponentLabel = "component"
 
 	tests := []struct {
-		name      string
-		pods      []v1.Pod
-		namespace string
-		selector  map[string]string
-		expected  string
+		name                string
+		pods                []v1.Pod
+		namespace           string
+		selector            map[string]string
+		expectedApplication string
+		expectedComponent   string
 	}{
 		{
-			name: "matching pod returns application label",
+			name: "matching pod returns application and component labels",
 			pods: []v1.Pod{
-				makePod("pod-1", "ns", map[string]string{"app": "x", "application": "found-app"}),
+				makePod("pod-1", "ns", map[string]string{
+					"app":         "x",
+					"application": "found-app",
+					"component":   "backend",
+				}),
 			},
-			namespace: "ns",
-			selector:  map[string]string{"app": "x"},
-			expected:  "found-app",
+			namespace:           "ns",
+			selector:            map[string]string{"app": "x"},
+			expectedApplication: "found-app",
+			expectedComponent:   "backend",
 		},
 		{
-			name:      "no pods -> empty string",
-			pods:      nil,
-			namespace: "ns",
-			selector:  map[string]string{"app": "x"},
-			expected:  "",
+			name: "matching pod with no component label returns empty component",
+			pods: []v1.Pod{
+				makePod("pod-1", "ns", map[string]string{
+					"app":         "x",
+					"application": "found-app",
+				}),
+			},
+			namespace:           "ns",
+			selector:            map[string]string{"app": "x"},
+			expectedApplication: "found-app",
+			expectedComponent:   "",
+		},
+		{
+			name:                "no pods -> empty strings",
+			pods:                nil,
+			namespace:           "ns",
+			selector:            map[string]string{"app": "x"},
+			expectedApplication: "",
+			expectedComponent:   "",
 		},
 		{
 			name: "pod in different namespace not matched",
 			pods: []v1.Pod{
-				makePod("pod-1", "other-ns", map[string]string{"app": "x", "application": "other-app"}),
+				makePod("pod-1", "other-ns", map[string]string{
+					"app":         "x",
+					"application": "other-app",
+					"component":   "backend",
+				}),
 			},
-			namespace: "ns",
-			selector:  map[string]string{"app": "x"},
-			expected:  "",
+			namespace:           "ns",
+			selector:            map[string]string{"app": "x"},
+			expectedApplication: "",
+			expectedComponent:   "",
 		},
 		{
 			name: "partial selector match not matched",
 			pods: []v1.Pod{
-				makePod("pod-1", "ns", map[string]string{"app": "x", "application": "app-1"}),
+				makePod("pod-1", "ns", map[string]string{
+					"app":         "x",
+					"application": "app-1",
+					"component":   "backend",
+				}),
 			},
-			namespace: "ns",
-			selector:  map[string]string{"app": "x", "component": "backend"},
-			expected:  "",
+			namespace:           "ns",
+			selector:            map[string]string{"app": "x", "component": "frontend"},
+			expectedApplication: "",
+			expectedComponent:   "",
 		},
 		{
 			name: "returns first match when multiple pods qualify",
 			pods: []v1.Pod{
-				makePod("pod-1", "ns", map[string]string{"app": "x", "application": "first-app"}),
-				makePod("pod-2", "ns", map[string]string{"app": "x", "application": "second-app"}),
+				makePod("pod-1", "ns", map[string]string{
+					"app":         "x",
+					"application": "first-app",
+					"component":   "first-comp",
+				}),
+				makePod("pod-2", "ns", map[string]string{
+					"app":         "x",
+					"application": "second-app",
+					"component":   "second-comp",
+				}),
 			},
-			namespace: "ns",
-			selector:  map[string]string{"app": "x"},
-			expected:  "first-app",
+			namespace:           "ns",
+			selector:            map[string]string{"app": "x"},
+			expectedApplication: "first-app",
+			expectedComponent:   "first-comp",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := k.findApplicationFromPods(tt.pods, tt.namespace, tt.selector)
-			assert.Equal(t, tt.expected, result)
+			app, comp := k.findLabelsFromPods(tt.pods, tt.namespace, tt.selector)
+			assert.Equal(t, tt.expectedApplication, app)
+			assert.Equal(t, tt.expectedComponent, comp)
 		})
 	}
 }
@@ -434,7 +478,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 		name      string
 		k8s       *K8s
 		ingresses []networkingv1.Ingress
-		cache     map[string]string
+		cache     map[string]appCacheEntry
 		expected  common.SinkMap
 	}{
 		{
@@ -445,7 +489,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("api.example.com", map[string]string{"/": "my-svc"}),
 				),
 			},
-			cache: map[string]string{"ns/my-svc": "my-app"},
+			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
@@ -460,7 +504,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("secure.example.com", map[string]string{"/": "my-svc"}),
 				),
 			},
-			cache: map[string]string{"ns/my-svc": "my-app"},
+			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"secure.example.com:443": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
@@ -475,9 +519,9 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("api.example.com", map[string]string{"/v1": "svc-v1", "/v2": "svc-v2"}),
 				),
 			},
-			cache: map[string]string{
-				"ns/svc-v1": "app-v1",
-				"ns/svc-v2": "app-v2",
+			cache: map[string]appCacheEntry{
+				"ns/svc-v1": {application: "app-v1"},
+				"ns/svc-v2": {application: "app-v2"},
 			},
 			expected: common.SinkMap{
 				"api.example.com:443/v1": common.Labels{
@@ -496,7 +540,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("api.example.com", map[string]string{"": "my-svc"}),
 				),
 			},
-			cache: map[string]string{"ns/my-svc": "my-app"},
+			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
@@ -511,7 +555,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("", map[string]string{"/": "my-svc"}),
 				),
 			},
-			cache:    map[string]string{"ns/my-svc": "my-app"},
+			cache:    map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{},
 		},
 		{
@@ -522,7 +566,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("api.example.com", map[string]string{"/": "missing-svc"}),
 				),
 			},
-			cache: map[string]string{},
+			cache: map[string]appCacheEntry{},
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "unknown",
@@ -537,7 +581,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("api.example.com", map[string]string{"/": "missing-svc"}),
 				),
 			},
-			cache:    map[string]string{},
+			cache:    map[string]appCacheEntry{},
 			expected: common.SinkMap{},
 		},
 		{
@@ -551,9 +595,9 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("b.example.com", map[string]string{"/": "svc-b"}),
 				),
 			},
-			cache: map[string]string{
-				"allowed/svc-a": "app-a",
-				"blocked/svc-b": "app-b",
+			cache: map[string]appCacheEntry{
+				"allowed/svc-a": {application: "app-a"},
+				"blocked/svc-b": {application: "app-b"},
 			},
 			expected: common.SinkMap{
 				"a.example.com:80": common.Labels{
@@ -572,9 +616,9 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("b.example.com", map[string]string{"/": "svc-b"}),
 				),
 			},
-			cache: map[string]string{
-				"default/svc-a":     "app-a",
-				"kube-system/svc-b": "app-b",
+			cache: map[string]appCacheEntry{
+				"default/svc-a":     {application: "app-a"},
+				"kube-system/svc-b": {application: "app-b"},
 			},
 			expected: common.SinkMap{
 				"a.example.com:80": common.Labels{
@@ -595,7 +639,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					},
 				},
 			},
-			cache:    map[string]string{},
+			cache:    map[string]appCacheEntry{},
 			expected: common.SinkMap{},
 		},
 		{
@@ -623,7 +667,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					},
 				},
 			},
-			cache:    map[string]string{},
+			cache:    map[string]appCacheEntry{},
 			expected: common.SinkMap{},
 		},
 		{
@@ -651,7 +695,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					},
 				},
 			},
-			cache: map[string]string{"ns/my-svc": "my-app"},
+			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
@@ -683,7 +727,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					},
 				},
 			},
-			cache: map[string]string{"ns/my-svc": "my-app"},
+			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80/api/": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
@@ -715,7 +759,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					},
 				},
 			},
-			cache: map[string]string{"ns/my-svc": "my-app"},
+			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				`api.example.com:80/api/v\d+`: common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
@@ -747,7 +791,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					},
 				},
 			},
-			cache: map[string]string{"ns/my-svc": "my-app"},
+			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80/api/v1": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
@@ -779,7 +823,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					},
 				},
 			},
-			cache: map[string]string{"ns/my-svc": "my-app"},
+			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",

@@ -53,6 +53,11 @@ func (kso *K8sSinkObject) Options() any {
 	return kso.k8s.options
 }
 
+type appCacheEntry struct {
+	application string
+	component   string
+}
+
 func (k *K8s) Discover() {
 
 	k.logger.Debug("K8s has to discover...")
@@ -221,7 +226,7 @@ func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
 	return r
 }
 
-func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]string) common.SinkMap {
+func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]appCacheEntry) common.SinkMap {
 	r := make(common.SinkMap)
 
 	for _, svc := range services {
@@ -239,7 +244,7 @@ func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]stri
 			continue
 		}
 
-		application, ok := cache[svc.Namespace+"/"+svc.Name]
+		entry, ok := cache[svc.Namespace+"/"+svc.Name]
 		if !ok {
 			continue
 		}
@@ -251,7 +256,7 @@ func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]stri
 				"environment": k.options.Environment,
 				"cluster":     k.options.ClusterName,
 				"namespace":   svc.Namespace,
-				"application": application,
+				"application": entry.application,
 			}, k.options.CommonLabels)
 		}
 	}
@@ -259,10 +264,10 @@ func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]stri
 	return r
 }
 
-// findApplicationFromPods returns the AppLabel value from the first pod in namespace
-// whose labels contain all selector key/value pairs.
+// findLabelsFromPods returns the AppLabel and ComponentLabel values from the first
+// pod in namespace whose labels contain all selector key/value pairs.
 // pods should be pre-filtered to only those with AppLabel set.
-func (k *K8s) findApplicationFromPods(pods []v1.Pod, namespace string, selector map[string]string) string {
+func (k *K8s) findLabelsFromPods(pods []v1.Pod, namespace string, selector map[string]string) (application, component string) {
 	for _, pod := range pods {
 		if pod.Namespace != namespace {
 			continue
@@ -275,14 +280,14 @@ func (k *K8s) findApplicationFromPods(pods []v1.Pod, namespace string, selector 
 			}
 		}
 		if match {
-			return pod.Labels[k.options.AppLabel]
+			return pod.Labels[k.options.AppLabel], pod.Labels[k.options.ComponentLabel]
 		}
 	}
-	return ""
+	return "", ""
 }
 
-func (k *K8s) buildServiceAppCache(services []v1.Service, labeledPods []v1.Pod) map[string]string {
-	cache := make(map[string]string, len(services))
+func (k *K8s) buildServiceAppCache(services []v1.Service, labeledPods []v1.Pod) map[string]appCacheEntry {
+	cache := make(map[string]appCacheEntry, len(services))
 
 	for _, svc := range services {
 		if !utils.IsEmpty(k.options.NsInclude) && !utils.Contains(k.options.NsInclude, svc.Namespace) {
@@ -296,8 +301,10 @@ func (k *K8s) buildServiceAppCache(services []v1.Service, labeledPods []v1.Pod) 
 		}
 
 		application := svc.Spec.Selector[k.options.AppLabel]
+		component := svc.Spec.Selector[k.options.ComponentLabel]
+
 		if utils.IsEmpty(application) {
-			application = k.findApplicationFromPods(labeledPods, svc.Namespace, svc.Spec.Selector)
+			application, component = k.findLabelsFromPods(labeledPods, svc.Namespace, svc.Spec.Selector)
 		}
 		if utils.IsEmpty(application) {
 			if k.options.SkipUnknown {
@@ -306,13 +313,16 @@ func (k *K8s) buildServiceAppCache(services []v1.Service, labeledPods []v1.Pod) 
 			application = "unknown"
 		}
 
-		cache[svc.Namespace+"/"+svc.Name] = application
+		cache[svc.Namespace+"/"+svc.Name] = appCacheEntry{
+			application: application,
+			component:   component,
+		}
 	}
 
 	return cache
 }
 
-func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map[string]string) common.SinkMap {
+func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map[string]appCacheEntry) common.SinkMap {
 	r := make(common.SinkMap)
 
 	for _, ing := range ingresses {
@@ -348,12 +358,12 @@ func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map
 					continue
 				}
 				svcName := hp.Backend.Service.Name
-				application, ok := cache[ing.Namespace+"/"+svcName]
+				entry, ok := cache[ing.Namespace+"/"+svcName]
 				if !ok {
 					if k.options.SkipUnknown {
 						continue
 					}
-					application = "unknown"
+					entry = appCacheEntry{application: "unknown"}
 				}
 
 				p := normalizePath(hp.Path, hp.PathType)
@@ -367,7 +377,7 @@ func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map
 					"environment": k.options.Environment,
 					"cluster":     k.options.ClusterName,
 					"namespace":   ing.Namespace,
-					"application": application,
+					"application": entry.application,
 				}, k.options.CommonLabels)
 			}
 		}
