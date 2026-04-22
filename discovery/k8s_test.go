@@ -3,6 +3,7 @@ package discovery
 import (
 	"testing"
 
+	"github.com/devopsext/discovery/common"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -187,7 +188,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 		k8s      *K8s
 		services []v1.Service
 		cache    map[string]string
-		expected map[string]string
+		expected common.SinkMap
 	}{
 		{
 			name: "service in cache emits one key per port",
@@ -195,8 +196,12 @@ func TestServicesToEndpointMap(t *testing.T) {
 			services: []v1.Service{
 				makeSvc("my-svc", "ns", map[string]string{"application": "my-app"}, 80),
 			},
-			cache:    map[string]string{"ns/my-svc": "my-app"},
-			expected: map[string]string{"my-svc.ns.svc.cluster.local:80": "my-app"},
+			cache: map[string]string{"ns/my-svc": "my-app"},
+			expected: common.SinkMap{
+				"my-svc.ns.svc.cluster.local:80": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+				},
+			},
 		},
 		{
 			name: "multi-port service emits one key per port",
@@ -205,10 +210,16 @@ func TestServicesToEndpointMap(t *testing.T) {
 				makeSvc("multi-svc", "ns", map[string]string{"application": "svc-app"}, 80, 8080, 9090),
 			},
 			cache: map[string]string{"ns/multi-svc": "svc-app"},
-			expected: map[string]string{
-				"multi-svc.ns.svc.cluster.local:80":   "svc-app",
-				"multi-svc.ns.svc.cluster.local:8080": "svc-app",
-				"multi-svc.ns.svc.cluster.local:9090": "svc-app",
+			expected: common.SinkMap{
+				"multi-svc.ns.svc.cluster.local:80": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "svc-app",
+				},
+				"multi-svc.ns.svc.cluster.local:8080": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "svc-app",
+				},
+				"multi-svc.ns.svc.cluster.local:9090": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "svc-app",
+				},
 			},
 		},
 		{
@@ -218,7 +229,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 				makeSvc("orphan-svc", "ns", map[string]string{"app": "x"}, 80),
 			},
 			cache:    map[string]string{},
-			expected: map[string]string{},
+			expected: common.SinkMap{},
 		},
 		{
 			name: "empty selector -> omitted",
@@ -227,7 +238,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 				makeSvc("headless-svc", "ns", map[string]string{}, 80),
 			},
 			cache:    map[string]string{},
-			expected: map[string]string{},
+			expected: common.SinkMap{},
 		},
 		{
 			name: "NsInclude filters out other namespaces",
@@ -240,8 +251,10 @@ func TestServicesToEndpointMap(t *testing.T) {
 				"allowed-ns/svc-a": "app-a",
 				"other-ns/svc-b":   "app-b",
 			},
-			expected: map[string]string{
-				"svc-a.allowed-ns.svc.cluster.local:80": "app-a",
+			expected: common.SinkMap{
+				"svc-a.allowed-ns.svc.cluster.local:80": common.Labels{
+					"environment": "", "cluster": "", "namespace": "allowed-ns", "application": "app-a",
+				},
 			},
 		},
 		{
@@ -255,8 +268,10 @@ func TestServicesToEndpointMap(t *testing.T) {
 				"default/svc-a":     "app-a",
 				"kube-system/svc-b": "app-b",
 			},
-			expected: map[string]string{
-				"svc-a.default.svc.cluster.local:80": "app-a",
+			expected: common.SinkMap{
+				"svc-a.default.svc.cluster.local:80": common.Labels{
+					"environment": "", "cluster": "", "namespace": "default", "application": "app-a",
+				},
 			},
 		},
 	}
@@ -339,7 +354,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 		k8s       *K8s
 		ingresses []networkingv1.Ingress
 		cache     map[string]string
-		expected  map[string]string
+		expected  common.SinkMap
 	}{
 		{
 			name: "HTTP rule (no TLS) uses port 80",
@@ -349,8 +364,12 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("api.example.com", map[string]string{"/": "my-svc"}),
 				),
 			},
-			cache:    map[string]string{"ns/my-svc": "my-app"},
-			expected: map[string]string{"api.example.com:80": "my-app"},
+			cache: map[string]string{"ns/my-svc": "my-app"},
+			expected: common.SinkMap{
+				"api.example.com:80": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+				},
+			},
 		},
 		{
 			name: "HTTPS rule (host in TLS) uses port 443",
@@ -360,8 +379,12 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("secure.example.com", map[string]string{"/": "my-svc"}),
 				),
 			},
-			cache:    map[string]string{"ns/my-svc": "my-app"},
-			expected: map[string]string{"secure.example.com:443": "my-app"},
+			cache: map[string]string{"ns/my-svc": "my-app"},
+			expected: common.SinkMap{
+				"secure.example.com:443": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+				},
+			},
 		},
 		{
 			name: "non-root path included in key",
@@ -375,9 +398,13 @@ func TestIngressesToEndpointMap(t *testing.T) {
 				"ns/svc-v1": "app-v1",
 				"ns/svc-v2": "app-v2",
 			},
-			expected: map[string]string{
-				"api.example.com:443/v1": "app-v1",
-				"api.example.com:443/v2": "app-v2",
+			expected: common.SinkMap{
+				"api.example.com:443/v1": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "app-v1",
+				},
+				"api.example.com:443/v2": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "app-v2",
+				},
 			},
 		},
 		{
@@ -388,8 +415,12 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("api.example.com", map[string]string{"": "my-svc"}),
 				),
 			},
-			cache:    map[string]string{"ns/my-svc": "my-app"},
-			expected: map[string]string{"api.example.com:80": "my-app"},
+			cache: map[string]string{"ns/my-svc": "my-app"},
+			expected: common.SinkMap{
+				"api.example.com:80": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+				},
+			},
 		},
 		{
 			name: "empty host rule skipped",
@@ -400,7 +431,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 				),
 			},
 			cache:    map[string]string{"ns/my-svc": "my-app"},
-			expected: map[string]string{},
+			expected: common.SinkMap{},
 		},
 		{
 			name: "backend not in cache, SkipUnknown=false -> unknown",
@@ -410,8 +441,12 @@ func TestIngressesToEndpointMap(t *testing.T) {
 					makeIngressRule("api.example.com", map[string]string{"/": "missing-svc"}),
 				),
 			},
-			cache:    map[string]string{},
-			expected: map[string]string{"api.example.com:80": "unknown"},
+			cache: map[string]string{},
+			expected: common.SinkMap{
+				"api.example.com:80": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "unknown",
+				},
+			},
 		},
 		{
 			name: "backend not in cache, SkipUnknown=true -> omitted",
@@ -422,7 +457,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 				),
 			},
 			cache:    map[string]string{},
-			expected: map[string]string{},
+			expected: common.SinkMap{},
 		},
 		{
 			name: "NsInclude filters out other namespaces",
@@ -439,7 +474,11 @@ func TestIngressesToEndpointMap(t *testing.T) {
 				"allowed/svc-a": "app-a",
 				"blocked/svc-b": "app-b",
 			},
-			expected: map[string]string{"a.example.com:80": "app-a"},
+			expected: common.SinkMap{
+				"a.example.com:80": common.Labels{
+					"environment": "", "cluster": "", "namespace": "allowed", "application": "app-a",
+				},
+			},
 		},
 		{
 			name: "NsExclude filters out excluded namespace",
@@ -456,7 +495,11 @@ func TestIngressesToEndpointMap(t *testing.T) {
 				"default/svc-a":     "app-a",
 				"kube-system/svc-b": "app-b",
 			},
-			expected: map[string]string{"a.example.com:80": "app-a"},
+			expected: common.SinkMap{
+				"a.example.com:80": common.Labels{
+					"environment": "", "cluster": "", "namespace": "default", "application": "app-a",
+				},
+			},
 		},
 		{
 			name: "rule with nil HTTP block skipped",
@@ -472,7 +515,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 				},
 			},
 			cache:    map[string]string{},
-			expected: map[string]string{},
+			expected: common.SinkMap{},
 		},
 		{
 			name: "resource backend (nil Service) skipped",
@@ -500,7 +543,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 				},
 			},
 			cache:    map[string]string{},
-			expected: map[string]string{},
+			expected: common.SinkMap{},
 		},
 	}
 

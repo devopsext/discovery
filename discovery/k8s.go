@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path"
 	"regexp"
 
@@ -84,9 +85,7 @@ func (k *K8s) Discover() {
 
 	endpoints := k.servicesToEndpointMap(services.Items, cache)
 	// Ingress entries overwrite service entries on key collision (ingresses are authoritative for host-based routing).
-	for key, app := range k.ingressesToEndpointMap(ingresses.Items, cache) {
-		endpoints[key] = app
-	}
+	maps.Copy(endpoints, k.ingressesToEndpointMap(ingresses.Items, cache))
 
 	m := common.SinkMap{}
 	//m["workload"] = k.podsToSinkMap(testPods())
@@ -211,8 +210,8 @@ func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
 	return r
 }
 
-func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]string) map[string]string {
-	r := make(map[string]string)
+func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]string) common.SinkMap {
+	r := make(common.SinkMap)
 
 	for _, svc := range services {
 		// Namespace guards applied independently of buildServiceAppCache: defensive against
@@ -237,7 +236,12 @@ func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]stri
 		fqdn := fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace)
 		for _, port := range svc.Spec.Ports {
 			key := fmt.Sprintf("%s:%d", fqdn, port.Port)
-			r[key] = application
+			r[key] = common.MergeLabels(common.Labels{
+				"environment": k.options.Environment,
+				"cluster":     k.options.ClusterName,
+				"namespace":   svc.Namespace,
+				"application": application,
+			}, k.options.CommonLabels)
 		}
 	}
 
@@ -297,8 +301,8 @@ func (k *K8s) buildServiceAppCache(services []v1.Service, labeledPods []v1.Pod) 
 	return cache
 }
 
-func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map[string]string) map[string]string {
-	r := make(map[string]string)
+func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map[string]string) common.SinkMap {
+	r := make(common.SinkMap)
 
 	for _, ing := range ingresses {
 		if !utils.IsEmpty(k.options.NsInclude) && !utils.Contains(k.options.NsInclude, ing.Namespace) {
@@ -348,7 +352,12 @@ func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map
 				} else {
 					key = fmt.Sprintf("%s:%d%s", rule.Host, port, p)
 				}
-				r[key] = application
+				r[key] = common.MergeLabels(common.Labels{
+					"environment": k.options.Environment,
+					"cluster":     k.options.ClusterName,
+					"namespace":   ing.Namespace,
+					"application": application,
+				}, k.options.CommonLabels)
 			}
 		}
 	}
