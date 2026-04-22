@@ -261,6 +261,7 @@ func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]appC
 				"cluster":     k.options.ClusterName,
 				"namespace":   svc.Namespace,
 				"application": entry.application,
+				"type":        "service",
 			}
 			if entry.component != "" {
 				labels["component"] = entry.component
@@ -387,6 +388,7 @@ func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map
 					"cluster":     k.options.ClusterName,
 					"namespace":   ing.Namespace,
 					"application": entry.application,
+					"type":        "ingress",
 				}
 				if entry.component != "" {
 					labels["component"] = entry.component

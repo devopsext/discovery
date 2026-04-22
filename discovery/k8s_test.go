@@ -319,7 +319,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"my-svc.ns.svc.cluster.local:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "service",
 				},
 			},
 		},
@@ -332,13 +332,13 @@ func TestServicesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/multi-svc": {application: "svc-app"}},
 			expected: common.SinkMap{
 				"multi-svc.ns.svc.cluster.local:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "svc-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "svc-app", "type": "service",
 				},
 				"multi-svc.ns.svc.cluster.local:8080": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "svc-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "svc-app", "type": "service",
 				},
 				"multi-svc.ns.svc.cluster.local:9090": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "svc-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "svc-app", "type": "service",
 				},
 			},
 		},
@@ -373,7 +373,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 			},
 			expected: common.SinkMap{
 				"svc-a.allowed-ns.svc.cluster.local:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "allowed-ns", "application": "app-a",
+					"environment": "", "cluster": "", "namespace": "allowed-ns", "application": "app-a", "type": "service",
 				},
 			},
 		},
@@ -390,7 +390,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 			},
 			expected: common.SinkMap{
 				"svc-a.default.svc.cluster.local:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "default", "application": "app-a",
+					"environment": "", "cluster": "", "namespace": "default", "application": "app-a", "type": "service",
 				},
 			},
 		},
@@ -404,7 +404,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 			expected: common.SinkMap{
 				"my-svc.ns.svc.cluster.local:80": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns",
-					"application": "my-app", "component": "backend",
+					"application": "my-app", "component": "backend", "type": "service",
 				},
 			},
 		},
@@ -417,7 +417,7 @@ func TestServicesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"my-svc.ns.svc.cluster.local:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "service",
 				},
 			},
 		},
@@ -555,7 +555,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "ingress",
 				},
 			},
 		},
@@ -570,7 +570,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"secure.example.com:443": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "ingress",
 				},
 			},
 		},
@@ -588,10 +588,10 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			},
 			expected: common.SinkMap{
 				"api.example.com:443/v1": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "app-v1",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "app-v1", "type": "ingress",
 				},
 				"api.example.com:443/v2": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "app-v2",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "app-v2", "type": "ingress",
 				},
 			},
 		},
@@ -606,7 +606,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "ingress",
 				},
 			},
 		},
@@ -632,7 +632,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{},
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "unknown",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "unknown", "type": "ingress",
 				},
 			},
 		},
@@ -664,7 +664,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			},
 			expected: common.SinkMap{
 				"a.example.com:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "allowed", "application": "app-a",
+					"environment": "", "cluster": "", "namespace": "allowed", "application": "app-a", "type": "ingress",
 				},
 			},
 		},
@@ -685,7 +685,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			},
 			expected: common.SinkMap{
 				"a.example.com:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "default", "application": "app-a",
+					"environment": "", "cluster": "", "namespace": "default", "application": "app-a", "type": "ingress",
 				},
 			},
 		},
@@ -761,7 +761,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "ingress",
 				},
 			},
 		},
@@ -793,7 +793,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80/api/": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "ingress",
 				},
 			},
 		},
@@ -825,7 +825,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				`api.example.com:80/api/v\d+`: common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "ingress",
 				},
 			},
 		},
@@ -857,7 +857,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80/api/v1": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "ingress",
 				},
 			},
 		},
@@ -889,7 +889,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "ingress",
 				},
 			},
 		},
@@ -905,7 +905,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns",
-					"application": "my-app", "component": "backend",
+					"application": "my-app", "component": "backend", "type": "ingress",
 				},
 			},
 		},
@@ -920,7 +920,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "ingress",
 				},
 			},
 		},
@@ -935,7 +935,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"api.example.com:443": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "ingress",
 				},
 			},
 		},
@@ -950,7 +950,7 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
 			expected: common.SinkMap{
 				"a.b.example.com:80": common.Labels{
-					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app", "type": "ingress",
 				},
 			},
 		},
