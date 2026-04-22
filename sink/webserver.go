@@ -224,9 +224,7 @@ func (ws *WebServer) processURL(url string, mux *http.ServeMux, p WebServerProce
 }
 
 func (ws *WebServer) Start(wg *sync.WaitGroup) {
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		ws.logger.Info("WebServer start...")
 
 		var caPool *x509.CertPool
@@ -291,7 +289,7 @@ func (ws *WebServer) Start(wg *sync.WaitGroup) {
 		if err != nil {
 			ws.logger.Panic(err)
 		}
-	}()
+	})
 }
 
 func (ws *WebServer) getProcessors() map[string]WebServerProcessor {

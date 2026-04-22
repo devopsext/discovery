@@ -250,7 +250,7 @@ func TestBuildServiceAppCache(t *testing.T) {
 				makeSvc("svc-a", "ns", map[string]string{"application": "app-a"}, 80),
 				makeSvc("svc-b", "ns", map[string]string{"application": "app-b"}, 8080),
 			},
-			pods:     nil,
+			pods: nil,
 			expected: map[string]appCacheEntry{
 				"ns/svc-a": {application: "app-a"},
 				"ns/svc-b": {application: "app-b"},
