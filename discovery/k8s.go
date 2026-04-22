@@ -68,16 +68,20 @@ func (k *K8s) Discover() {
 		return
 	}
 
+	var serviceItems []v1.Service
 	services, err := k.client.CoreV1().Services("").List(context.Background(), metav1.ListOptions{})
 	if err != nil {
-		k.logger.Error(err)
-		return
+		k.logger.Error("K8s services listing failed (endpoint discovery degraded): ", err)
+	} else {
+		serviceItems = services.Items
 	}
 
+	var ingressItems []networkingv1.Ingress
 	ingresses, err := k.client.NetworkingV1().Ingresses("").List(context.Background(), metav1.ListOptions{})
 	if err != nil {
-		k.logger.Error(err)
-		return
+		k.logger.Error("K8s ingresses listing failed (endpoint discovery degraded): ", err)
+	} else {
+		ingressItems = ingresses.Items
 	}
 
 	labeledPods := make([]v1.Pod, 0, len(pods.Items))
@@ -87,11 +91,11 @@ func (k *K8s) Discover() {
 		}
 	}
 
-	cache := k.buildServiceAppCache(services.Items, labeledPods)
+	cache := k.buildServiceAppCache(serviceItems, labeledPods)
 
-	endpoints := k.servicesToEndpointMap(services.Items, cache)
+	endpoints := k.servicesToEndpointMap(serviceItems, cache)
 	// Ingress entries overwrite service entries on key collision (ingresses are authoritative for host-based routing).
-	maps.Copy(endpoints, k.ingressesToEndpointMap(ingresses.Items, cache))
+	maps.Copy(endpoints, k.ingressesToEndpointMap(ingressItems, cache))
 
 	m := common.SinkMap{}
 	//m["workload"] = k.podsToSinkMap(testPods())

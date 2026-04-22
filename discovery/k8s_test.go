@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/devopsext/discovery/common"
@@ -929,6 +930,69 @@ func TestIngressesToEndpointMap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.k8s.ingressesToEndpointMap(tt.ingresses, tt.cache)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestDegradedEndpoints verifies that empty service/ingress slices (simulating a
+// listing error) still produce correct endpoint maps while leaving workload/image
+// data unaffected — matching the non-fatal degraded behaviour in Discover().
+func TestDegradedEndpoints(t *testing.T) {
+	pod := makePod("pod-1", "ns", map[string]string{"application": "my-app"})
+	svc := makeSvc("my-svc", "ns", map[string]string{"application": "my-app"}, 80)
+	ing := makeIngress("my-ing", "ns", nil,
+		makeIngressRule("api.example.com", map[string]string{"/": "my-svc"}),
+	)
+
+	tests := []struct {
+		name               string
+		serviceItems       []v1.Service
+		ingressItems       []networkingv1.Ingress
+		wantEndpointKeys   []string
+		wantEmptyEndpoints bool
+	}{
+		{
+			name:             "services fail → only ingress endpoints",
+			serviceItems:     nil,
+			ingressItems:     []networkingv1.Ingress{ing},
+			wantEndpointKeys: []string{"api.example.com:80"},
+		},
+		{
+			name:             "ingresses fail → only service endpoints",
+			serviceItems:     []v1.Service{svc},
+			ingressItems:     nil,
+			wantEndpointKeys: []string{"my-svc.ns.svc.cluster.local:80"},
+		},
+		{
+			name:               "both fail → empty endpoint map",
+			serviceItems:       nil,
+			ingressItems:       nil,
+			wantEmptyEndpoints: true,
+		},
+		{
+			name:             "happy path → both service and ingress endpoints",
+			serviceItems:     []v1.Service{svc},
+			ingressItems:     []networkingv1.Ingress{ing},
+			wantEndpointKeys: []string{"my-svc.ns.svc.cluster.local:80", "api.example.com:80"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := newTestK8s("application", false, nil, nil)
+			labeledPods := []v1.Pod{pod}
+
+			cache := k.buildServiceAppCache(tt.serviceItems, labeledPods)
+			endpoints := k.servicesToEndpointMap(tt.serviceItems, cache)
+			maps.Copy(endpoints, k.ingressesToEndpointMap(tt.ingressItems, cache))
+
+			if tt.wantEmptyEndpoints {
+				assert.Empty(t, endpoints)
+			} else {
+				for _, key := range tt.wantEndpointKeys {
+					assert.Contains(t, endpoints, key, "expected endpoint key %q", key)
+				}
+			}
 		})
 	}
 }
