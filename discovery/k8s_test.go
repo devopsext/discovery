@@ -87,6 +87,81 @@ func makeIngress(name, namespace string, tlsHosts []string, rules ...networkingv
 	}
 }
 
+func makeHTTPPath(path, svcName string, pathType *networkingv1.PathType) networkingv1.HTTPIngressPath {
+	return networkingv1.HTTPIngressPath{
+		Path:     path,
+		PathType: pathType,
+		Backend: networkingv1.IngressBackend{
+			Service: &networkingv1.IngressServiceBackend{
+				Name: svcName,
+			},
+		},
+	}
+}
+
+func TestNormalizePath(t *testing.T) {
+	prefix := networkingv1.PathTypePrefix
+	exact := networkingv1.PathTypeExact
+	impl := networkingv1.PathTypeImplementationSpecific
+
+	tests := []struct {
+		name     string
+		path     string
+		pathType *networkingv1.PathType
+		expected string
+	}{
+		{
+			name:     "Prefix pathType -> unchanged",
+			path:     "/api/v1",
+			pathType: &prefix,
+			expected: "/api/v1",
+		},
+		{
+			name:     "Exact pathType -> unchanged",
+			path:     "/api/v1",
+			pathType: &exact,
+			expected: "/api/v1",
+		},
+		{
+			name:     "nil pathType -> unchanged",
+			path:     "/api/v1",
+			pathType: nil,
+			expected: "/api/v1",
+		},
+		{
+			name:     "ImplementationSpecific with (.*) only -> empty string",
+			path:     "(.*)",
+			pathType: &impl,
+			expected: "",
+		},
+		{
+			name:     "ImplementationSpecific with /api/(.*) -> /api/",
+			path:     "/api/(.*)",
+			pathType: &impl,
+			expected: "/api/",
+		},
+		{
+			name:     "ImplementationSpecific without (.*) suffix -> unchanged",
+			path:     `/api/v\d+`,
+			pathType: &impl,
+			expected: `/api/v\d+`,
+		},
+		{
+			name:     "ImplementationSpecific with literal path -> unchanged",
+			path:     "/api/v1",
+			pathType: &impl,
+			expected: "/api/v1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizePath(tt.path, tt.pathType)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestBuildServiceAppCache(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -544,6 +619,134 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			},
 			cache:    map[string]string{},
 			expected: common.SinkMap{},
+		},
+		{
+			name: "ImplementationSpecific (.*) alone -> key without path",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing", Namespace: "ns"},
+					Spec: networkingv1.IngressSpec{
+						Rules: []networkingv1.IngressRule{
+							{
+								Host: "api.example.com",
+								IngressRuleValue: networkingv1.IngressRuleValue{
+									HTTP: &networkingv1.HTTPIngressRuleValue{
+										Paths: []networkingv1.HTTPIngressPath{
+											makeHTTPPath("(.*)", "my-svc", func() *networkingv1.PathType {
+												pt := networkingv1.PathTypeImplementationSpecific
+												return &pt
+											}()),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			cache: map[string]string{"ns/my-svc": "my-app"},
+			expected: common.SinkMap{
+				"api.example.com:80": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+				},
+			},
+		},
+		{
+			name: "ImplementationSpecific /api/(.*) -> key with /api/",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing", Namespace: "ns"},
+					Spec: networkingv1.IngressSpec{
+						Rules: []networkingv1.IngressRule{
+							{
+								Host: "api.example.com",
+								IngressRuleValue: networkingv1.IngressRuleValue{
+									HTTP: &networkingv1.HTTPIngressRuleValue{
+										Paths: []networkingv1.HTTPIngressPath{
+											makeHTTPPath("/api/(.*)", "my-svc", func() *networkingv1.PathType {
+												pt := networkingv1.PathTypeImplementationSpecific
+												return &pt
+											}()),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			cache: map[string]string{"ns/my-svc": "my-app"},
+			expected: common.SinkMap{
+				"api.example.com:80/api/": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+				},
+			},
+		},
+		{
+			name: "ImplementationSpecific without (.*) suffix -> key uses raw path",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing", Namespace: "ns"},
+					Spec: networkingv1.IngressSpec{
+						Rules: []networkingv1.IngressRule{
+							{
+								Host: "api.example.com",
+								IngressRuleValue: networkingv1.IngressRuleValue{
+									HTTP: &networkingv1.HTTPIngressRuleValue{
+										Paths: []networkingv1.HTTPIngressPath{
+											makeHTTPPath(`/api/v\d+`, "my-svc", func() *networkingv1.PathType {
+												pt := networkingv1.PathTypeImplementationSpecific
+												return &pt
+											}()),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			cache: map[string]string{"ns/my-svc": "my-app"},
+			expected: common.SinkMap{
+				`api.example.com:80/api/v\d+`: common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+				},
+			},
+		},
+		{
+			name: "Prefix pathType with non-root path -> unchanged",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing", Namespace: "ns"},
+					Spec: networkingv1.IngressSpec{
+						Rules: []networkingv1.IngressRule{
+							{
+								Host: "api.example.com",
+								IngressRuleValue: networkingv1.IngressRuleValue{
+									HTTP: &networkingv1.HTTPIngressRuleValue{
+										Paths: []networkingv1.HTTPIngressPath{
+											makeHTTPPath("/api/v1", "my-svc", func() *networkingv1.PathType {
+												pt := networkingv1.PathTypePrefix
+												return &pt
+											}()),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			cache: map[string]string{"ns/my-svc": "my-app"},
+			expected: common.SinkMap{
+				"api.example.com:80/api/v1": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+				},
+			},
 		},
 	}
 

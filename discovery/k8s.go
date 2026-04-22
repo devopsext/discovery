@@ -6,6 +6,7 @@ import (
 	"maps"
 	"path"
 	"regexp"
+	"strings"
 
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
@@ -164,6 +165,18 @@ func extractImageNameAndTag(url string) (string, string, error) {
 	}
 
 	return imageName, tag, nil
+}
+
+// normalizePath normalizes an ingress path for use as an endpoint key.
+// For ImplementationSpecific paths ending with "(.*)", the suffix is stripped.
+// All other paths are returned unchanged.
+func normalizePath(p string, pathType *networkingv1.PathType) string {
+	if pathType != nil && *pathType == networkingv1.PathTypeImplementationSpecific {
+		if strings.HasSuffix(p, "(.*)") {
+			p = p[:len(p)-4]
+		}
+	}
+	return p
 }
 
 func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
@@ -345,7 +358,7 @@ func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map
 					application = "unknown"
 				}
 
-				p := hp.Path
+				p := normalizePath(hp.Path, hp.PathType)
 				var key string
 				if p == "" || p == "/" {
 					key = fmt.Sprintf("%s:%d", rule.Host, port)
