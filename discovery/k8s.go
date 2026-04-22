@@ -172,9 +172,7 @@ func extractImageNameAndTag(url string) (string, string, error) {
 // All other paths are returned unchanged.
 func normalizePath(p string, pathType *networkingv1.PathType) string {
 	if pathType != nil && *pathType == networkingv1.PathTypeImplementationSpecific {
-		if strings.HasSuffix(p, "(.*)") {
-			p = p[:len(p)-4]
-		}
+		p = strings.TrimSuffix(p, "(.*)")
 	}
 	return p
 }
