@@ -311,6 +311,7 @@ func (k *K8s) buildServiceAppCache(services []v1.Service, labeledPods []v1.Pod) 
 				continue
 			}
 			application = "unknown"
+			component = ""
 		}
 
 		cache[svc.Namespace+"/"+svc.Name] = appCacheEntry{
