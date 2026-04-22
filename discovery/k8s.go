@@ -252,12 +252,16 @@ func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]appC
 		fqdn := fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace)
 		for _, port := range svc.Spec.Ports {
 			key := fmt.Sprintf("%s:%d", fqdn, port.Port)
-			r[key] = common.MergeLabels(common.Labels{
+			labels := common.Labels{
 				"environment": k.options.Environment,
 				"cluster":     k.options.ClusterName,
 				"namespace":   svc.Namespace,
 				"application": entry.application,
-			}, k.options.CommonLabels)
+			}
+			if entry.component != "" {
+				labels["component"] = entry.component
+			}
+			r[key] = common.MergeLabels(labels, k.options.CommonLabels)
 		}
 	}
 
@@ -374,12 +378,16 @@ func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map
 				} else {
 					key = fmt.Sprintf("%s:%d%s", rule.Host, port, p)
 				}
-				r[key] = common.MergeLabels(common.Labels{
+				labels := common.Labels{
 					"environment": k.options.Environment,
 					"cluster":     k.options.ClusterName,
 					"namespace":   ing.Namespace,
 					"application": entry.application,
-				}, k.options.CommonLabels)
+				}
+				if entry.component != "" {
+					labels["component"] = entry.component
+				}
+				r[key] = common.MergeLabels(labels, k.options.CommonLabels)
 			}
 		}
 	}
