@@ -924,11 +924,106 @@ func TestIngressesToEndpointMap(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "wildcard TLS host matches single-label subdomain -> port 443",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				makeIngress("ing", "ns", []string{"*.example.com"},
+					makeIngressRule("api.example.com", map[string]string{"/": "my-svc"}),
+				),
+			},
+			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
+			expected: common.SinkMap{
+				"api.example.com:443": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+				},
+			},
+		},
+		{
+			name: "wildcard TLS host does not match two-label subdomain -> port 80",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				makeIngress("ing", "ns", []string{"*.example.com"},
+					makeIngressRule("a.b.example.com", map[string]string{"/": "my-svc"}),
+				),
+			},
+			cache: map[string]appCacheEntry{"ns/my-svc": {application: "my-app"}},
+			expected: common.SinkMap{
+				"a.b.example.com:80": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.k8s.ingressesToEndpointMap(tt.ingresses, tt.cache)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestTlsCoversHost(t *testing.T) {
+	tests := []struct {
+		name     string
+		tlsHosts map[string]bool
+		host     string
+		expected bool
+	}{
+		{
+			name:     "exact match returns true",
+			tlsHosts: map[string]bool{"api.example.com": true},
+			host:     "api.example.com",
+			expected: true,
+		},
+		{
+			name:     "wildcard single-label match returns true",
+			tlsHosts: map[string]bool{"*.example.com": true},
+			host:     "api.example.com",
+			expected: true,
+		},
+		{
+			name:     "wildcard does not match two-label subdomain",
+			tlsHosts: map[string]bool{"*.example.com": true},
+			host:     "a.b.example.com",
+			expected: false,
+		},
+		{
+			name:     "wildcard does not match bare domain (empty label)",
+			tlsHosts: map[string]bool{"*.example.com": true},
+			host:     "example.com",
+			expected: false,
+		},
+		{
+			name:     "no TLS entries returns false",
+			tlsHosts: map[string]bool{},
+			host:     "api.example.com",
+			expected: false,
+		},
+		{
+			name:     "non-matching exact entry returns false",
+			tlsHosts: map[string]bool{"other.example.com": true},
+			host:     "api.example.com",
+			expected: false,
+		},
+		{
+			name:     "bare wildcard * does not match",
+			tlsHosts: map[string]bool{"*": true},
+			host:     "api.example.com",
+			expected: false,
+		},
+		{
+			name:     "multiple entries, one wildcard matches",
+			tlsHosts: map[string]bool{"other.example.com": true, "*.example.com": true},
+			host:     "api.example.com",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tlsCoversHost(tt.tlsHosts, tt.host)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

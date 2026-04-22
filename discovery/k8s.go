@@ -358,7 +358,7 @@ func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map
 			}
 
 			port := 80
-			if tlsHosts[rule.Host] {
+			if tlsCoversHost(tlsHosts, rule.Host) {
 				port = 443
 			}
 
@@ -397,6 +397,25 @@ func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map
 	}
 
 	return r
+}
+
+func tlsCoversHost(tlsHosts map[string]bool, host string) bool {
+	if tlsHosts[host] {
+		return true
+	}
+	for tlsHost := range tlsHosts {
+		if !strings.HasPrefix(tlsHost, "*.") {
+			continue
+		}
+		suffix := tlsHost[1:] // e.g. ".example.com"
+		if strings.HasSuffix(host, suffix) {
+			label := host[:len(host)-len(suffix)]
+			if label != "" && !strings.Contains(label, ".") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (k *K8s) Name() string {
