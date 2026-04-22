@@ -152,6 +152,12 @@ func TestNormalizePath(t *testing.T) {
 			pathType: &impl,
 			expected: "/api/v1",
 		},
+		{
+			name:     "ImplementationSpecific with /(.*) -> / (nginx root catch-all)",
+			path:     "/(.*)",
+			pathType: &impl,
+			expected: "/",
+		},
 	}
 
 	for _, tt := range tests {
@@ -744,6 +750,38 @@ func TestIngressesToEndpointMap(t *testing.T) {
 			cache: map[string]string{"ns/my-svc": "my-app"},
 			expected: common.SinkMap{
 				"api.example.com:80/api/v1": common.Labels{
+					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
+				},
+			},
+		},
+		{
+			name: "ImplementationSpecific /(.*) -> key without path (nginx root catch-all)",
+			k8s:  newTestK8s("application", false, nil, nil),
+			ingresses: []networkingv1.Ingress{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing", Namespace: "ns"},
+					Spec: networkingv1.IngressSpec{
+						Rules: []networkingv1.IngressRule{
+							{
+								Host: "api.example.com",
+								IngressRuleValue: networkingv1.IngressRuleValue{
+									HTTP: &networkingv1.HTTPIngressRuleValue{
+										Paths: []networkingv1.HTTPIngressPath{
+											makeHTTPPath("/(.*)", "my-svc", func() *networkingv1.PathType {
+												pt := networkingv1.PathTypeImplementationSpecific
+												return &pt
+											}()),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			cache: map[string]string{"ns/my-svc": "my-app"},
+			expected: common.SinkMap{
+				"api.example.com:80": common.Labels{
 					"environment": "", "cluster": "", "namespace": "ns", "application": "my-app",
 				},
 			},
