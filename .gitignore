@@ -44,8 +44,10 @@ signal.telegraf.quality.query.tpl
 signal.telegraf.tags.tpl
 signal.vars.tpl
 pubsub-catalog.json
-.assets
-.assets2
+.assets/
+.assets2/
+.claude/
+.junie/
 .query
 .pubsub
 .files

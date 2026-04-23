@@ -17,9 +17,9 @@ func TestURL_ParseURL(t *testing.T) {
 	}{
 		{
 			name:      "Full URL",
-			s:         "https://user:pass@example.com/path",
+			s:         "https://user:pass@example.com/path", // #nosec G101
 			defSchema: "http",
-			expected:  "https://user:pass@example.com/path",
+			expected:  "https://user:pass@example.com/path", // #nosec G101
 			user:      "user",
 			pass:      "pass",
 		},

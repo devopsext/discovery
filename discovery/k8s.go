@@ -3,13 +3,16 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path"
 	"regexp"
+	"strings"
 
 	"github.com/devopsext/discovery/common"
 	sreCommon "github.com/devopsext/sre/common"
 	"github.com/devopsext/utils"
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -50,6 +53,11 @@ func (kso *K8sSinkObject) Options() any {
 	return kso.k8s.options
 }
 
+type appCacheEntry struct {
+	application string
+	component   string
+}
+
 func (k *K8s) Discover() {
 
 	k.logger.Debug("K8s has to discover...")
@@ -60,11 +68,41 @@ func (k *K8s) Discover() {
 		return
 	}
 
+	var serviceItems []v1.Service
+	services, err := k.client.CoreV1().Services("").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		k.logger.Error("K8s services listing failed (endpoint discovery degraded): ", err)
+	} else {
+		serviceItems = services.Items
+	}
+
+	var ingressItems []networkingv1.Ingress
+	ingresses, err := k.client.NetworkingV1().Ingresses("").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		k.logger.Error("K8s ingresses listing failed (endpoint discovery degraded): ", err)
+	} else {
+		ingressItems = ingresses.Items
+	}
+
+	labeledPods := make([]v1.Pod, 0, len(pods.Items))
+	for _, pod := range pods.Items {
+		if !utils.IsEmpty(pod.Labels[k.options.AppLabel]) {
+			labeledPods = append(labeledPods, pod)
+		}
+	}
+
+	cache := k.buildServiceAppCache(serviceItems, labeledPods)
+
+	endpoints := k.servicesToEndpointMap(serviceItems, cache)
+	// Ingress entries overwrite service entries on key collision (ingresses are authoritative for host-based routing).
+	maps.Copy(endpoints, k.ingressesToEndpointMap(ingressItems, cache))
+
 	m := common.SinkMap{}
 	//m["workload"] = k.podsToSinkMap(testPods())
 	//m["image"] = k.podImagesToSinkMap(testPods())
 	m["workload"] = k.podsToSinkMap(pods.Items)
 	m["image"] = k.podImagesToSinkMap(pods.Items)
+	m["endpoint"] = endpoints
 
 	k.processors.Process(k, &K8sSinkObject{
 		sinkMap: m,
@@ -138,6 +176,16 @@ func extractImageNameAndTag(url string) (string, string, error) {
 	return imageName, tag, nil
 }
 
+// normalizePath normalizes an ingress path for use as an endpoint key.
+// For ImplementationSpecific paths ending with "(.*)", the suffix is stripped.
+// All other paths are returned unchanged.
+func normalizePath(p string, pathType *networkingv1.PathType) string {
+	if pathType != nil && *pathType == networkingv1.PathTypeImplementationSpecific {
+		p = strings.TrimSuffix(p, "(.*)")
+	}
+	return p
+}
+
 func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
 	r := make(common.SinkMap)
 
@@ -180,6 +228,196 @@ func (k *K8s) podImagesToSinkMap(pods []v1.Pod) common.SinkMap {
 	}
 
 	return r
+}
+
+func (k *K8s) servicesToEndpointMap(services []v1.Service, cache map[string]appCacheEntry) common.SinkMap {
+	r := make(common.SinkMap)
+
+	for _, svc := range services {
+		// Namespace guards applied independently of buildServiceAppCache: defensive against
+		// callers that pass a more permissive cache than current filter options would produce.
+		if !utils.IsEmpty(k.options.NsInclude) && !utils.Contains(k.options.NsInclude, svc.Namespace) {
+			continue
+		}
+		if !utils.IsEmpty(k.options.NsExclude) && utils.Contains(k.options.NsExclude, svc.Namespace) {
+			continue
+		}
+		// Dead code in normal use: buildServiceAppCache already excludes empty-selector services,
+		// so they are never in the cache. Kept as a backstop if the cache contract changes.
+		if len(svc.Spec.Selector) == 0 {
+			continue
+		}
+
+		entry, ok := cache[svc.Namespace+"/"+svc.Name]
+		if !ok {
+			continue
+		}
+
+		fqdn := fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace)
+		for _, port := range svc.Spec.Ports {
+			key := fmt.Sprintf("%s:%d", fqdn, port.Port)
+			labels := common.Labels{
+				"environment": k.options.Environment,
+				"cluster":     k.options.ClusterName,
+				"namespace":   svc.Namespace,
+				"application": entry.application,
+				"type":        "service",
+			}
+			if entry.component != "" {
+				labels["component"] = entry.component
+			}
+			r[key] = common.MergeLabels(labels, k.options.CommonLabels)
+		}
+	}
+
+	return r
+}
+
+// findLabelsFromPods returns the AppLabel and ComponentLabel values from the first
+// pod in namespace whose labels contain all selector key/value pairs.
+// pods should be pre-filtered to only those with AppLabel set.
+func (k *K8s) findLabelsFromPods(pods []v1.Pod, namespace string, selector map[string]string) (application, component string) {
+	for _, pod := range pods {
+		if pod.Namespace != namespace {
+			continue
+		}
+		match := true
+		for sk, sv := range selector {
+			if pod.Labels[sk] != sv {
+				match = false
+				break
+			}
+		}
+		if match {
+			return pod.Labels[k.options.AppLabel], pod.Labels[k.options.ComponentLabel]
+		}
+	}
+	return "", ""
+}
+
+func (k *K8s) buildServiceAppCache(services []v1.Service, labeledPods []v1.Pod) map[string]appCacheEntry {
+	cache := make(map[string]appCacheEntry, len(services))
+
+	for _, svc := range services {
+		if !utils.IsEmpty(k.options.NsInclude) && !utils.Contains(k.options.NsInclude, svc.Namespace) {
+			continue
+		}
+		if !utils.IsEmpty(k.options.NsExclude) && utils.Contains(k.options.NsExclude, svc.Namespace) {
+			continue
+		}
+		if len(svc.Spec.Selector) == 0 {
+			continue
+		}
+
+		application := svc.Spec.Selector[k.options.AppLabel]
+		component := svc.Spec.Selector[k.options.ComponentLabel]
+
+		if utils.IsEmpty(application) {
+			application, component = k.findLabelsFromPods(labeledPods, svc.Namespace, svc.Spec.Selector)
+		}
+		if utils.IsEmpty(application) {
+			if k.options.SkipUnknown {
+				continue
+			}
+			application = "unknown"
+			component = ""
+		}
+
+		cache[svc.Namespace+"/"+svc.Name] = appCacheEntry{
+			application: application,
+			component:   component,
+		}
+	}
+
+	return cache
+}
+
+func (k *K8s) ingressesToEndpointMap(ingresses []networkingv1.Ingress, cache map[string]appCacheEntry) common.SinkMap {
+	r := make(common.SinkMap)
+
+	for _, ing := range ingresses {
+		if !utils.IsEmpty(k.options.NsInclude) && !utils.Contains(k.options.NsInclude, ing.Namespace) {
+			continue
+		}
+		if !utils.IsEmpty(k.options.NsExclude) && utils.Contains(k.options.NsExclude, ing.Namespace) {
+			continue
+		}
+
+		tlsHosts := make(map[string]bool)
+		for _, tls := range ing.Spec.TLS {
+			for _, host := range tls.Hosts {
+				tlsHosts[host] = true
+			}
+		}
+
+		for _, rule := range ing.Spec.Rules {
+			if utils.IsEmpty(rule.Host) {
+				continue
+			}
+			if rule.HTTP == nil {
+				continue
+			}
+
+			port := 80
+			if tlsCoversHost(tlsHosts, rule.Host) {
+				port = 443
+			}
+
+			for _, hp := range rule.HTTP.Paths {
+				if hp.Backend.Service == nil {
+					continue
+				}
+				svcName := hp.Backend.Service.Name
+				entry, ok := cache[ing.Namespace+"/"+svcName]
+				if !ok {
+					if k.options.SkipUnknown {
+						continue
+					}
+					entry = appCacheEntry{application: "unknown"}
+				}
+
+				p := normalizePath(hp.Path, hp.PathType)
+				var key string
+				if p == "" || p == "/" {
+					key = fmt.Sprintf("%s:%d", rule.Host, port)
+				} else {
+					key = fmt.Sprintf("%s:%d%s", rule.Host, port, p)
+				}
+				labels := common.Labels{
+					"environment": k.options.Environment,
+					"cluster":     k.options.ClusterName,
+					"namespace":   ing.Namespace,
+					"application": entry.application,
+					"type":        "ingress",
+				}
+				if entry.component != "" {
+					labels["component"] = entry.component
+				}
+				r[key] = common.MergeLabels(labels, k.options.CommonLabels)
+			}
+		}
+	}
+
+	return r
+}
+
+func tlsCoversHost(tlsHosts map[string]bool, host string) bool {
+	if tlsHosts[host] {
+		return true
+	}
+	for tlsHost := range tlsHosts {
+		if !strings.HasPrefix(tlsHost, "*.") {
+			continue
+		}
+		suffix := tlsHost[1:] // e.g. ".example.com"
+		if strings.HasSuffix(host, suffix) {
+			label := host[:len(host)-len(suffix)]
+			if label != "" && !strings.Contains(label, ".") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (k *K8s) Name() string {
